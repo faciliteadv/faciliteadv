@@ -1,0 +1,213 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Plan {
+  id            String         @id @default(uuid())
+  name          String
+  maxClients    Int?
+  maxProcesses  Int?
+  maxStorageMB  Int?
+  price         Decimal
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id        String    @id @default(uuid())
+  userId    String    @unique
+  planId    String
+  status    String
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  plan      Plan      @relation(fields: [planId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+}
+
+model User {
+  id           String        @id @default(uuid())
+  email        String        @unique
+  name         String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  clients      Client[]
+  processes    Process[]
+  subscription Subscription?
+  taskCards    TaskCard[]
+  appointments Appointment[]
+}
+
+model Client {
+  id                 String            @id @default(uuid())
+  type               ClientType        @default(PF)
+  name               String
+  cpfCnpj            String?
+  rg                 String?
+  ctps               String?
+  pis                String?
+  govAccessPassword  String?
+  email              String?
+  whatsapp           String?
+  address            Json?
+  contacts           Json?
+  acquisitionChannel String?
+  status             ClientStatus      @default(NEW_LEAD)
+  notes              String?
+  userId             String
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  deletedAt          DateTime?
+  user               User              @relation(fields: [userId], references: [id])
+  financial          FinancialRecord[]
+  processes          Process[]
+  tasks              TaskCard[]
+  appointments       Appointment[]
+
+  @@index([userId])
+  @@index([cpfCnpj])
+}
+
+model Process {
+  id               String            @id @default(uuid())
+  folderName       String?
+  number           String
+  area             String
+  subject          String?
+  courtLink        String?
+  status           ProcessStatus     @default(ACTIVE)
+  distributionDate DateTime?
+  clientId         String
+  userId           String
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  deletedAt        DateTime?
+  financial        FinancialRecord[]
+  client           Client            @relation(fields: [clientId], references: [id])
+  user             User              @relation(fields: [userId], references: [id])
+  tasks            TaskCard[]
+  appointments     Appointment[]
+
+  @@index([userId])
+  @@index([clientId])
+}
+
+model TaskCard {
+  id          String    @id @default(uuid())
+  title       String
+  description String?
+  type        TaskType  @default(INTERNAL)
+  phase       TaskPhase @default(TODO)
+  startDate   DateTime?
+  endDate     DateTime?
+  fatalDate   DateTime?
+  isArchived  Boolean   @default(false)
+  clientId    String?
+  processId   String?
+  userId      String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  client      Client?   @relation(fields: [clientId], references: [id])
+  process     Process?  @relation(fields: [processId], references: [id])
+  user        User      @relation(fields: [userId], references: [id])
+  tags        Tag[]     @relation("TagToTaskCard")
+
+  @@index([userId])
+  @@index([fatalDate])
+  @@index([phase])
+}
+
+model Tag {
+  id     String     @id @default(uuid())
+  name   String
+  color  String
+  userId String
+  tasks  TaskCard[] @relation("TagToTaskCard")
+}
+
+model FinancialRecord {
+  id          String    @id @default(uuid())
+  type        String
+  amount      Decimal
+  dueDate     DateTime
+  paidAt      DateTime?
+  description String?
+  clientId    String
+  processId   String?
+  userId      String
+  createdAt   DateTime  @default(now())
+  client      Client    @relation(fields: [clientId], references: [id])
+  process     Process?  @relation(fields: [processId], references: [id])
+}
+
+enum ClientType {
+  PF
+  PJ
+}
+
+enum ClientStatus {
+  NEW_LEAD
+  NEGOTIATING
+  CONVERTED
+  ACTIVE
+  INACTIVE
+}
+
+enum ProcessStatus {
+  CONSTRUCTION
+  ACTIVE
+  APPEAL
+  SETTLEMENT
+  ARCHIVED
+  EXTINCT
+}
+
+enum TaskPhase {
+  TODO
+  DOING
+  REVIEW
+  REFACTOR
+  WAITING_DOCS
+  PROTOCOL
+  PROTOCOLLED
+}
+
+enum TaskType {
+  DEADLINE
+  INTERNAL
+}
+
+model Appointment {
+  id          String          @id @default(uuid())
+  title       String
+  description String?
+  startAt     DateTime
+  endAt       DateTime
+  type        AppointmentType @default(MEETING)
+  location    String?
+  clientId    String?
+  processId   String?
+  userId      String
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  client  Client?  @relation(fields: [clientId], references: [id])
+  process Process? @relation(fields: [processId], references: [id])
+  user    User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([startAt])
+}
+
+enum AppointmentType {
+  MEETING
+  HEARING
+  DEADLINE
+}
