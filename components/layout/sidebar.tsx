@@ -1,16 +1,16 @@
 import Link from "next/link"
-import { Home, Users, FileText, Calendar, DollarSign, Settings } from "lucide-react"
+import { Home, Users, FileText, Calendar, DollarSign, Settings, LayoutDashboard } from "lucide-react"
 
 export function Sidebar() {
     return (
         <aside className="w-64 bg-slate-900 text-white flex flex-col h-full">
             <div className="p-6 border-b border-slate-800">
                 <h1 className="text-2xl font-bold tracking-tight text-blue-400">FaciliteADV</h1>
-                <p className="text-xs text-slate-400 mt-1">Gestão Jurídica Inteligente</p>
+                <p className="text-xs text-slate-400 mt-1">Facilite sua advocacia</p>
             </div>
 
             <nav className="flex-1 p-4 space-y-2">
-                <Link href="/" className="flex items-center gap-3 px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition-colors">
+                <Link href="/dashboard" className="flex items-center gap-3 px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition-colors">
                     <Home className="w-5 h-5" />
                     <span>Dashboard</span>
                 </Link>
@@ -30,7 +30,11 @@ export function Sidebar() {
                     <span>Agenda</span>
                 </Link>
 
-                {/* Future */}
+                <Link href="/kanban" className="flex items-center gap-3 px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition-colors">
+                    <LayoutDashboard className="w-5 h-5" />
+                    <span>Kanban</span>
+                </Link>
+
                 <Link href="/financial" className="flex items-center gap-3 px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition-colors">
                     <DollarSign className="w-5 h-5" />
                     <span>Financeiro</span>
