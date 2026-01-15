@@ -1,0 +1,4 @@
+NEXT_PUBLIC_SUPABASE_URL="https://smjzkohukeopazajfxtb.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtanprb2h1a2VvcGF6YWpmeHRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc0NzE5OTEsImV4cCI6MjA4MzA0Nzk5MX0.3BUyjExCWx_alPvDcmKAKHAqMiIlr9fZa0nQgnEMetE"
+DATABASE_URL="postgres://postgres:FaciliteAdv_2026_Secure@db.smjzkohukeopazajfxtb.supabase.co:5432/postgres"
+DIRECT_URL="postgres://postgres:FaciliteAdv_2026_Secure@db.smjzkohukeopazajfxtb.supabase.co:5432/postgres"

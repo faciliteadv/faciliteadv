@@ -1,0 +1,11 @@
+# RENOMEIE ESTE ARQUIVO PARA .env.local
+
+# Recuperado de test-db.js
+DATABASE_URL="postgres://facilite_app.smjzkohukeopazajfxtb:FaciliteAdv_2026_Secure@aws-0-sa-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
+DIRECT_URL="postgres://facilite_app.smjzkohukeopazajfxtb:FaciliteAdv_2026_Secure@aws-0-sa-east-1.pooler.supabase.com:5432/postgres"
+
+# URL inferida do ID do projeto
+NEXT_PUBLIC_SUPABASE_URL="https://smjzkohukeopazajfxtb.supabase.co"
+
+# Recuperada automaticamente usando seu token pessoal
+NEXT_PUBLIC_SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtanprb2h1a2VvcGF6YWpmeHRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc0NzE5OTEsImV4cCI6MjA4MzA0Nzk5MX0.3BUyjExCWx_alPvDcmKAKHAqMiIlr9fZa0nQgnEMetE"
