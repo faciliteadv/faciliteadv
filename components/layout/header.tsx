@@ -13,26 +13,26 @@ export async function Header() {
     const initials = userName.slice(0, 2).toUpperCase()
 
     return (
-        <header className="h-16 border-b bg-white flex items-center justify-between px-6 shadow-sm">
-            <div className="text-sm font-medium text-slate-500">
-                Bem-vindo de volta, <span className="text-slate-700">{userName}</span>
+        <header className="h-16 border-b border-border bg-background/50 backdrop-blur-sm flex items-center justify-between px-6 shadow-sm sticky top-0 z-10 transition-all">
+            <div className="text-sm font-medium text-muted-foreground">
+                Bem-vindo de volta, <span className="text-foreground font-semibold">{userName}</span>
             </div>
 
             <div className="flex items-center gap-4">
                 <form action={logout}>
-                    <Button variant="ghost" size="sm" className="text-slate-600 hover:text-red-600">
+                    <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive hover:bg-destructive/10">
                         <LogOut className="h-4 w-4 mr-2" />
                         Sair
                     </Button>
                 </form>
-                <div className="flex items-center gap-2 border-l pl-4">
+                <div className="flex items-center gap-2 border-l border-border pl-4">
                     <div className="text-right hidden md:block">
-                        <p className="text-sm font-medium text-slate-900">{userName}</p>
-                        <p className="text-xs text-slate-500">{userEmail}</p>
+                        <p className="text-sm font-medium text-foreground">{userName}</p>
+                        <p className="text-xs text-muted-foreground">{userEmail}</p>
                     </div>
-                    <Avatar>
+                    <Avatar className="h-9 w-9 border-2 border-background shadow-sm">
                         <AvatarImage src="" />
-                        <AvatarFallback className="bg-blue-600 text-white">{initials}</AvatarFallback>
+                        <AvatarFallback className="bg-primary text-primary-foreground font-bold">{initials}</AvatarFallback>
                     </Avatar>
                 </div>
             </div>

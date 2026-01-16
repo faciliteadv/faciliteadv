@@ -1,6 +1,6 @@
 import { db } from "@/lib/db"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users, Briefcase, CalendarCheck, Clock } from "lucide-react"
+import { Users, Briefcase, CalendarCheck, Clock, ArrowUpRight } from "lucide-react"
 import { createClient } from "@/utils/supabase/server"
 import { redirect } from "next/navigation"
 
@@ -43,56 +43,92 @@ export default async function DashboardPage() {
     })
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-8 animate-in fade-in duration-500">
             <div>
-                <h2 className="text-3xl font-bold tracking-tight text-slate-900">Visão Geral</h2>
-                <p className="text-slate-500 mt-1">Bem-vindo de volta! Aqui está o resumo do seu escritório.</p>
+                <h2 className="text-3xl font-bold tracking-tight text-foreground">Visão Geral</h2>
+                <p className="text-muted-foreground mt-1">Bem-vindo de volta! Aqui está o resumo do seu escritório.</p>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <Card className="border-l-4 border-l-blue-500">
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+                <Card className="border-l-4 border-l-chart-1 shadow-sm hover:shadow-md transition-shadow">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Processos Ativos</CardTitle>
-                        <Briefcase className="h-4 w-4 text-blue-600" />
+                        <CardTitle className="text-sm font-medium text-muted-foreground">Processos Ativos</CardTitle>
+                        <Briefcase className="h-4 w-4 text-chart-1" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{processCount}</div>
-                        <p className="text-xs text-muted-foreground">processos em andamento</p>
+                        <div className="text-2xl font-bold text-foreground">{processCount}</div>
+                        <p className="text-xs text-muted-foreground mt-1">processos em andamento</p>
                     </CardContent>
                 </Card>
 
-                <Card className="border-l-4 border-l-green-500">
+                <Card className="border-l-4 border-l-chart-2 shadow-sm hover:shadow-md transition-shadow">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Clientes</CardTitle>
-                        <Users className="h-4 w-4 text-green-600" />
+                        <CardTitle className="text-sm font-medium text-muted-foreground">Clientes</CardTitle>
+                        <Users className="h-4 w-4 text-chart-2" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{clientCount}</div>
-                        <p className="text-xs text-muted-foreground">clientes cadastrados</p>
+                        <div className="text-2xl font-bold text-foreground">{clientCount}</div>
+                        <p className="text-xs text-muted-foreground mt-1">clientes cadastrados</p>
                     </CardContent>
                 </Card>
 
-                <Card className="border-l-4 border-l-yellow-500">
+                <Card className="border-l-4 border-l-chart-3 shadow-sm hover:shadow-md transition-shadow">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Tarefas Pendentes</CardTitle>
-                        <CalendarCheck className="h-4 w-4 text-yellow-600" />
+                        <CardTitle className="text-sm font-medium text-muted-foreground">Tarefas Pendentes</CardTitle>
+                        <CalendarCheck className="h-4 w-4 text-chart-3" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{activeTaskCount}</div>
-                        <p className="text-xs text-muted-foreground">
-                            {fatalDeadlineCount > 0 ? `${fatalDeadlineCount} com prazo fatal` : 'nenhum prazo fatal'}
+                        <div className="text-2xl font-bold text-foreground">{activeTaskCount}</div>
+                        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                            {fatalDeadlineCount > 0 ? (
+                                <span className="text-destructive font-medium">{fatalDeadlineCount} com prazo fatal</span>
+                            ) : (
+                                'nenhum prazo fatal'
+                            )}
                         </p>
                     </CardContent>
                 </Card>
 
-                <Card className="border-l-4 border-l-purple-500">
+                <Card className="border-l-4 border-l-chart-4 shadow-sm hover:shadow-md transition-shadow">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Compromissos Hoje</CardTitle>
-                        <Clock className="h-4 w-4 text-purple-600" />
+                        <CardTitle className="text-sm font-medium text-muted-foreground">Compromissos Hoje</CardTitle>
+                        <Clock className="h-4 w-4 text-chart-4" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{appointmentsToday}</div>
-                        <p className="text-xs text-muted-foreground">agendados para hoje</p>
+                        <div className="text-2xl font-bold text-foreground">{appointmentsToday}</div>
+                        <p className="text-xs text-muted-foreground mt-1">agendados para hoje</p>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* Recent Activity Section Placeholder */}
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
+                <Card className="col-span-4 border border-border shadow-sm">
+                    <CardHeader>
+                        <CardTitle>Atividade Recente</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="h-[200px] flex items-center justify-center text-muted-foreground border-2 border-dashed border-muted rounded-lg bg-muted/20">
+                            Gráfico de Atividade (Em breve)
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className="col-span-3 border border-border shadow-sm">
+                    <CardHeader>
+                        <CardTitle>Próximos Prazos</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-4">
+                            {[1, 2, 3].map((_, i) => (
+                                <div key={i} className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-chart-1" />
+                                        <span className="text-sm font-medium">Prazo Processual {i + 1}</span>
+                                    </div>
+                                    <span className="text-xs text-muted-foreground">Amanhã</span>
+                                </div>
+                            ))}
+                        </div>
                     </CardContent>
                 </Card>
             </div>

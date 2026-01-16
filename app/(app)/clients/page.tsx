@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { SearchInput } from "@/components/ui/SearchInput"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Plus, MoreHorizontal, MessageCircle } from "lucide-react"
+import { Plus, MoreHorizontal, MessageCircle, Users } from "lucide-react"
 
 export const dynamic = 'force-dynamic'
 
@@ -27,42 +27,45 @@ export default async function ClientsPage({ searchParams }: PageProps) {
     const clients = await ClientService.getClients(userId, search)
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 animate-in fade-in duration-500">
             <div className="flex items-center justify-between">
-                <h2 className="text-3xl font-bold tracking-tight text-slate-900">Clientes</h2>
-                <Button className="bg-blue-600 hover:bg-blue-700">
+                <div>
+                    <h2 className="text-3xl font-bold tracking-tight text-foreground">Clientes</h2>
+                    <p className="text-muted-foreground mt-1">Gerencie sua base de clientes e leads.</p>
+                </div>
+                <Button className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm">
                     <Plus className="mr-2 h-4 w-4" /> Novo Cliente
                 </Button>
             </div>
 
             <div className="flex items-center gap-4">
-                <SearchInput placeholder="Buscar por nome ou CPF..." />
+                <SearchInput placeholder="Buscar por nome ou CPF..." className="max-w-md" />
             </div>
 
-            <div className="rounded-md border bg-white">
+            <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
                 <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Nome</TableHead>
-                            <TableHead>CPF/CNPJ</TableHead>
-                            <TableHead>Contato</TableHead>
-                            <TableHead>Status</TableHead>
+                    <TableHeader className="bg-muted/50">
+                        <TableRow className="hover:bg-muted/50 border-border">
+                            <TableHead className="text-muted-foreground font-medium">Nome</TableHead>
+                            <TableHead className="text-muted-foreground font-medium">CPF/CNPJ</TableHead>
+                            <TableHead className="text-muted-foreground font-medium">Contato</TableHead>
+                            <TableHead className="text-muted-foreground font-medium">Status</TableHead>
                             <TableHead className="w-[100px]"></TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {clients.map((client: any) => (
-                            <TableRow key={client.id}>
+                            <TableRow key={client.id} className="hover:bg-muted/30 border-border transition-colors">
                                 <TableCell>
                                     <div className="flex flex-col">
-                                        <span className="font-medium text-slate-900">{client.name}</span>
-                                        <span className="text-xs text-slate-500">{client.type}</span>
+                                        <span className="font-medium text-foreground">{client.name}</span>
+                                        <span className="text-xs text-muted-foreground capitalize">{client.type?.toLowerCase()}</span>
                                     </div>
                                 </TableCell>
-                                <TableCell className="font-mono text-xs">{client.cpfCnpj || "-"}</TableCell>
+                                <TableCell className="font-mono text-xs text-muted-foreground">{client.cpfCnpj || "-"}</TableCell>
                                 <TableCell>
                                     <div className="flex flex-col gap-1">
-                                        <span className="text-xs">{client.email}</span>
+                                        <span className="text-xs text-muted-foreground">{client.email}</span>
                                         {client.whatsapp && (
                                             <a
                                                 href={`https://wa.me/${client.whatsapp.replace(/\D/g, '')}`}
@@ -78,22 +81,32 @@ export default async function ClientsPage({ searchParams }: PageProps) {
                                 </TableCell>
                                 <TableCell>
                                     <Badge variant="outline" className={
-                                        client.status === 'ACTIVE' ? "bg-green-50 text-green-700 border-green-200" :
-                                            client.status === 'NEW_LEAD' ? "bg-blue-50 text-blue-700 border-blue-200" :
-                                                "bg-slate-50 text-slate-700"
+                                        client.status === 'ACTIVE' ? "bg-green-500/10 text-green-700 border-green-200" :
+                                            client.status === 'NEW_LEAD' ? "bg-blue-500/10 text-blue-700 border-blue-200" :
+                                                "bg-muted text-muted-foreground border-border"
                                     }>
                                         {client.status}
                                     </Badge>
                                 </TableCell>
                                 <TableCell>
-                                    <Button variant="ghost" size="icon">
-                                        <MoreHorizontal className="h-4 w-4 text-slate-500" />
+                                    <Button variant="ghost" size="icon" className="hover:bg-muted hover:text-foreground">
+                                        <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
                                     </Button>
                                 </TableCell>
                             </TableRow>
                         ))}
                     </TableBody>
                 </Table>
+
+                {clients.length === 0 && (
+                    <div className="flex flex-col items-center justify-center p-12 text-center">
+                        <div className="h-12 w-12 bg-muted rounded-full flex items-center justify-center mb-4">
+                            <Users className="h-6 w-6 text-muted-foreground" />
+                        </div>
+                        <h3 className="text-lg font-medium text-foreground">Nenhum cliente encontrado</h3>
+                        <p className="text-sm text-muted-foreground mt-1">Tente uma busca diferente ou adicione um novo cliente.</p>
+                    </div>
+                )}
             </div>
         </div>
     )

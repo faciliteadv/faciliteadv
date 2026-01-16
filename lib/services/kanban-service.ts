@@ -11,7 +11,8 @@ export const KanbanService = {
             },
             include: {
                 process: { select: { number: true, client: { select: { name: true } } } },
-                client: { select: { name: true } }
+                client: { select: { name: true } },
+                tags: true
             },
             orderBy: { fatalDate: 'asc' }
         })

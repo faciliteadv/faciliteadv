@@ -4,13 +4,15 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Search } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 interface SearchInputProps {
     placeholder?: string
     paramName?: string
+    className?: string
 }
 
-export function SearchInput({ placeholder = "Buscar...", paramName = "search" }: SearchInputProps) {
+export function SearchInput({ placeholder = "Buscar...", paramName = "search", className }: SearchInputProps) {
     const router = useRouter()
     const searchParams = useSearchParams()
     const [value, setValue] = useState(searchParams.get(paramName) || "")
@@ -35,11 +37,11 @@ export function SearchInput({ placeholder = "Buscar...", paramName = "search" }:
     }, [value, updateURL])
 
     return (
-        <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
+        <div className={cn("relative flex-1 max-w-sm", className)}>
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
                 placeholder={placeholder}
-                className="pl-9 bg-white"
+                className="pl-9 bg-background/50"
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
             />
