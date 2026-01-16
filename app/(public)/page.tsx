@@ -213,7 +213,124 @@ export default function LandingPage() {
                 </div>
             </section>
 
-            {/* Final CTA */}
+            {/* Pricing Section (New) */}
+            <section id="pricing" className="py-32 bg-slate-50 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-100/50 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2" />
+
+                <div className="max-w-7xl mx-auto px-6 relative z-10">
+                    <div className="text-center mb-20 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                        <span className="text-blue-600 font-semibold tracking-wider text-sm uppercase">Investimento</span>
+                        <h2 className="text-3xl md:text-5xl font-bold tracking-tight mt-3 mb-4 text-blue-950">
+                            Planos Flexíveis
+                        </h2>
+                        <p className="text-slate-500 text-lg max-w-2xl mx-auto">
+                            Escolha o plano ideal para o tamanho do seu escritório.
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
+                        {/* Plan 1: Starter */}
+                        <div className="p-8 rounded-2xl bg-white border border-slate-200 shadow-sm hover:shadow-xl hover:shadow-blue-900/5 hover:-translate-y-1 transition-all duration-300">
+                            <h3 className="text-lg font-semibold text-slate-900 mb-2">Starter</h3>
+                            <div className="flex items-baseline gap-1 mb-6">
+                                <span className="text-4xl font-bold text-slate-900">R$ 97</span>
+                                <span className="text-slate-500">/mês</span>
+                            </div>
+                            <p className="text-slate-500 text-sm mb-6 pb-6 border-b border-slate-100">
+                                Para advogados autônomos iniciando a digitalização.
+                            </p>
+                            <ul className="space-y-4 mb-8">
+                                <li className="flex items-center gap-3 text-sm text-slate-600">
+                                    <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                                    Até 50 Processos
+                                </li>
+                                <li className="flex items-center gap-3 text-sm text-slate-600">
+                                    <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                                    Gestão de Clientes
+                                </li>
+                                <li className="flex items-center gap-3 text-sm text-slate-600">
+                                    <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                                    Agenda Básica
+                                </li>
+                            </ul>
+                            <Link href="/login">
+                                <Button className="w-full bg-slate-50 hover:bg-slate-100 text-blue-900 font-semibold border border-slate-200 shadow-sm">
+                                    Começar Starter
+                                </Button>
+                            </Link>
+                        </div>
+
+                        {/* Plan 2: Pro (Featured) */}
+                        <div className="p-8 rounded-2xl bg-white border-2 border-blue-600 shadow-2xl shadow-blue-900/10 transform scale-105 relative z-10">
+                            <div className="absolute top-0 right-0 bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-bl-lg rounded-tr-lg">
+                                MAIS POPULAR
+                            </div>
+                            <h3 className="text-lg font-semibold text-blue-600 mb-2">Profissional</h3>
+                            <div className="flex items-baseline gap-1 mb-6">
+                                <span className="text-5xl font-bold text-slate-900">R$ 197</span>
+                                <span className="text-slate-500">/mês</span>
+                            </div>
+                            <p className="text-slate-500 text-sm mb-6 pb-6 border-b border-slate-100">
+                                Para escritórios em crescimento que precisam de automação.
+                            </p>
+                            <ul className="space-y-4 mb-8">
+                                <li className="flex items-center gap-3 text-sm text-slate-700 font-medium">
+                                    <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                                    Até 200 Processos
+                                </li>
+                                <li className="flex items-center gap-3 text-sm text-slate-700 font-medium">
+                                    <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                                    Automação de Prazos (IA)
+                                </li>
+                                <li className="flex items-center gap-3 text-sm text-slate-700 font-medium">
+                                    <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                                    Kanban Ilimitado
+                                </li>
+                                <li className="flex items-center gap-3 text-sm text-slate-700 font-medium">
+                                    <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                                    Suporte Prioritário
+                                </li>
+                            </ul>
+                            <Link href="/login">
+                                <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-12 shadow-lg shadow-blue-600/20">
+                                    Assinar Profissional
+                                </Button>
+                            </Link>
+                        </div>
+
+                        {/* Plan 3: Elite */}
+                        <div className="p-8 rounded-2xl bg-white border border-slate-200 shadow-sm hover:shadow-xl hover:shadow-blue-900/5 hover:-translate-y-1 transition-all duration-300">
+                            <h3 className="text-lg font-semibold text-slate-900 mb-2">Elite</h3>
+                            <div className="flex items-baseline gap-1 mb-6">
+                                <span className="text-4xl font-bold text-slate-900">R$ 497</span>
+                                <span className="text-slate-500">/mês</span>
+                            </div>
+                            <p className="text-slate-500 text-sm mb-6 pb-6 border-b border-slate-100">
+                                Para grandes bancas que exigem poder total.
+                            </p>
+                            <ul className="space-y-4 mb-8">
+                                <li className="flex items-center gap-3 text-sm text-slate-600">
+                                    <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                                    Processos Ilimitados
+                                </li>
+                                <li className="flex items-center gap-3 text-sm text-slate-600">
+                                    <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                                    API & Integrações
+                                </li>
+                                <li className="flex items-center gap-3 text-sm text-slate-600">
+                                    <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                                    Gestor de Conta Dedicado
+                                </li>
+                            </ul>
+                            <Link href="/login">
+                                <Button className="w-full bg-slate-50 hover:bg-slate-100 text-blue-900 font-semibold border border-slate-200 shadow-sm">
+                                    Falar com Consultor
+                                </Button>
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+            </section>
             <section className="py-32 relative overflow-hidden bg-blue-50">
                 <div className="max-w-4xl mx-auto px-6 text-center relative z-10">
                     <h2 className="text-4xl md:text-5xl font-bold mb-6 tracking-tight text-blue-950">
