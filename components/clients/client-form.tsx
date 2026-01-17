@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Loader2, Search, Plus, Trash2 } from "lucide-react"
+import { ArrowLeft, Loader2, Search, Plus, Trash2, Eye, EyeOff } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { createClient, updateClientAction } from "@/lib/actions/client-actions"
 
@@ -36,6 +36,8 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
     const { toast } = useToast()
     const [loading, setLoading] = useState(false)
     const [fetching, setFetching] = useState(false)
+    const [fetchingCep, setFetchingCep] = useState(false)
+    const [showPassword, setShowPassword] = useState(false)
 
     // States
     const [clientType, setClientType] = useState<"PF" | "PJ">(initialData?.type || "PF")
@@ -50,18 +52,7 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
         name: "",
         cpfCnpj: "",
         email: "",
-        phone: "", // This will be "Telefone (para recado)" now? 
-        // User said: "colocar o campo de telefone pra recado onde está o canal de aquisição"
-        // And "where ta o campo de whatsapp (antes)" place acquisition.
-        // Let's rely on internal keys not changing meaning too much, but mapping UI correctly.
-        // The schema has "phone". User wants "Telefone (para recado)".
-        // I will keep "phone" as the main "contact phone" in DB, but UI label "Telefone (para recado)".
-        // Wait, usually "phone" is main. "messageContact" is recado.
-        // User said: "Contatos e adicionais & origem, tire origem e deixe só 'contatos adicionais'... ali fica só os contatos adicionais pra recados."
-        // So the MAIN phone is the "Whatsapp" one?
-        // "colocar o whatsapp onde ta o campo de telefone pra recado" -> So Whatsapp is in main block.
-        // "colocar o campo de telefone pra recado onde está o canal de aquisição" -> So "Recado" moves to bottom.
-
+        phone: "",
         whatsapp: "",
         rg: "",
         ctps: "",
@@ -90,12 +81,12 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
                 name: initialData.name || "",
                 cpfCnpj: initialData.cpfCnpj || "",
                 email: initialData.email || "",
-                phone: (initialData.contacts as any)?.phone || "", // Stored in contacts JSON
+                phone: (initialData.contacts as any)?.phone || "",
                 whatsapp: initialData.whatsapp || "",
                 rg: initialData.rg || "",
                 ctps: initialData.ctps || "",
                 pis: initialData.pis || "",
-                govAccessPassword: "", // Don't show password/hash
+                govAccessPassword: "",
                 fatherName: initialData.fatherName || "",
                 motherName: initialData.motherName || "",
                 acquisitionChannel: initialData.acquisitionChannel || "",
@@ -110,25 +101,22 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
                 }
             })
             // Load additional contacts
-            // Mapping: First one from columns, rest from JSON?
             const contacts: any[] = []
             if (initialData.messageContactName) {
                 contacts.push({
                     name: initialData.messageContactName,
                     relation: initialData.messageContactRelation || "",
-                    phone: "" // Not stored in col?
+                    phone: ""
                 })
             }
             if ((initialData.contacts as any)?.list) {
                 contacts.push(...(initialData.contacts as any).list)
             }
             if (contacts.length === 0) {
-                // Start with one empty if none
                 contacts.push({ name: "", relation: "", phone: "" })
             }
             setAdditionalContacts(contacts)
         } else {
-            // New mode default
             setAdditionalContacts([{ name: "", relation: "", phone: "" }])
         }
     }, [initialData])
@@ -175,15 +163,22 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
         if (name === "cpfCnpj") value = clientType === 'PF' ? formatCPF(value) : formatCNPJ(value)
         if (name === "whatsapp") value = formatPhone(value, whatsappCountry)
         if (name === "address.zip") value = formatCEP(value)
-        // Note: Main phone moved to list? Or implies specialized field?
-        // User: "colocar o campo de telefone pra recado onde está o canal de aquisição" which is inside "Contatos Adicionais".
-        // Use state for it.
 
         validateField(name, value)
 
         if (name.startsWith("address.")) {
             const field = name.split(".")[1]
             setFormData(prev => ({ ...prev, address: { ...prev.address, [field]: value } }))
+
+            // Auto fetch CEP if full
+            if (name === "address.zip" && value.replace(/\D/g, "").length === 8) {
+                // We will rely on the blur or user action, but since it's nice:
+                // Let's trigger fetch if we wanted automatically. But the user asked for "Buscar endereço pelo CEP".
+                // I will add a button or just do it inside this event with debouncing. 
+                // A better approach is often an explicit search or onBlur. 
+                // Let's call it explicitly if data is valid.
+                fetchAddressByCEP(value)
+            }
         } else {
             setFormData(prev => ({ ...prev, [name]: value }))
         }
@@ -225,12 +220,39 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
         finally { setFetching(false) }
     }
 
+    const fetchAddressByCEP = async (cepValue: string) => {
+        const cep = cepValue.replace(/\D/g, "")
+        if (cep.length !== 8) return
+
+        setFetchingCep(true)
+        try {
+            const response = await fetch(`https://brasilapi.com.br/api/cep/v1/${cep}`)
+            if (!response.ok) throw new Error("Erro API CEP")
+            const data = await response.json()
+            setFormData(prev => ({
+                ...prev,
+                address: {
+                    ...prev.address,
+                    street: toTitleCase(data.street || prev.address.street),
+                    neighborhood: toTitleCase(data.neighborhood || prev.address.neighborhood),
+                    city: toTitleCase(data.city || prev.address.city),
+                    state: data.state || prev.address.state,
+                    zip: cepValue // Keep formatted
+                }
+            }))
+        } catch (e) {
+            console.error("CEP fetch error", e)
+            // Silent fail or toast?
+        } finally {
+            setFetchingCep(false)
+        }
+    }
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         setLoading(true)
 
         // Prep data
-        // Map first valid contact to cols, rest to JSON list
         const validContacts = additionalContacts.filter(c => c.name || c.phone)
         const primaryMsgContact = validContacts[0] || { name: "", relation: "", phone: "" }
         const otherContacts = validContacts.slice(1)
@@ -240,12 +262,9 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
             type: clientType,
             messageContactName: primaryMsgContact.name,
             messageContactRelation: primaryMsgContact.relation,
-            // We store the "Recado Phone" (AKA the first contact's phone) in the 'phone' column/json?
-            // The service stores 'phone' in contacts.phone.
-            // Let's use the primaryMsgContact.phone as the main "Recado Phone" stored in DB.
             phone: primaryMsgContact.phone,
             contacts: {
-                phone: primaryMsgContact.phone, // standard key expected by service
+                phone: primaryMsgContact.phone,
                 list: otherContacts
             }
         }
@@ -363,11 +382,31 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
                                 <div className="space-y-2"><Label>RG</Label><Input name="rg" value={formData.rg} onChange={handleInputChange} /></div>
                                 <div className="space-y-2"><Label>CTPS</Label><Input name="ctps" value={formData.ctps} onChange={handleInputChange} /></div>
                                 <div className="space-y-2"><Label>PIS</Label><Input name="pis" value={formData.pis} onChange={handleInputChange} /></div>
-                                <div className="space-y-2"><Label>Senha GOV.BR</Label><Input name="govAccessPassword" type="password" placeholder={isEditing ? "(Oculto)" : ""} value={formData.govAccessPassword} onChange={handleInputChange} /></div>
+                                <div className="space-y-2">
+                                    <Label>Senha GOV.BR</Label>
+                                    <div className="relative">
+                                        <Input
+                                            name="govAccessPassword"
+                                            type={showPassword ? "text" : "password"}
+                                            placeholder={isEditing ? "(Oculto)" : ""}
+                                            value={formData.govAccessPassword}
+                                            onChange={handleInputChange}
+                                        />
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                        >
+                                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                        </Button>
+                                    </div>
+                                </div>
                             </div>
                             <div className="grid md:grid-cols-2 gap-4">
-                                <div className="space-y-2"><Label>Nome do Pai</Label><Input name="fatherName" value={formData.fatherName} onChange={handleInputChange} /></div>
                                 <div className="space-y-2"><Label>Nome da Mãe</Label><Input name="motherName" value={formData.motherName} onChange={handleInputChange} /></div>
+                                <div className="space-y-2"><Label>Nome do Pai</Label><Input name="fatherName" value={formData.fatherName} onChange={handleInputChange} /></div>
                             </div>
                         </>
                     )}
@@ -409,7 +448,13 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
 
                     {/* Address */}
                     <div className="grid md:grid-cols-4 gap-4">
-                        <div className="space-y-2"><Label>CEP</Label><Input name="address.zip" value={formData.address.zip} onChange={handleInputChange} className={errors["address.zip"] ? "border-red-500" : ""} maxLength={9} /></div>
+                        <div className="space-y-2">
+                            <Label>CEP</Label>
+                            <div className="relative">
+                                <Input name="address.zip" value={formData.address.zip} onChange={handleInputChange} className={errors["address.zip"] ? "border-red-500" : ""} maxLength={9} />
+                                {fetchingCep && <div className="absolute right-3 top-2.5"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>}
+                            </div>
+                        </div>
                         <div className="space-y-2 col-span-2"><Label>Rua</Label><Input name="address.street" value={formData.address.street} onChange={handleInputChange} /></div>
                         <div className="space-y-2"><Label>Número</Label><Input name="address.number" value={formData.address.number} onChange={handleInputChange} /></div>
                         <div className="space-y-2"><Label>Bairro</Label><Input name="address.neighborhood" value={formData.address.neighborhood} onChange={handleInputChange} /></div>

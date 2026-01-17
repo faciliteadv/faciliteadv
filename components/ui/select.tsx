@@ -4,21 +4,38 @@ import * as React from "react"
 import { Check, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-const SelectContext = React.createContext<{
+// Expanded context to hold labels
+type SelectContextValue = {
     value: string
     onValueChange: (value: string) => void
     open: boolean
     setOpen: (open: boolean) => void
-} | null>(null)
+    labels: Map<string, string>
+    registerLabel: (value: string, label: string) => void
+}
+
+const SelectContext = React.createContext<SelectContextValue | null>(null)
 
 const Select = ({ value, onValueChange, children }: { value?: string, onValueChange?: (val: string) => void, children: React.ReactNode }) => {
     const [open, setOpen] = React.useState(false)
+    const [labels, setLabels] = React.useState(new Map<string, string>())
 
-    // Basic Close on outside click could be added here
+    // Function to register labels from items
+    const registerLabel = React.useCallback((val: string, label: string) => {
+        setLabels(prev => {
+            if (prev.get(val) === label) return prev
+            const next = new Map(prev)
+            next.set(val, label)
+            return next
+        })
+    }, [])
+
+    // Close on outside click is tricky in simplified raw implementation, 
+    // but for now we focus on the value display.
 
     return (
-        <SelectContext.Provider value={{ value: value || "", onValueChange: onValueChange || (() => { }), open, setOpen }}>
-            <div className="relative">{children}</div>
+        <SelectContext.Provider value={{ value: value || "", onValueChange: onValueChange || (() => { }), open, setOpen, labels, registerLabel }}>
+            <div className="relative group">{children}</div>
         </SelectContext.Provider>
     )
 }
@@ -52,12 +69,11 @@ const SelectValue = React.forwardRef<
     React.HTMLAttributes<HTMLSpanElement> & { placeholder?: string }
 >(({ className, placeholder, ...props }, ref) => {
     const context = React.useContext(SelectContext)
-    // In a real implementation this would map value to label
-    // For now we just show value or placeholder. Ideally we need children to be parsed.
-    // This is a simplified version.
+    const label = context?.labels.get(context.value)
+
     return (
         <span ref={ref} className={cn("block truncate", className)} {...props}>
-            {context?.value || placeholder}
+            {label || context?.value || placeholder}
         </span>
     )
 })
@@ -91,6 +107,18 @@ const SelectItem = React.forwardRef<
 >(({ className, children, value, ...props }, ref) => {
     const context = React.useContext(SelectContext)
     const isSelected = context?.value === value
+
+    // Register label on mount/update
+    React.useEffect(() => {
+        // Simple heuristic: if children is string, use it. If not, use value.
+        let label = value
+        if (typeof children === 'string') {
+            label = children
+        }
+        // If children is complex? We can't easily extract text from arbitrary ReactNode.
+        // We assume standard usage <SelectItem>Label</SelectItem>
+        context?.registerLabel(value, String(children))
+    }, [value, children, context])
 
     return (
         <div

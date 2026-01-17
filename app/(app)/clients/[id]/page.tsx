@@ -116,7 +116,6 @@ export default async function ClientByTypePage({ params }: PageProps) {
                             <CardContent className="space-y-4">
                                 <Row label="Email" value={client.email} />
                                 <Row label="CPF/CNPJ" value={client.cpfCnpj} />
-                                <Row label="Telefone" value={(client.contacts as any)?.phone || "-"} />
                                 <Row label="WhatsApp" value={client.whatsapp} />
                                 <Separator />
                                 <Row label="RG" value={client.rg} />
@@ -173,7 +172,9 @@ export default async function ClientByTypePage({ params }: PageProps) {
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <Row label="Nome" value={client.messageContactName} />
+                                <Row label="Nome" value={client.messageContactName} />
                                 <Row label="Vínculo" value={client.messageContactRelation} />
+                                <Row label="Telefone" value={(client.contacts as any)?.phone} />
                             </CardContent>
                         </Card>
                     </div>
@@ -199,7 +200,9 @@ export default async function ClientByTypePage({ params }: PageProps) {
                                                 <p className="font-medium text-sm">{p.number}</p>
                                                 <p className="text-xs text-muted-foreground">{p.area} • {p.status}</p>
                                             </div>
-                                            <Button variant="ghost" size="sm">Ver</Button>
+                                            <Link href={`/processes/${p.id}`}>
+                                                <Button variant="ghost" size="sm">Ver</Button>
+                                            </Link>
                                         </li>
                                     ))}
                                 </ul>
