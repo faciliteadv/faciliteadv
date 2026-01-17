@@ -86,7 +86,7 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
                 rg: initialData.rg || "",
                 ctps: initialData.ctps || "",
                 pis: initialData.pis || "",
-                govAccessPassword: "",
+                govAccessPassword: initialData.govAccessPassword || "",
                 fatherName: initialData.fatherName || "",
                 motherName: initialData.motherName || "",
                 acquisitionChannel: initialData.acquisitionChannel || "",
