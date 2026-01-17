@@ -103,6 +103,11 @@ model Process {
   area             String
   subject          String?
   courtLink        String?
+  opponent         String?
+  position         String? // "Autor" or "Réu"
+  district         String? // Comarca
+  court            String? // Vara
+  link             String? // URL Customizada
   status           ProcessStatus     @default(ACTIVE)
   distributionDate DateTime?
   clientId         String
@@ -246,6 +251,28 @@ model FinancialRecord {
   process     Process?  @relation(fields: [processId], references: [id])
 }
 
+model Appointment {
+  id          String          @id @default(uuid())
+  title       String
+  description String?
+  startAt     DateTime
+  endAt       DateTime
+  type        AppointmentType @default(MEETING)
+  location    String?
+  clientId    String?
+  processId   String?
+  userId      String
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  client  Client?  @relation(fields: [clientId], references: [id])
+  process Process? @relation(fields: [processId], references: [id])
+  user    User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([startAt])
+}
+
 enum ClientType {
   PF
   PJ
@@ -267,33 +294,12 @@ enum ProcessStatus {
   ARCHIVED
   EXTINCT
   EXTINCT_WITH_JUDGMENT
+  SUSPENDED
 }
 
 enum TaskType {
   DEADLINE
   INTERNAL
-}
-
-model Appointment {
-  id          String          @id @default(uuid())
-  title       String
-  description String?
-  startAt     DateTime
-  endAt       DateTime
-  type        AppointmentType @default(MEETING)
-  location    String?
-  clientId    String?
-  processId   String?
-  userId      String
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-
-  client  Client?  @relation(fields: [clientId], references: [id])
-  process Process? @relation(fields: [processId], references: [id])
-  user    User     @relation(fields: [userId], references: [id])
-
-  @@index([userId])
-  @@index([startAt])
 }
 
 enum AppointmentType {

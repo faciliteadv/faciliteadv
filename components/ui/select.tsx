@@ -10,18 +10,18 @@ type SelectContextValue = {
     onValueChange: (value: string) => void
     open: boolean
     setOpen: (open: boolean) => void
-    labels: Map<string, string>
-    registerLabel: (value: string, label: string) => void
+    labels: Map<string, React.ReactNode>
+    registerLabel: (value: string, label: React.ReactNode) => void
 }
 
 const SelectContext = React.createContext<SelectContextValue | null>(null)
 
 const Select = ({ value, onValueChange, children }: { value?: string, onValueChange?: (val: string) => void, children: React.ReactNode }) => {
     const [open, setOpen] = React.useState(false)
-    const [labels, setLabels] = React.useState(new Map<string, string>())
+    const [labels, setLabels] = React.useState(new Map<string, React.ReactNode>())
 
     // Function to register labels from items
-    const registerLabel = React.useCallback((val: string, label: string) => {
+    const registerLabel = React.useCallback((val: string, label: React.ReactNode) => {
         setLabels(prev => {
             if (prev.get(val) === label) return prev
             const next = new Map(prev)
@@ -110,14 +110,7 @@ const SelectItem = React.forwardRef<
 
     // Register label on mount/update
     React.useEffect(() => {
-        // Simple heuristic: if children is string, use it. If not, use value.
-        let label = value
-        if (typeof children === 'string') {
-            label = children
-        }
-        // If children is complex? We can't easily extract text from arbitrary ReactNode.
-        // We assume standard usage <SelectItem>Label</SelectItem>
-        context?.registerLabel(value, String(children))
+        context?.registerLabel(value, children)
     }, [value, children, context])
 
     return (
