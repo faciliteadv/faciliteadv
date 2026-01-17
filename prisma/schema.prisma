@@ -33,16 +33,33 @@ model Subscription {
 }
 
 model User {
-  id           String        @id @default(uuid())
-  email        String        @unique
-  name         String?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  clients      Client[]
-  processes    Process[]
-  subscription Subscription?
-  taskCards    TaskCard[]
-  appointments Appointment[]
+  id            String         @id @default(uuid())
+  email         String         @unique
+  name          String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  clients       Client[]
+  processes     Process[]
+  subscription  Subscription?
+  taskCards     TaskCard[]
+  appointments  Appointment[]
+  caseCards     CaseCard[]
+  inssCases     INSSCase[]
+  kanbanColumns KanbanColumn[]
+}
+
+model KanbanColumn {
+  id        String   @id @default(uuid())
+  name      String
+  color     String   @default("#6366f1")
+  order     Int      @default(0)
+  boardType String   @default("tasks") // "tasks", "cases", "inss"
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, boardType])
 }
 
 model Client {
@@ -104,7 +121,7 @@ model TaskCard {
   title       String
   description String?
   type        TaskType  @default(INTERNAL)
-  phase       TaskPhase @default(TODO)
+  phase       String    @default("TODO")
   startDate   DateTime?
   endDate     DateTime?
   fatalDate   DateTime?
@@ -143,6 +160,71 @@ model Tag {
   color  String
   userId String
   tasks  TaskCard[] @relation("TagToTaskCard")
+}
+
+model CaseCard {
+  id              String       @id @default(uuid())
+  clientName      String
+  defendantName   String?
+  practiceArea    String       @default("OTHER")
+  phase           String       @default("NEW_LEAD")
+  deadline        DateTime?
+  description     String?
+  isArchived      Boolean      @default(false)
+  userId          String
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  user            User         @relation(fields: [userId], references: [id])
+  checklist       CaseChecklistItem[]
+
+  @@index([userId])
+  @@index([phase])
+  @@index([deadline])
+}
+
+model CaseChecklistItem {
+  id          String    @id @default(uuid())
+  title       String
+  isCompleted Boolean   @default(false)
+  caseId      String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  case        CaseCard  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId])
+}
+
+model INSSCase {
+  id              String         @id @default(uuid())
+  clientName      String
+  clientCpf       String?
+  govPassword     String?
+  actionType      String         @default("OTHER")
+  phase           String         @default("NEW_CASE")
+  deadline        DateTime?
+  description     String?
+  isArchived      Boolean        @default(false)
+  userId          String
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  user            User           @relation(fields: [userId], references: [id])
+  checklist       INSSChecklistItem[]
+
+  @@index([userId])
+  @@index([phase])
+  @@index([deadline])
+}
+
+model INSSChecklistItem {
+  id          String    @id @default(uuid())
+  title       String
+  isCompleted Boolean   @default(false)
+  inssId      String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  inssCase    INSSCase  @relation(fields: [inssId], references: [id], onDelete: Cascade)
+
+  @@index([inssId])
 }
 
 model FinancialRecord {
@@ -195,6 +277,58 @@ enum TaskPhase {
 enum TaskType {
   DEADLINE
   INTERNAL
+}
+
+enum CasePhase {
+  NEW_LEAD
+  NEGOTIATING
+  SEND_CONTRACT
+  WAITING_SIGNATURE
+  WAITING_DOCS
+  TODO
+  DOING
+  REVIEW
+  REFACTOR
+  DISTRIBUTE
+  DISTRIBUTED
+}
+
+enum INSSPhase {
+  NEW_CASE
+  WAITING_SIGNATURES
+  WAITING_DOCS
+  TODO
+  DOING
+  REVIEW
+  REFACTOR
+  FILE
+  AWAITING_RESULT
+  APPROVED
+  DENIED
+  ADMIN_APPEAL
+  JUDICIAL_ACTION
+}
+
+enum PracticeArea {
+  LABOR
+  CIVIL
+  FAMILY
+  CRIMINAL
+  SOCIAL_SECURITY
+  TAX
+  OTHER
+}
+
+enum INSSActionType {
+  MATERNITY_ASSISTANCE
+  RETIREMENT_AGE
+  RETIREMENT_CONTRIBUTION
+  DISABILITY_RETIREMENT
+  SICKNESS_BENEFIT
+  ACCIDENT_AID
+  BPC_LOAS
+  REVIEW
+  OTHER
 }
 
 model Appointment {

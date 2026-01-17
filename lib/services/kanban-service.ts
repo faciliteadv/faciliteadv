@@ -1,5 +1,5 @@
 import { db } from "@/lib/db"
-import { TaskPhase, TaskType } from "@prisma/client"
+import { TaskType } from "@prisma/client"
 
 export const KanbanService = {
     getBoard: async (userId: string) => {

@@ -1,36 +1,54 @@
 'use client'
 
 import { useState } from "react"
-import { TaskCard } from "@prisma/client"
 import { KanbanBoard } from "./board"
 import { WeeklyCalendar } from "./weekly-calendar"
-import { LayoutGrid, List, Plus } from "lucide-react"
-import { cn } from "@/lib/utils"
-
-import { TaskModal } from "./task-modal"
-
 import { KanbanListView } from "./list-view"
+import { CasesBoard } from "./cases-board"
+import { INSSBoard } from "./inss-board"
+import { TaskModal } from "./task-modal"
+import { CaseModal } from "./case-modal"
+import { INSSModal } from "./inss-modal"
+import { ColumnModal } from "./column-modal"
+import { LayoutGrid, List, Plus, Settings } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 type Props = {
     initialTasks: any[]
-    processes: any[] // ProcessOption type
+    processes: any[]
+    cases: any[]
+    inssCases: any[]
+    taskColumns: any[]
+    caseColumns: any[]
+    inssColumns: any[]
 }
 
-export function KanbanWrapper({ initialTasks, processes }: Props) {
+export function KanbanWrapper({ initialTasks, processes, cases, inssCases, taskColumns, caseColumns, inssColumns }: Props) {
     const [activeTab, setActiveTab] = useState<'deadlines' | 'cases'>('deadlines')
+    const [casesSubTab, setCasesSubTab] = useState<'crm' | 'inss'>('crm')
     const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban')
-    const [isModalOpen, setIsModalOpen] = useState(false)
+    const [isTaskModalOpen, setIsTaskModalOpen] = useState(false)
+    const [isCaseModalOpen, setIsCaseModalOpen] = useState(false)
+    const [isINSSModalOpen, setIsINSSModalOpen] = useState(false)
+    const [isColumnModalOpen, setIsColumnModalOpen] = useState(false)
 
-    // Filter Tasks (simulated for now, real filtering to come)
-    const deadlineTasks = initialTasks.filter(t => t.type === 'DEADLINE' || t.type === 'INTERNAL' || !t.type) // Show all for now until migration fills types
+    const deadlineTasks = initialTasks.filter(t => t.type === 'DEADLINE' || t.type === 'INTERNAL' || !t.type)
 
     return (
         <div className="flex flex-col h-[calc(100vh-4rem)]">
-            <TaskModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} processes={processes} />
-            {/* Top Bar: Tabs & View Switcher */}
-            <div className="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between shrink-0">
+            {/* Modals */}
+            <TaskModal isOpen={isTaskModalOpen} onClose={() => setIsTaskModalOpen(false)} processes={processes} />
+            <CaseModal isOpen={isCaseModalOpen} onClose={() => setIsCaseModalOpen(false)} />
+            <INSSModal isOpen={isINSSModalOpen} onClose={() => setIsINSSModalOpen(false)} />
+            <ColumnModal
+                isOpen={isColumnModalOpen}
+                onClose={() => setIsColumnModalOpen(false)}
+                boardType={activeTab === 'deadlines' ? 'tasks' : (casesSubTab === 'crm' ? 'cases' : 'inss')}
+            />
 
-                {/* Tabs */}
+            {/* Top Bar */}
+            <div className="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between shrink-0">
+                {/* Main Tabs */}
                 <div className="flex bg-slate-100 p-1 rounded-lg">
                     <button
                         onClick={() => setActiveTab('deadlines')}
@@ -45,24 +63,20 @@ export function KanbanWrapper({ initialTasks, processes }: Props) {
                         onClick={() => setActiveTab('cases')}
                         className={cn(
                             "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
-                            activeTab === 'cases' ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                            activeTab === 'cases' ? "bg-white text-purple-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
                         )}
                     >
-                        Processos
+                        Casos
                     </button>
                 </div>
 
-                {/* Right Side Actions */}
+                {/* Right Side Actions - Deadlines Tab */}
                 {activeTab === 'deadlines' && (
                     <div className="flex items-center gap-3">
-                        {/* View Mode Switcher */}
                         <div className="flex border border-slate-200 rounded-lg overflow-hidden bg-white">
                             <button
                                 onClick={() => setViewMode('list')}
-                                className={cn(
-                                    "p-2 transition-colors",
-                                    viewMode === 'list' ? "bg-blue-50 text-blue-600" : "text-slate-400 hover:text-slate-600"
-                                )}
+                                className={cn("p-2 transition-colors", viewMode === 'list' ? "bg-blue-50 text-blue-600" : "text-slate-400 hover:text-slate-600")}
                                 title="Lista"
                             >
                                 <List className="w-4 h-4" />
@@ -70,23 +84,73 @@ export function KanbanWrapper({ initialTasks, processes }: Props) {
                             <div className="w-[1px] bg-slate-200" />
                             <button
                                 onClick={() => setViewMode('kanban')}
-                                className={cn(
-                                    "p-2 transition-colors",
-                                    viewMode === 'kanban' ? "bg-blue-50 text-blue-600" : "text-slate-400 hover:text-slate-600"
-                                )}
+                                className={cn("p-2 transition-colors", viewMode === 'kanban' ? "bg-blue-50 text-blue-600" : "text-slate-400 hover:text-slate-600")}
                                 title="Kanban"
                             >
                                 <LayoutGrid className="w-4 h-4" />
                             </button>
                         </div>
-
-                        {/* New Button */}
                         <button
-                            onClick={() => setIsModalOpen(true)}
+                            onClick={() => setIsColumnModalOpen(true)}
+                            className="flex items-center gap-2 text-slate-500 hover:text-slate-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                        >
+                            <Settings className="w-4 h-4" />
+                            Personalizar
+                        </button>
+                        <button
+                            onClick={() => setIsTaskModalOpen(true)}
                             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm shadow-blue-200"
                         >
                             <Plus className="w-4 h-4" />
                             Nova Tarefa
+                        </button>
+                    </div>
+                )}
+
+                {/* Right Side Actions - Cases Tab */}
+                {activeTab === 'cases' && (
+                    <div className="flex items-center gap-3">
+                        {/* Sub-tabs */}
+                        <div className="flex border border-slate-200 rounded-lg overflow-hidden bg-white">
+                            <button
+                                onClick={() => setCasesSubTab('crm')}
+                                className={cn(
+                                    "px-4 py-2 text-xs font-medium transition-colors",
+                                    casesSubTab === 'crm' ? "bg-purple-50 text-purple-700" : "text-slate-500 hover:text-slate-700"
+                                )}
+                            >
+                                CRM Casos
+                            </button>
+                            <div className="w-[1px] bg-slate-200" />
+                            <button
+                                onClick={() => setCasesSubTab('inss')}
+                                className={cn(
+                                    "px-4 py-2 text-xs font-medium transition-colors",
+                                    casesSubTab === 'inss' ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:text-slate-700"
+                                )}
+                            >
+                                INSS Admin
+                            </button>
+                        </div>
+
+                        <button
+                            onClick={() => setIsColumnModalOpen(true)}
+                            className="flex items-center gap-2 text-slate-500 hover:text-slate-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                        >
+                            <Settings className="w-4 h-4" />
+                            Personalizar
+                        </button>
+                        <button
+                            onClick={() => casesSubTab === 'crm' ? setIsCaseModalOpen(true) : setIsINSSModalOpen(true)}
+                            className={cn(
+                                "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm",
+                                casesSubTab === 'crm'
+                                    ? "bg-purple-600 hover:bg-purple-700 text-white shadow-purple-200"
+                                    : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200"
+                            )}
+                        >
+                            <Plus className="w-4 h-4" />
+                            {casesSubTab === 'crm' ? 'Novo Caso' : 'Novo INSS'}
                         </button>
                     </div>
                 )}
@@ -96,21 +160,22 @@ export function KanbanWrapper({ initialTasks, processes }: Props) {
             <div className="flex-1 overflow-hidden bg-slate-50/50">
                 {activeTab === 'deadlines' ? (
                     <div className="h-full flex flex-col">
-                        {/* Weekly Calendar */}
                         <WeeklyCalendar tasks={deadlineTasks} />
-
-                        {/* Main View */}
                         <div className="flex-1 overflow-hidden p-6">
                             {viewMode === 'kanban' ? (
-                                <KanbanBoard initialTasks={deadlineTasks} />
+                                <KanbanBoard initialTasks={deadlineTasks} columns={taskColumns} />
                             ) : (
                                 <KanbanListView tasks={deadlineTasks} />
                             )}
                         </div>
                     </div>
                 ) : (
-                    <div className="h-full flex items-center justify-center text-slate-400">
-                        Aba de Processos (Em construção)
+                    <div className="h-full p-6 overflow-hidden">
+                        {casesSubTab === 'crm' ? (
+                            <CasesBoard initialCases={cases} columns={caseColumns} />
+                        ) : (
+                            <INSSBoard initialCases={inssCases} columns={inssColumns} />
+                        )}
                     </div>
                 )}
             </div>

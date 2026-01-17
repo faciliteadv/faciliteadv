@@ -16,7 +16,7 @@ type Props = {
     tasks: ExtendedTask[]
 }
 
-const PHASE_LABELS: Record<TaskPhase, string> = {
+const PHASE_LABELS: Record<string, string> = {
     'TODO': 'A Fazer',
     'DOING': 'Em Andamento',
     'REVIEW': 'Revisão',
@@ -26,7 +26,7 @@ const PHASE_LABELS: Record<TaskPhase, string> = {
     'PROTOCOLLED': 'Concluído'
 }
 
-const PHASE_COLORS: Record<TaskPhase, string> = {
+const PHASE_COLORS: Record<string, string> = {
     'TODO': 'bg-slate-100 text-slate-700',
     'DOING': 'bg-sky-100 text-sky-700',
     'REVIEW': 'bg-yellow-100 text-yellow-700',
@@ -34,6 +34,19 @@ const PHASE_COLORS: Record<TaskPhase, string> = {
     'WAITING_DOCS': 'bg-slate-100 text-slate-600',
     'PROTOCOL': 'bg-emerald-100 text-emerald-700',
     'PROTOCOLLED': 'bg-blue-100 text-blue-700'
+}
+
+const SortIcon = ({
+    column,
+    sortBy,
+    sortOrder
+}: {
+    column: 'fatalDate' | 'title' | 'phase',
+    sortBy: string,
+    sortOrder: 'asc' | 'desc'
+}) => {
+    if (sortBy !== column) return null
+    return sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
 }
 
 export function KanbanListView({ tasks }: Props) {
@@ -69,11 +82,6 @@ export function KanbanListView({ tasks }: Props) {
         }
     }
 
-    const SortIcon = ({ column }: { column: 'fatalDate' | 'title' | 'phase' }) => {
-        if (sortBy !== column) return null
-        return sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
-    }
-
     const getDateColor = (task: ExtendedTask) => {
         if (!task.fatalDate) return 'text-slate-400'
 
@@ -97,7 +105,7 @@ export function KanbanListView({ tasks }: Props) {
                         className="col-span-3 flex items-center gap-2 hover:text-blue-600 transition-colors text-left"
                     >
                         Tarefa
-                        <SortIcon column="title" />
+                        <SortIcon column="title" sortBy={sortBy} sortOrder={sortOrder} />
                     </button>
                     <div className="col-span-2">Processo</div>
                     <button
@@ -105,7 +113,7 @@ export function KanbanListView({ tasks }: Props) {
                         className="col-span-2 flex items-center gap-2 hover:text-blue-600 transition-colors text-left"
                     >
                         Status
-                        <SortIcon column="phase" />
+                        <SortIcon column="phase" sortBy={sortBy} sortOrder={sortOrder} />
                     </button>
                     <div className="col-span-1 text-center">Tipo</div>
                     <div className="col-span-2 text-center">Data Final</div>
@@ -114,7 +122,7 @@ export function KanbanListView({ tasks }: Props) {
                         className="col-span-2 flex items-center gap-2 justify-center hover:text-blue-600 transition-colors"
                     >
                         Prazo Fatal
-                        <SortIcon column="fatalDate" />
+                        <SortIcon column="fatalDate" sortBy={sortBy} sortOrder={sortOrder} />
                     </button>
                 </div>
             </div>
@@ -175,9 +183,9 @@ export function KanbanListView({ tasks }: Props) {
                             <div className="col-span-2 flex items-center">
                                 <span className={cn(
                                     "text-xs px-2 py-1 rounded-full font-medium",
-                                    PHASE_COLORS[task.phase]
+                                    PHASE_COLORS[task.phase] || "bg-slate-100 text-slate-700"
                                 )}>
-                                    {PHASE_LABELS[task.phase]}
+                                    {PHASE_LABELS[task.phase] || task.phase}
                                 </span>
                             </div>
 
