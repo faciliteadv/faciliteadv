@@ -49,3 +49,17 @@ export async function createProcess(data: any) {
         throw new Error("Failed to create process")
     }
 }
+
+export async function getUniqueSubjects() {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return []
+
+    const processes = await db.process.findMany({
+        where: { userId: user.id, deletedAt: null },
+        distinct: ['subject'],
+        select: { subject: true },
+        orderBy: { subject: 'asc' }
+    })
+    return processes.map(p => p.subject).filter(Boolean) as string[]
+}
