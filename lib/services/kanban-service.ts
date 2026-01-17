@@ -25,7 +25,7 @@ export const KanbanService = {
         return tasks
     },
 
-    moveCard: async (userId: string, cardId: string, newPhase: TaskPhase) => {
+    moveCard: async (userId: string, cardId: string, newPhase: string) => {
         return await db.taskCard.update({
             where: { id: cardId, userId },
             data: { phase: newPhase }

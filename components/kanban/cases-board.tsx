@@ -15,7 +15,7 @@ import {
 } from "@dnd-kit/core"
 import { CaseCard } from "@prisma/client"
 import { moveCaseAction } from "@/lib/actions/crm-actions"
-import { AlertCircle, User, MoreHorizontal, Calendar } from "lucide-react"
+import { AlertCircle, MoreHorizontal } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 type KanbanColumn = {
@@ -24,7 +24,7 @@ type KanbanColumn = {
     color: string
 }
 
-const PRACTICE_AREA_COLORS: Record<PracticeArea, { bg: string; text: string }> = {
+const PRACTICE_AREA_COLORS: Record<string, { bg: string; text: string }> = {
     LABOR: { bg: 'bg-orange-100', text: 'text-orange-700' },
     CIVIL: { bg: 'bg-blue-100', text: 'text-blue-700' },
     FAMILY: { bg: 'bg-pink-100', text: 'text-pink-700' },
@@ -34,7 +34,7 @@ const PRACTICE_AREA_COLORS: Record<PracticeArea, { bg: string; text: string }> =
     OTHER: { bg: 'bg-slate-100', text: 'text-slate-700' },
 }
 
-const PRACTICE_AREA_LABELS: Record<PracticeArea, string> = {
+const PRACTICE_AREA_LABELS: Record<string, string> = {
     LABOR: 'Trabalhista',
     CIVIL: 'Cível',
     FAMILY: 'Família',
@@ -44,7 +44,9 @@ const PRACTICE_AREA_LABELS: Record<PracticeArea, string> = {
     OTHER: 'Outro',
 }
 
-type ExtendedCase = any
+type ExtendedCase = CaseCard & {
+    checklist?: { id: string; title: string; isCompleted: boolean }[]
+}
 
 type BoardProps = {
     initialCases: ExtendedCase[]
@@ -83,7 +85,7 @@ export function CasesBoard({ initialCases, columns }: BoardProps) {
         ))
 
         try {
-            await moveCaseAction(caseId, newPhase as any)
+            await moveCaseAction(caseId, newPhase)
         } catch {
             // Revert on error
             setCases(prev => prev.map(c =>
@@ -116,7 +118,7 @@ export function CasesBoard({ initialCases, columns }: BoardProps) {
     )
 }
 
-function Column({ id, label, color, accent, cases }: { id: string, label: string, color: string, accent: string, cases: ExtendedCase[] }) {
+function Column({ id, label, accent, cases }: { id: string, label: string, color: string, accent: string, cases: ExtendedCase[] }) {
     const { setNodeRef, isOver } = useDroppable({ id })
 
     return (
@@ -173,9 +175,9 @@ function CaseCardItem({ caseItem, isOverlay }: { caseItem: ExtendedCase; isOverl
     else if (isLate) borderColor = "border-l-red-500"
     else if (isDueSoon) borderColor = "border-l-yellow-400"
 
-    const areaKey = caseItem.practiceArea as keyof typeof PRACTICE_AREA_COLORS
+    const areaKey = caseItem.practiceArea
     const areaStyle = PRACTICE_AREA_COLORS[areaKey] || PRACTICE_AREA_COLORS.OTHER
-    const areaLabel = PRACTICE_AREA_LABELS[areaKey as keyof typeof PRACTICE_AREA_LABELS] || caseItem.practiceArea
+    const areaLabel = PRACTICE_AREA_LABELS[areaKey] || caseItem.practiceArea
 
     return (
         <div className={cn(

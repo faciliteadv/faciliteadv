@@ -1,6 +1,6 @@
 import { db } from "@/lib/db"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users, Briefcase, CalendarCheck, Clock, ArrowUpRight, Plus, UserPlus, FilePlus } from "lucide-react"
+import { Users, Briefcase, CalendarCheck, Clock, Plus, UserPlus, FilePlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { createClient } from "@/utils/supabase/server"

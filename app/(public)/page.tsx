@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { ArrowRight, CheckCircle2, Shield, BarChart3, Clock, Users, Zap, Scale, LayoutDashboard, FileText } from "lucide-react"
+import { ArrowRight, CheckCircle2, Shield, BarChart3, Zap, Scale } from "lucide-react"
 
 export default function LandingPage() {
     return (

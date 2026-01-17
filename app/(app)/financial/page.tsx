@@ -95,7 +95,7 @@ export default async function FinancialPage() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {records.map((record: any) => {
+                        {records.map((record) => {
                             const isOverdue = !record.paidAt && new Date(record.dueDate) < new Date()
                             return (
                                 <TableRow key={record.id}>

@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from "react"
-import { X, Plus, Trash2, GripVertical, Check, Palette, Edit2 } from "lucide-react"
+import { useState, useEffect, useCallback } from "react"
+import { X, Plus, Trash2, GripVertical, Check, Palette } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
     createColumnAction,
@@ -59,13 +59,7 @@ export function ColumnModal({ isOpen, onClose, boardType }: Props) {
         })
     )
 
-    useEffect(() => {
-        if (isOpen) {
-            fetchColumns()
-        }
-    }, [isOpen, boardType])
-
-    async function fetchColumns() {
+    const fetchColumns = useCallback(async () => {
         setLoading(true)
         try {
             const cols = await getKanbanColumns(boardType)
@@ -75,7 +69,13 @@ export function ColumnModal({ isOpen, onClose, boardType }: Props) {
         } finally {
             setLoading(false)
         }
-    }
+    }, [boardType])
+
+    useEffect(() => {
+        if (isOpen) {
+            fetchColumns()
+        }
+    }, [isOpen, fetchColumns])
 
     const handleDragEnd = async (event: DragEndEvent) => {
         const { active, over } = event
@@ -103,7 +103,7 @@ export function ColumnModal({ isOpen, onClose, boardType }: Props) {
             await createColumnAction(boardType, newName, newColor)
             setNewName("")
             fetchColumns()
-        } catch (error) {
+        } catch {
             alert("Erro ao adicionar coluna")
         }
     }
@@ -113,7 +113,7 @@ export function ColumnModal({ isOpen, onClose, boardType }: Props) {
             await updateColumnAction(col.id, col.name, col.color)
             setEditingColumn(null)
             fetchColumns()
-        } catch (error) {
+        } catch {
             alert("Erro ao atualizar coluna")
         }
     }
@@ -123,7 +123,7 @@ export function ColumnModal({ isOpen, onClose, boardType }: Props) {
         try {
             await deleteColumnAction(id)
             fetchColumns()
-        } catch (error) {
+        } catch {
             alert("Erro ao excluir coluna")
         }
     }

@@ -54,7 +54,7 @@ export default async function ClientsPage({ searchParams }: PageProps) {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {clients.map((client: any) => (
+                        {clients.map((client) => (
                             <TableRow key={client.id} className="hover:bg-muted/30 border-border transition-colors">
                                 <TableCell>
                                     <div className="flex flex-col">

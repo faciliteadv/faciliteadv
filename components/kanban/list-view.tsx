@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from "react"
-import { TaskCard, TaskPhase } from "@prisma/client"
+import { TaskCard } from "@prisma/client"
 import { AlertCircle, FileText, Calendar, Clock, ChevronDown, ChevronUp } from "lucide-react"
 import { cn } from "@/lib/utils"
 

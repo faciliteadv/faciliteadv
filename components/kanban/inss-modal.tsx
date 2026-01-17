@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { createINSSCaseAction } from "@/lib/actions/crm-actions"
-import { INSSActionType } from "@prisma/client"
 import { X, Plus, Trash2 } from "lucide-react"
 import { formatCPF, validateCPF } from "@/lib/utils/validation"
 
@@ -11,7 +10,7 @@ type Props = {
     onClose: () => void
 }
 
-const INSS_ACTION_TYPES: { value: INSSActionType; label: string }[] = [
+const INSS_ACTION_TYPES: { value: string; label: string }[] = [
     { value: 'MATERNITY_ASSISTANCE', label: 'Auxílio Maternidade' },
     { value: 'RETIREMENT_AGE', label: 'Aposentadoria por Idade' },
     { value: 'RETIREMENT_CONTRIBUTION', label: 'Aposentadoria por Tempo de Contribuição' },
@@ -74,7 +73,7 @@ export function INSSModal({ isOpen, onClose }: Props) {
             clientName: formData.get('clientName') as string,
             clientCpf: cpf || undefined,
             govPassword: formData.get('govPassword') as string || undefined,
-            actionType: formData.get('actionType') as INSSActionType,
+            actionType: formData.get('actionType') as string,
             deadline: formData.get('deadline') ? new Date(formData.get('deadline') as string) : undefined,
             description: formData.get('description') as string || undefined,
             checklist: checklist.length > 0 ? checklist : undefined
@@ -175,8 +174,8 @@ export function INSSModal({ isOpen, onClose }: Props) {
                                     type="button"
                                     onClick={() => addDefaultDoc(doc)}
                                     className={`text-xs px-2 py-1 rounded-full border transition-colors ${checklist.includes(doc)
-                                            ? 'bg-indigo-100 text-indigo-700 border-indigo-200'
-                                            : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-indigo-50'
+                                        ? 'bg-indigo-100 text-indigo-700 border-indigo-200'
+                                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-indigo-50'
                                         }`}
                                 >
                                     + {doc}

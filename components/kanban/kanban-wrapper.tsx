@@ -11,16 +11,40 @@ import { CaseModal } from "./case-modal"
 import { INSSModal } from "./inss-modal"
 import { ColumnModal } from "./column-modal"
 import { LayoutGrid, List, Plus, Settings } from "lucide-react"
+import { TaskCard, CaseCard, INSSCase, KanbanColumn, Tag, Client } from "@prisma/client"
 import { cn } from "@/lib/utils"
 
+// Define proper extended types for data with relations
+type ExtendedTask = TaskCard & {
+    client?: Pick<Client, 'id' | 'name'> | null
+    process?: { id: string; number: string; folderName: string | null } | null
+    tags?: Tag[]
+    checklist?: { id: string; title: string; isCompleted: boolean }[]
+}
+
+type ExtendedCase = CaseCard & {
+    checklist?: { id: string; title: string; isCompleted: boolean }[]
+}
+
+type ExtendedINSS = INSSCase & {
+    checklist?: { id: string; title: string; isCompleted: boolean }[]
+}
+
+// Define the process subset that matches what's selected in the kanban page
+type ProcessOption = {
+    id: string
+    number: string
+    folderName: string | null
+}
+
 type Props = {
-    initialTasks: any[]
-    processes: any[]
-    cases: any[]
-    inssCases: any[]
-    taskColumns: any[]
-    caseColumns: any[]
-    inssColumns: any[]
+    initialTasks: ExtendedTask[]
+    processes: ProcessOption[]
+    cases: ExtendedCase[]
+    inssCases: ExtendedINSS[]
+    taskColumns: KanbanColumn[]
+    caseColumns: KanbanColumn[]
+    inssColumns: KanbanColumn[]
 }
 
 export function KanbanWrapper({ initialTasks, processes, cases, inssCases, taskColumns, caseColumns, inssColumns }: Props) {

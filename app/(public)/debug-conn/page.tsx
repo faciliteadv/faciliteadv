@@ -15,20 +15,20 @@ export default async function DebugPage() {
         } else if (!url) {
             envCheck = "ERRO: DATABASE_URL está vazia."
         } else {
-             // Tenta query simples
-             const count = await db.user.count()
-             dbStatus = `SUCESSO! Conectado. Usuários no banco: ${count}`
+            // Tenta query simples
+            const count = await db.user.count()
+            dbStatus = `SUCESSO! Conectado. Usuários no banco: ${count}`
         }
 
-    } catch (e: any) {
+    } catch (e: unknown) {
         dbStatus = "FALHA NA CONEXÃO"
-        dbError = e.message
+        dbError = e instanceof Error ? e.message : String(e)
     }
 
     return (
         <div className="p-8 font-mono text-sm space-y-4">
             <h1 className="text-xl font-bold">Diagnóstico de Produção</h1>
-            
+
             <div className="p-4 border rounded bg-slate-100">
                 <h2 className="font-bold">Verificação de Ambiente</h2>
                 <p className={envCheck.includes("ERRO") ? "text-red-600" : "text-green-600"}>

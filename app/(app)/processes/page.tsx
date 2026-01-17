@@ -42,7 +42,7 @@ export default async function ProcessesPage({ searchParams }: PageProps) {
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {processes.map((proc: any) => (
+                {processes.map((proc) => (
                     <div key={proc.id} className="group flex flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-sm hover:shadow-md hover:border-primary/20 transition-all cursor-pointer">
                         <div className="space-y-3">
                             <div className="flex items-start justify-between">

@@ -1,5 +1,4 @@
 import { AuthForm } from '@/components/auth/auth-form'
-// eslint-disable-next-line @next/next/no-img-element
 
 export default async function LoginPage({
     searchParams,

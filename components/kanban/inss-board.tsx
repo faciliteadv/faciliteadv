@@ -15,7 +15,7 @@ import {
 } from "@dnd-kit/core"
 import { INSSCase } from "@prisma/client"
 import { moveINSSCaseAction } from "@/lib/actions/crm-actions"
-import { AlertCircle, User, MoreHorizontal, Key, CreditCard } from "lucide-react"
+import { AlertCircle, MoreHorizontal, Key, CreditCard } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 type KanbanColumn = {
@@ -24,7 +24,7 @@ type KanbanColumn = {
     color: string
 }
 
-const ACTION_TYPE_LABELS: Record<INSSActionType, string> = {
+const ACTION_TYPE_LABELS: Record<string, string> = {
     MATERNITY_ASSISTANCE: 'Auxílio Maternidade',
     RETIREMENT_AGE: 'Aposent. por Idade',
     RETIREMENT_CONTRIBUTION: 'Aposent. por Tempo',
@@ -36,7 +36,9 @@ const ACTION_TYPE_LABELS: Record<INSSActionType, string> = {
     OTHER: 'Outro',
 }
 
-type ExtendedINSS = any
+type ExtendedINSS = INSSCase & {
+    checklist?: { id: string; title: string; isCompleted: boolean }[]
+}
 
 type BoardProps = {
     initialCases: ExtendedINSS[]
@@ -75,7 +77,7 @@ export function INSSBoard({ initialCases, columns }: BoardProps) {
         ))
 
         try {
-            await moveINSSCaseAction(caseId, newPhase as any)
+            await moveINSSCaseAction(caseId, newPhase)
         } catch {
             setCases(prev => prev.map(c =>
                 c.id === caseId ? { ...c, phase: movedCase.phase } : c
@@ -107,7 +109,7 @@ export function INSSBoard({ initialCases, columns }: BoardProps) {
     )
 }
 
-function Column({ id, label, color, accent, cases }: { id: string, label: string, color: string, accent: string, cases: ExtendedINSS[] }) {
+function Column({ id, label, accent, cases }: { id: string, label: string, color: string, accent: string, cases: ExtendedINSS[] }) {
     const { setNodeRef, isOver } = useDroppable({ id })
 
     return (

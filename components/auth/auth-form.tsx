@@ -17,7 +17,7 @@ export function AuthForm({ errorMessage }: { errorMessage?: string }) {
             } else {
                 await signup(formData)
             }
-        } catch (error) {
+        } catch {
             // Em server actions com redirect, o erro pode ser um redirect, então não é necessariamente um erro
             // Se cair aqui e não for redirect, é erro real
         } finally {

@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { createCaseAction } from "@/lib/actions/crm-actions"
-import { PracticeArea } from "@prisma/client"
 import { X, Plus, Trash2 } from "lucide-react"
 
 type Props = {
@@ -10,7 +9,7 @@ type Props = {
     onClose: () => void
 }
 
-const PRACTICE_AREAS: { value: PracticeArea; label: string }[] = [
+const PRACTICE_AREAS: { value: string; label: string }[] = [
     { value: 'LABOR', label: 'Trabalhista' },
     { value: 'CIVIL', label: 'Cível' },
     { value: 'FAMILY', label: 'Família e Sucessões' },
@@ -35,7 +34,7 @@ export function CaseModal({ isOpen, onClose }: Props) {
         const payload = {
             clientName: formData.get('clientName') as string,
             defendantName: formData.get('defendantName') as string || undefined,
-            practiceArea: formData.get('practiceArea') as PracticeArea,
+            practiceArea: formData.get('practiceArea') as string,
             deadline: formData.get('deadline') ? new Date(formData.get('deadline') as string) : undefined,
             description: formData.get('description') as string || undefined,
             checklist: checklist.length > 0 ? checklist : undefined

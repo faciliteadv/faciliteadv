@@ -1,6 +1,6 @@
 import { AgendaService } from "@/lib/services/agenda-service"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Calendar as CalendarIcon, Clock, MapPin, Plus } from "lucide-react"
 import { format } from "date-fns"

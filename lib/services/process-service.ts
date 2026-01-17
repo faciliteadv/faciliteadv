@@ -1,5 +1,5 @@
 import { db } from "@/lib/db"
-import { Process, Prisma } from "@prisma/client"
+import { Prisma } from "@prisma/client"
 
 export const ProcessService = {
     // LIST with Hierarchy Logic
@@ -27,7 +27,7 @@ export const ProcessService = {
         })
     },
 
-    create: async (userId: string, data: any) => {
+    create: async (userId: string, data: Omit<Prisma.ProcessUncheckedCreateInput, 'userId'>) => {
         // Validate hierarchy logic here if needed
         // Calculate folderName for caching: "Area > Client"
         // (Actual complex logic would go here)

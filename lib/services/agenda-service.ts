@@ -1,5 +1,5 @@
 import { db } from "@/lib/db"
-import { Prisma, AppointmentType } from "@prisma/client"
+import { AppointmentType } from "@prisma/client"
 
 // Re-export the type from Prisma for external use
 export type { Appointment } from "@prisma/client"

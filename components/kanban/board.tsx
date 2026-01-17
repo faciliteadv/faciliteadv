@@ -15,9 +15,9 @@ import {
     defaultDropAnimationSideEffects,
     DropAnimation
 } from "@dnd-kit/core"
-import { TaskCard, TaskType, Tag } from "@prisma/client"
+import { TaskCard, Tag } from "@prisma/client"
 import { moveCardAction, deleteTaskAction } from "@/lib/actions/kanban-actions"
-import { Calendar, AlertCircle, FileText, User, MoreHorizontal, Clock, Tag as TagIcon, Trash2, Archive } from "lucide-react"
+import { AlertCircle, FileText, MoreHorizontal, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 // type ExtendedTask = TaskCard & { ... } is below
@@ -27,15 +27,13 @@ type KanbanColumn = {
     color: string
 }
 
-type ExtendedTask = any // Bypass Prisma model vs relation name mismatch for now to unblock
-/*
-type ExtendedTask = TaskCard & {
+type ExtendedTask = Omit<TaskCard, 'phase'> & {
+    phase: string
     client?: { id: string; name: string } | null
     process?: { id: string; number: string; folderName: string | null } | null
     tags?: Tag[]
     checklist?: { id: string; title: string; isCompleted: boolean }[]
 }
-*/
 
 type BoardProps = {
     initialTasks: ExtendedTask[]
@@ -88,7 +86,7 @@ export function KanbanBoard({ initialTasks, columns }: BoardProps) {
             )
 
             // Server Action
-            await moveCardAction(cardId, newPhase as any)
+            await moveCardAction(cardId, newPhase)
         }
     }
 
@@ -183,7 +181,7 @@ function TaskCardItem({ task, isOverlay, onDelete }: { task: ExtendedTask, isOve
     const isDueSoon = task.fatalDate && new Date(task.fatalDate).getTime() - new Date().getTime() < 86400000 * 2
 
     let borderColor = "border-l-sky-400"
-    let bgColor = "bg-white"
+    const bgColor = "bg-white"
 
     if (isProtocolQueue) {
         borderColor = "border-l-emerald-500"
@@ -199,7 +197,7 @@ function TaskCardItem({ task, isOverlay, onDelete }: { task: ExtendedTask, isOve
         try {
             await deleteTaskAction(task.id)
             onDelete?.(task.id)
-        } catch (error) {
+        } catch {
             alert('Erro ao excluir tarefa')
         } finally {
             setDeleting(false)
