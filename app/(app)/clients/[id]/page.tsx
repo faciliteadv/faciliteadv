@@ -7,13 +7,46 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { MessageCircle, FileText, Briefcase, DollarSign, Calendar, Edit } from "lucide-react"
+import { MessageCircle, FileText, Briefcase, DollarSign, Calendar, Edit, Folder, Plus, ChevronRight, Edit2 } from "lucide-react"
 import Link from "next/link"
 
 export const dynamic = 'force-dynamic'
 
 interface PageProps {
     params: Promise<{ id: string }>
+}
+
+const statusColors: Record<string, string> = {
+    ACTIVE: "bg-green-100 text-green-700 hover:bg-green-100/80 border-green-200",
+    ARCHIVED: "bg-red-100 text-red-700 hover:bg-red-100/80 border-red-200",
+    EXTINCT: "bg-red-100 text-red-700 hover:bg-red-100/80 border-red-200",
+    SUSPENDED: "bg-orange-100 text-orange-700 hover:bg-orange-100/80 border-orange-200",
+    APPEAL: "bg-blue-100 text-blue-700 hover:bg-blue-100/80 border-blue-200",
+    SETTLEMENT: "bg-purple-100 text-purple-700 hover:bg-purple-100/80 border-purple-200",
+    CONSTRUCTION: "bg-gray-100 text-gray-700 hover:bg-gray-100/80 border-gray-200"
+}
+
+const statusLabels: Record<string, string> = {
+    ACTIVE: "Ativo",
+    ARCHIVED: "Arquivado",
+    EXTINCT: "Extinto",
+    SUSPENDED: "Suspenso",
+    APPEAL: "Recurso",
+    SETTLEMENT: "Acordo",
+    CONSTRUCTION: "Construção",
+    EXTINCT_WITH_JUDGMENT: "Extinto com Julgamento"
+}
+
+const areaLabels: Record<string, string> = {
+    TRABALHISTA: "Trabalhista",
+    CIVIL: "Cível",
+    FAMILIA: "Família e Sucessões",
+    EMPRESARIAL: "Empresarial",
+    TRIBUTARIO: "Tributário",
+    ADMINISTRATIVO: "Administrativo",
+    PREVIDENCIARIO: "Previdenciário",
+    INSS_ADMIN: "INSS Administrativo",
+    DIGITAL: "Direito Digital"
 }
 
 export default async function ClientByTypePage({ params }: PageProps) {
@@ -52,10 +85,10 @@ export default async function ClientByTypePage({ params }: PageProps) {
                     <div>
                         <h1 className="text-2xl font-bold tracking-tight text-foreground">{client.name}</h1>
                         <div className="flex items-center gap-2 mt-1">
-                            <Badge variant={client.status === 'ACTIVE' ? 'default' : 'secondary'}>
-                                {client.status}
+                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 capitalize">
+                                {client.status === 'NEW_LEAD' ? 'Novo Lead' : client.status === 'ACTIVE' ? 'Ativo' : client.status}
                             </Badge>
-                            <span className="text-sm text-muted-foreground capitalize">• {client.type}</span>
+                            <span className="text-sm text-muted-foreground capitalize">• {client.type === 'PF' ? 'Pessoa Física' : 'Pessoa Jurídica'}</span>
                             {client.acquisitionChannel && (
                                 <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
                                     {client.acquisitionChannel}
@@ -172,7 +205,6 @@ export default async function ClientByTypePage({ params }: PageProps) {
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <Row label="Nome" value={client.messageContactName} />
-                                <Row label="Nome" value={client.messageContactName} />
                                 <Row label="Vínculo" value={client.messageContactRelation} />
                                 <Row label="Telefone" value={(client.contacts as any)?.phone} />
                             </CardContent>
@@ -182,35 +214,74 @@ export default async function ClientByTypePage({ params }: PageProps) {
 
                 {/* TAB: PROCESSES */}
                 <TabsContent value="processes" className="pt-6">
-                    <Card>
-                        <CardHeader>
-                            <div className="flex justify-between items-center">
-                                <CardTitle>Processos Vinculados</CardTitle>
-                                <Link href="/processes/new">
-                                    <Button size="sm" variant="outline">Novo Processo</Button>
-                                </Link>
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                            {client.processes && client.processes.length > 0 ? (
-                                <ul className="space-y-2">
-                                    {client.processes.map((p: any) => (
-                                        <li key={p.id} className="p-3 border rounded-lg hover:bg-muted/50 transition-colors flex justify-between items-center">
-                                            <div>
-                                                <p className="font-medium text-sm">{p.number}</p>
-                                                <p className="text-xs text-muted-foreground">{p.area} • {p.status}</p>
-                                            </div>
-                                            <Link href={`/processes/${p.id}`}>
-                                                <Button variant="ghost" size="sm">Ver</Button>
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-semibold text-foreground truncate">Processos Vinculados</h3>
+                        <Link href="/processes/new">
+                            <Button size="sm" variant="outline" className="gap-2">
+                                <Plus className="h-4 w-4" /> Novo Processo
+                            </Button>
+                        </Link>
+                    </div>
+
+                    <div className="space-y-4">
+                        {client.processes && client.processes.length > 0 ? (
+                            client.processes.map((p: any) => (
+                                <div
+                                    key={p.id}
+                                    className="group flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-xl border border-border bg-card p-4 shadow-sm hover:shadow-md hover:border-primary/20 transition-all"
+                                >
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <Folder className="h-4 w-4 text-primary fill-primary/10" />
+                                            <h3 className="font-bold text-lg text-foreground truncate">{p.folderName || "Processo sem nome"}</h3>
+                                        </div>
+
+                                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                                            <span className="flex items-center gap-1">
+                                                <FileText className="h-3 w-3" />
+                                                <span className="font-medium">{p.number}</span>
+                                            </span>
+                                            <span className="text-muted-foreground/30">•</span>
+                                            <span>{areaLabels[p.area] || p.area}</span>
+                                            <span className="text-muted-foreground/30">•</span>
+                                            <span className="truncate max-w-[200px]">{p.subject || "Sem assunto"}</span>
+                                        </div>
+
+                                        {p.opponent && (
+                                            <p className="text-xs text-muted-foreground mt-1.5">
+                                                <span className="font-medium">Parte Contrária:</span> {p.opponent}
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    <div className="flex items-center gap-3 shrink-0">
+                                        <Badge variant="outline" className={`${statusColors[p.status] || "bg-gray-100 text-gray-700"} border-0 font-medium px-2.5 py-0.5`}>
+                                            {statusLabels[p.status] || p.status}
+                                        </Badge>
+
+                                        <div className="flex items-center gap-1 border-l pl-3 ml-1">
+                                            <Link href={`/processes/${p.id}/edit`}>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary">
+                                                    <Edit2 className="h-4 w-4" />
+                                                </Button>
                                             </Link>
-                                        </li>
-                                    ))}
-                                </ul>
-                            ) : (
-                                <div className="text-center py-8 text-muted-foreground text-sm">Nenhum processo vinculado.</div>
-                            )}
-                        </CardContent>
-                    </Card>
+                                            <Link href={`/processes/${p.id}`}>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary">
+                                                    <ChevronRight className="h-4 w-4" />
+                                                </Button>
+                                            </Link>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-muted rounded-xl bg-muted/5">
+                                <FileText className="h-10 w-10 text-muted-foreground/50 mb-4" />
+                                <h3 className="text-lg font-medium text-foreground">Nenhum processo vinculado</h3>
+                                <p className="text-sm text-muted-foreground mt-1">Este cliente ainda não possui processos cadastrados.</p>
+                            </div>
+                        )}
+                    </div>
                 </TabsContent>
 
                 {/* TAB: FINANCIAL */}
