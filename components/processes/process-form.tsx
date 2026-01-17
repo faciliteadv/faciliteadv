@@ -14,6 +14,50 @@ import { createProcess, updateProcessAction, getClientsForSelect, getUniqueSubje
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 
+
+const COURT_OPTIONS = [
+    "1ª Vara do Trabalho",
+    "2ª Vara do Trabalho",
+    "3ª Vara do Trabalho",
+    "4ª Vara do Trabalho",
+    "5ª Vara do Trabalho",
+    "6ª Vara do Trabalho",
+    "7ª Vara do Trabalho",
+    "1ª Vara Cível",
+    "2ª Vara Cível",
+    "3ª Vara Cível",
+    "4ª Vara Cível",
+    "5ª Vara Cível",
+    "6ª Vara Cível",
+    "7ª Vara Cível",
+    "8ª Vara Cível",
+    "Juizado Especial Cível e Criminal",
+    "Juizado Especial Federal",
+    "1ª Vara Federal",
+    "2ª Vara Federal",
+    "3ª Vara Federal",
+    "4ª Vara Federal",
+    "Núcleo de Justiça 4.0",
+    "1ª Vara da Família e das Sucessões",
+    "2ª Vara da Família e das Sucessões",
+    "1ª Vara Criminal",
+    "2ª Vara Criminal",
+    "3ª Vara Criminal"
+]
+
+const DISTRICT_OPTIONS = [
+    "Santos/SP",
+    "São Vicente/SP",
+    "Praia Grande/SP",
+    "Guarujá/SP",
+    "Cubatão/SP",
+    "Bertioga/SP",
+    "Mongaguá/SP",
+    "Itanhaém/SP",
+    "Peruíbe/SP",
+    "São Paulo/SP"
+]
+
 interface ProcessFormProps {
     initialData?: any
     isEditing?: boolean
@@ -41,6 +85,18 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
         court: "",
         link: ""
     })
+
+    // Status labels in Portuguese
+    const statusLabels: Record<string, string> = {
+        ACTIVE: "Ativo",
+        SUSPENDED: "Suspenso",
+        APPEAL: "Recurso",
+        SETTLEMENT: "Acordo",
+        CONSTRUCTION: "Construção",
+        ARCHIVED: "Arquivado",
+        EXTINCT: "Extinto",
+        EXTINCT_WITH_JUDGMENT: "Extinto com Julgamento"
+    }
 
     // Auto-Folder Name Logic state
     const [clientName, setClientName] = useState("")
@@ -174,7 +230,7 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                             <Label>Status</Label>
                             <Select value={formData.status} onValueChange={(v) => handleChange("status", v)}>
                                 <SelectTrigger>
-                                    <SelectValue placeholder="Selecione o status..." />
+                                    <SelectValue placeholder="Selecione o status...">{statusLabels[formData.status] || formData.status}</SelectValue>
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="ACTIVE">
@@ -248,8 +304,12 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                                     <SelectValue placeholder="Selecione a posição..." />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="AUTOR">Autor</SelectItem>
-                                    <SelectItem value="REU">Réu</SelectItem>
+                                    <SelectItem value="AUTOR">Autor (Cliente) - Réu (Parte Contrária)</SelectItem>
+                                    <SelectItem value="REU">Réu (Cliente) - Autor (Parte Contrária)</SelectItem>
+                                    <SelectItem value="RECLAMANTE">Reclamante (Cliente) - Reclamada (Parte Contrária)</SelectItem>
+                                    <SelectItem value="RECLAMADA">Reclamada (Cliente) - Reclamante (Parte Contrária)</SelectItem>
+                                    <SelectItem value="REQUERENTE">Requerente (Cliente) - Requerido (Parte Contrária)</SelectItem>
+                                    <SelectItem value="REQUERIDO">Requerido (Cliente) - Requerente (Parte Contrária)</SelectItem>
                                     <SelectItem value="OUTRO">Outro</SelectItem>
                                 </SelectContent>
                             </Select>
@@ -313,11 +373,30 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                     <div className="grid md:grid-cols-3 gap-4">
                         <div className="space-y-2">
                             <Label>Comarca (Cidade)</Label>
-                            <Input value={formData.district} onChange={(e) => handleChange("district", e.target.value)} />
+                            <Input
+                                value={formData.district}
+                                onChange={(e) => handleChange("district", e.target.value)}
+                                list="district-list"
+                                placeholder="Selecione ou digite..."
+                            />
+                            <datalist id="district-list">
+                                {DISTRICT_OPTIONS.map(d => <option key={d} value={d} />)}
+                            </datalist>
                         </div>
                         <div className="space-y-2">
                             <Label>Vara</Label>
-                            <Input value={formData.court} onChange={(e) => handleChange("court", e.target.value)} />
+                            <Select value={formData.court} onValueChange={(v) => handleChange("court", v)}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Selecione a vara..." />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-[300px]">
+                                    {COURT_OPTIONS.map((court) => (
+                                        <SelectItem key={court} value={court}>
+                                            {court}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
                         <div className="space-y-2">
                             <Label>Link do Processo (URL)</Label>

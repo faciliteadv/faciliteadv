@@ -71,6 +71,8 @@ model Client {
   ctps               String?
   pis                String?
   govAccessPassword  String?
+  civilStatus        String?
+  profession         String?
   email              String?
   whatsapp           String?
   address            Json?

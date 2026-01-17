@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Folder, Plus, ExternalLink, Briefcase, FileText, ChevronRight, Edit2 } from "lucide-react"
 import Link from "next/link"
 import { Card } from "@/components/ui/card"
+import { ProcessListItem } from "@/components/processes/process-list-item"
 
 export const dynamic = 'force-dynamic'
 
@@ -80,68 +81,13 @@ export default async function ProcessesPage({ searchParams }: PageProps) {
 
             <div className="space-y-4">
                 {processes.map((proc) => (
-                    <div
+                    <ProcessListItem
                         key={proc.id}
-                        className="group flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-xl border border-border bg-card p-4 shadow-sm hover:shadow-md hover:border-primary/20 transition-all"
-                    >
-                        {/* Left Side: Folder Name & Info */}
-                        <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                                <Folder className="h-4 w-4 text-primary fill-primary/10" />
-                                <h3 className="font-bold text-lg text-foreground truncate">{proc.folderName || proc.client.name}</h3>
-                            </div>
-
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                                <span className="flex items-center gap-1">
-                                    <FileText className="h-3 w-3" />
-                                    {proc.link ? (
-                                        <a href={proc.link} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-primary font-medium flex items-center gap-1">
-                                            {proc.number} <ExternalLink className="h-3 w-3" />
-                                        </a>
-                                    ) : (
-                                        <span className="font-medium">{proc.number}</span>
-                                    )}
-                                </span>
-                                <span className="text-muted-foreground/30">•</span>
-                                <span>{areaLabels[proc.area] || proc.area}</span>
-                                <span className="text-muted-foreground/30">•</span>
-                                <span className="truncate max-w-[200px]">{proc.subject || "Sem assunto"}</span>
-                            </div>
-
-                            {proc.opponent && (
-                                <p className="text-xs text-muted-foreground mt-1.5">
-                                    <span className="font-medium">Parte Contrária:</span> {proc.opponent} ({proc.position === "AUTOR" ? "Réu" : "Autor"})
-                                </p>
-                            )}
-                        </div>
-
-                        {/* Right Side: Status & Actions */}
-                        <div className="flex items-center gap-3 shrink-0">
-                            {proc.district && (
-                                <div className="hidden md:flex flex-col items-end mr-2">
-                                    <span className="text-xs font-medium text-foreground">{proc.district}</span>
-                                    <span className="text-[10px] text-muted-foreground">{proc.court}</span>
-                                </div>
-                            )}
-
-                            <Badge variant="outline" className={`${statusColors[proc.status] || "bg-gray-100 text-gray-700"} border-0 font-medium px-2.5 py-0.5`}>
-                                {statusLabels[proc.status] || proc.status}
-                            </Badge>
-
-                            <div className="flex items-center gap-1">
-                                <Link href={`/processes/${proc.id}/edit`}>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary">
-                                        <Edit2 className="h-4 w-4" />
-                                    </Button>
-                                </Link>
-                                <Link href={`/processes/${proc.id}`}>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary">
-                                        <ChevronRight className="h-4 w-4" />
-                                    </Button>
-                                </Link>
-                            </div>
-                        </div>
-                    </div>
+                        process={proc}
+                        statusColors={statusColors}
+                        statusLabels={statusLabels}
+                        areaLabels={areaLabels}
+                    />
                 ))}
 
                 {processes.length === 0 && (

@@ -3,6 +3,7 @@
 import { db } from "@/lib/db"
 import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
+import { redirect } from "next/navigation"
 
 // Simple fetch for select
 export async function getClientsForSelect() {
@@ -99,4 +100,24 @@ export async function getUniqueSubjects() {
         orderBy: { subject: 'asc' }
     })
     return processes.map(p => p.subject).filter(Boolean) as string[]
+}
+
+export async function deleteProcessAction(processId: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error("Não autorizado")
+
+    try {
+        await db.process.update({
+            where: { id: processId, userId: user.id },
+            data: { deletedAt: new Date() }
+        })
+        revalidatePath("/processes")
+        revalidatePath("/dashboard")
+    } catch (error) {
+        console.error("Error deleting process:", error)
+        throw new Error("Falha ao excluir processo")
+    }
+
+    redirect("/processes")
 }

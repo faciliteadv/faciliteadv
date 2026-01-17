@@ -11,6 +11,14 @@ import { ClientActionsMenu } from "@/components/clients/client-actions-menu"
 
 export const dynamic = 'force-dynamic'
 
+const clientStatusLabels: Record<string, string> = {
+    ACTIVE: "Ativo",
+    NEW_LEAD: "Novo Lead",
+    NEGOTIATING: "Negociando",
+    CONVERTED: "Convertido",
+    INACTIVE: "Inativo"
+}
+
 interface PageProps {
     searchParams: Promise<{ search?: string }>
 }
@@ -90,7 +98,7 @@ export default async function ClientsPage({ searchParams }: PageProps) {
                                             client.status === 'NEW_LEAD' ? "bg-blue-500/10 text-blue-700 border-blue-200" :
                                                 "bg-muted text-muted-foreground border-border"
                                     }>
-                                        {client.status}
+                                        {clientStatusLabels[client.status] || client.status}
                                     </Badge>
                                 </TableCell>
                                 <TableCell>

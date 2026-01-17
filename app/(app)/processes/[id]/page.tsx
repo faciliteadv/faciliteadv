@@ -15,9 +15,11 @@ import {
     Building2,
     User2,
     Folder,
-    Calendar
+    Calendar,
+    CalendarClock
 } from "lucide-react"
 import Link from "next/link"
+import { CopyButton } from "@/components/ui/copy-button"
 
 interface PageProps {
     params: Promise<{ id: string }>
@@ -30,7 +32,8 @@ const statusColors: Record<string, string> = {
     SUSPENDED: "bg-orange-100 text-orange-700 border-orange-200",
     APPEAL: "bg-blue-100 text-blue-700 border-blue-200",
     SETTLEMENT: "bg-purple-100 text-purple-700 border-purple-200",
-    CONSTRUCTION: "bg-gray-100 text-gray-700 border-gray-200"
+    CONSTRUCTION: "bg-gray-100 text-gray-700 border-gray-200",
+    EXTINCT_WITH_JUDGMENT: "bg-gray-900 text-white border-gray-900"
 }
 
 const statusLabels: Record<string, string> = {
@@ -74,10 +77,16 @@ export default async function ProcessDetailPage({ params }: PageProps) {
         notFound()
     }
 
+    // Fetch appointments (Agenda)
+    const appointments = await db.appointment.findMany({
+        where: { processId: id, userId: user.id },
+        orderBy: { startAt: 'asc' }
+    })
+
     return (
         <div className="space-y-6 animate-in fade-in duration-500 pb-10">
             {/* Header */}
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                     <Link href="/processes">
                         <Button variant="ghost" size="icon">
@@ -96,15 +105,18 @@ export default async function ProcessDetailPage({ params }: PageProps) {
                         <p className="text-muted-foreground mt-1 flex items-center gap-2">
                             <FileText className="h-4 w-4" />
                             {process.number}
+                            <CopyButton value={process.number} label="Número do Processo" />
                         </p>
                     </div>
                 </div>
-                <Link href={`/processes/${id}/edit`}>
-                    <Button className="gap-2">
-                        <Edit2 className="h-4 w-4" />
-                        Editar Processo
-                    </Button>
-                </Link>
+                <div className="flex items-center gap-2">
+                    <Link href={`/processes/${id}/edit`}>
+                        <Button className="gap-2">
+                            <Edit2 className="h-4 w-4" />
+                            Editar
+                        </Button>
+                    </Link>
+                </div>
             </div>
 
             <div className="grid gap-6 md:grid-cols-3">
@@ -114,7 +126,7 @@ export default async function ProcessDetailPage({ params }: PageProps) {
                         <CardHeader>
                             <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                                 <Scale className="h-4 w-4" />
-                                Detalhes Jurídicos
+                                Detalhes do Processo
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="grid gap-6">
@@ -132,14 +144,17 @@ export default async function ProcessDetailPage({ params }: PageProps) {
                                     <Separator />
                                     <div className="flex flex-col gap-1">
                                         <span className="text-xs text-muted-foreground font-medium uppercase">Link do Processo</span>
-                                        <a
-                                            href={process.link}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-primary hover:underline flex items-center gap-2 text-sm font-medium"
-                                        >
-                                            Acessar sistema do tribunal <ExternalLink className="h-4 w-4" />
-                                        </a>
+                                        <div className="flex items-center gap-2">
+                                            <a
+                                                href={process.link}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-primary hover:underline flex items-center gap-2 text-sm font-medium"
+                                            >
+                                                Acessar sistema do tribunal <ExternalLink className="h-4 w-4" />
+                                            </a>
+                                            <CopyButton value={process.link} label="Link" />
+                                        </div>
                                     </div>
                                 </>
                             )}
@@ -155,14 +170,48 @@ export default async function ProcessDetailPage({ params }: PageProps) {
                         </CardHeader>
                         <CardContent className="grid gap-6">
                             <div className="grid grid-cols-2 gap-4">
-                                <DetailRow label="Cliente (Nosso Cliente)" value={process.client.name} />
-                                <DetailRow label="Posição do Cliente" value={process.position === "AUTOR" ? "Autor" : "Réu"} />
+                                <div>
+                                    <DetailRow label="Cliente (Nosso Cliente)" value={process.client.name} />
+                                    <div className="mt-1"><CopyButton value={process.client.name} label="Nome do Cliente" /></div>
+                                </div>
+                                <DetailRow label="Posição do Cliente" value={process.position} />
                             </div>
                             <Separator />
                             <div className="grid grid-cols-2 gap-4">
-                                <DetailRow label="Parte Contrária" value={process.opponent} />
-                                <DetailRow label="Posição da Parte Contrária" value={process.position === "AUTOR" ? "Réu" : "Autor"} />
+                                <div>
+                                    <DetailRow label="Parte Contrária" value={process.opponent} />
+                                    {process.opponent && <div className="mt-1"><CopyButton value={process.opponent} label="Nome da Parte Contrária" /></div>}
+                                </div>
+                                <DetailRow label="Posição da Parte Contrária" value="-" /> {/* Logic handling for opponent position is redundant if we show explicitly in dropdown text, but can be inferred if needed */}
                             </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Agenda Section */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                                <CalendarClock className="h-4 w-4" />
+                                Agenda do Processo
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            {appointments.length > 0 ? (
+                                <div className="space-y-4">
+                                    {appointments.map(apt => (
+                                        <div key={apt.id} className="flex items-start justify-between border-b pb-4 last:border-0 last:pb-0">
+                                            <div>
+                                                <p className="font-medium text-sm">{apt.title}</p>
+                                                <p className="text-xs text-muted-foreground">{new Date(apt.startAt).toLocaleString('pt-BR')}</p>
+                                                {apt.description && <p className="text-xs text-slate-500 mt-1">{apt.description}</p>}
+                                            </div>
+                                            <Badge variant="secondary" className="text-[10px]">{apt.type}</Badge>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-sm text-muted-foreground">Nenhum agendamento encontrado para este processo.</p>
+                            )}
                         </CardContent>
                     </Card>
                 </div>
@@ -188,8 +237,10 @@ export default async function ProcessDetailPage({ params }: PageProps) {
                             <div className="flex flex-col items-center text-center space-y-2">
                                 <Calendar className="h-8 w-8 text-muted-foreground" />
                                 <h3 className="font-semibold text-sm">Próximos Prazos</h3>
-                                <p className="text-xs text-muted-foreground">Nenhum prazo agendado para este processo.</p>
-                                <Button variant="outline" size="sm" className="mt-2">Agendar Prazo</Button>
+                                <p className="text-xs text-muted-foreground">Gerencie prazos na aba Kanban ou Agenda.</p>
+                                <Button variant="outline" size="sm" className="mt-2" asChild>
+                                    <Link href={`/agenda`}>Ir para Agenda</Link>
+                                </Button>
                             </div>
                         </CardContent>
                     </Card>

@@ -60,6 +60,8 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
         govAccessPassword: "",
         fatherName: "",
         motherName: "",
+        profession: "",
+        civilStatus: "",
         acquisitionChannel: "",
         address: {
             street: "",
@@ -89,6 +91,8 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
                 govAccessPassword: initialData.govAccessPassword || "",
                 fatherName: initialData.fatherName || "",
                 motherName: initialData.motherName || "",
+                profession: initialData.profession || "",
+                civilStatus: initialData.civilStatus || "",
                 acquisitionChannel: initialData.acquisitionChannel || "",
                 address: {
                     street: initialData.address?.street || "",
@@ -220,6 +224,43 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
         finally { setFetching(false) }
     }
 
+    const fetchCPFData = async () => {
+        const cpf = formData.cpfCnpj.replace(/\D/g, "")
+        if (cpf.length !== 11) return alert("CPF inválido")
+        setFetching(true)
+        try {
+            const { fetchCPFData: fetchCPFAction } = await import("@/lib/actions/client-actions")
+            const result = await fetchCPFAction(formData.cpfCnpj)
+
+            if (!result.success) {
+                throw new Error(result.error)
+            }
+
+            if (result.data?.name) {
+                setFormData(prev => ({
+                    ...prev,
+                    name: result.data.name || prev.name,
+                }))
+            }
+
+            toast({
+                title: "CPF consultado",
+                description: result.data?.name
+                    ? `Nome: ${result.data.name}`
+                    : (result.data?.message || "CPF válido"),
+                type: "success"
+            })
+        } catch (e: any) {
+            toast({
+                title: "Erro ao buscar CPF",
+                description: e.message || "Verifique o CPF e tente novamente",
+                type: "error"
+            })
+            console.error(e)
+        }
+        finally { setFetching(false) }
+    }
+
     const fetchAddressByCEP = async (cepValue: string) => {
         const cep = cepValue.replace(/\D/g, "")
         if (cep.length !== 8) return
@@ -314,11 +355,16 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
                                     onChange={handleInputChange}
                                     className={errors.cpfCnpj ? "border-red-500" : ""}
                                 />
-                                {clientType === 'PJ' && (
-                                    <Button type="button" variant="outline" size="icon" onClick={fetchCompanyData} disabled={fetching}>
-                                        {fetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                                    </Button>
-                                )}
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    onClick={clientType === 'PJ' ? fetchCompanyData : fetchCPFData}
+                                    disabled={fetching}
+                                    title={clientType === 'PJ' ? "Buscar dados do CNPJ" : "Buscar dados do CPF"}
+                                >
+                                    {fetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                                </Button>
                             </div>
                             {errors.cpfCnpj && <p className="text-red-500 text-xs">{errors.cpfCnpj}</p>}
                         </div>
@@ -407,6 +453,20 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
                             <div className="grid md:grid-cols-2 gap-4">
                                 <div className="space-y-2"><Label>Nome da Mãe</Label><Input name="motherName" value={formData.motherName} onChange={handleInputChange} /></div>
                                 <div className="space-y-2"><Label>Nome do Pai</Label><Input name="fatherName" value={formData.fatherName} onChange={handleInputChange} /></div>
+                                <div className="space-y-2"><Label>Profissão</Label><Input name="profession" value={formData.profession} onChange={handleInputChange} /></div>
+                                <div className="space-y-2">
+                                    <Label>Estado Civil</Label>
+                                    <Select value={formData.civilStatus} onValueChange={(v) => setFormData(p => ({ ...p, civilStatus: v }))}>
+                                        <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="SOLTEIRO">Solteiro(a)</SelectItem>
+                                            <SelectItem value="CASADO">Casado(a)</SelectItem>
+                                            <SelectItem value="DIVORCIADO">Divorciado(a)</SelectItem>
+                                            <SelectItem value="VIUVO">Viúvo(a)</SelectItem>
+                                            <SelectItem value="UNIAO_ESTAVEL">União Estável</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                             </div>
                         </>
                     )}

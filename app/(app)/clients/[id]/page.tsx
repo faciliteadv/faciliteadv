@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { MessageCircle, FileText, Briefcase, DollarSign, Calendar, Edit, Folder, Plus, ChevronRight, Edit2 } from "lucide-react"
 import Link from "next/link"
+import { ProcessListItem } from "@/components/processes/process-list-item"
 
 export const dynamic = 'force-dynamic'
 
@@ -47,6 +48,14 @@ const areaLabels: Record<string, string> = {
     PREVIDENCIARIO: "Previdenciário",
     INSS_ADMIN: "INSS Administrativo",
     DIGITAL: "Direito Digital"
+}
+
+const acquisitionChannelLabels: Record<string, string> = {
+    ADS: "Tráfego Pago (Ads)",
+    REFERRAL: "Indicação",
+    INSTAGRAM: "Instagram",
+    GOOGLE: "Google Orgânico",
+    OTHER: "Outros"
 }
 
 export default async function ClientByTypePage({ params }: PageProps) {
@@ -91,7 +100,7 @@ export default async function ClientByTypePage({ params }: PageProps) {
                             <span className="text-sm text-muted-foreground capitalize">• {client.type === 'PF' ? 'Pessoa Física' : 'Pessoa Jurídica'}</span>
                             {client.acquisitionChannel && (
                                 <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                                    {client.acquisitionChannel}
+                                    {acquisitionChannelLabels[client.acquisitionChannel] || client.acquisitionChannel}
                                 </span>
                             )}
                         </div>
@@ -226,53 +235,13 @@ export default async function ClientByTypePage({ params }: PageProps) {
                     <div className="space-y-4">
                         {client.processes && client.processes.length > 0 ? (
                             client.processes.map((p: any) => (
-                                <div
+                                <ProcessListItem
                                     key={p.id}
-                                    className="group flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-xl border border-border bg-card p-4 shadow-sm hover:shadow-md hover:border-primary/20 transition-all"
-                                >
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <Folder className="h-4 w-4 text-primary fill-primary/10" />
-                                            <h3 className="font-bold text-lg text-foreground truncate">{p.folderName || "Processo sem nome"}</h3>
-                                        </div>
-
-                                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                                            <span className="flex items-center gap-1">
-                                                <FileText className="h-3 w-3" />
-                                                <span className="font-medium">{p.number}</span>
-                                            </span>
-                                            <span className="text-muted-foreground/30">•</span>
-                                            <span>{areaLabels[p.area] || p.area}</span>
-                                            <span className="text-muted-foreground/30">•</span>
-                                            <span className="truncate max-w-[200px]">{p.subject || "Sem assunto"}</span>
-                                        </div>
-
-                                        {p.opponent && (
-                                            <p className="text-xs text-muted-foreground mt-1.5">
-                                                <span className="font-medium">Parte Contrária:</span> {p.opponent}
-                                            </p>
-                                        )}
-                                    </div>
-
-                                    <div className="flex items-center gap-3 shrink-0">
-                                        <Badge variant="outline" className={`${statusColors[p.status] || "bg-gray-100 text-gray-700"} border-0 font-medium px-2.5 py-0.5`}>
-                                            {statusLabels[p.status] || p.status}
-                                        </Badge>
-
-                                        <div className="flex items-center gap-1 border-l pl-3 ml-1">
-                                            <Link href={`/processes/${p.id}/edit`}>
-                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary">
-                                                    <Edit2 className="h-4 w-4" />
-                                                </Button>
-                                            </Link>
-                                            <Link href={`/processes/${p.id}`}>
-                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary">
-                                                    <ChevronRight className="h-4 w-4" />
-                                                </Button>
-                                            </Link>
-                                        </div>
-                                    </div>
-                                </div>
+                                    process={p}
+                                    statusColors={statusColors}
+                                    statusLabels={statusLabels}
+                                    areaLabels={areaLabels}
+                                />
                             ))
                         ) : (
                             <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-muted rounded-xl bg-muted/5">
