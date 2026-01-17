@@ -19,10 +19,25 @@ export async function createClient(data: any) {
         revalidatePath("/dashboard")
     } catch (error: any) {
         console.error("Error creating client:", JSON.stringify(error, null, 2))
-        // If it is a Zod error, it might be helpful to see issues
         if (error instanceof z.ZodError) {
             console.error("Zod Validation Errors:", error.issues)
         }
-        throw error // Re-throw to be caught by UI or Next.js error boundary
+        throw error
+    }
+}
+
+export async function updateClientAction(clientId: string, data: any) {
+    const supabase = await createSupabaseClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) throw new Error("Unauthorized")
+
+    try {
+        await ClientService.updateClient(user.id, clientId, data)
+        revalidatePath("/clients")
+        revalidatePath(`/clients/${clientId}`)
+    } catch (error: any) {
+        console.error("Error updating client:", error)
+        throw error
     }
 }

@@ -77,9 +77,11 @@ export default async function ClientByTypePage({ params }: PageProps) {
                             </Button>
                         </a>
                     )}
-                    <Button variant="outline" size="icon">
-                        <Edit className="h-4 w-4" />
-                    </Button>
+                    <Link href={`/clients/${id}/edit`}>
+                        <Button variant="outline" size="icon">
+                            <Edit className="h-4 w-4" />
+                        </Button>
+                    </Link>
                 </div>
             </div>
 
