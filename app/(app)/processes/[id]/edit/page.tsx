@@ -1,10 +1,7 @@
 import { db } from "@/lib/db"
 import { createClient } from "@/utils/supabase/server"
 import { notFound, redirect } from "next/navigation"
-import { ProcessForm } from "@/components/processes/process-form"
-import { Button } from "@/components/ui/button"
-import Link from "next/link"
-import { ArrowLeft } from "lucide-react"
+import EditProcessClient from "./edit-client"
 
 interface EditProcessPageProps {
     params: Promise<{ id: string }>
@@ -27,20 +24,5 @@ export default async function EditProcessPage({ params }: EditProcessPageProps) 
         return notFound()
     }
 
-    return (
-        <div className="space-y-6 animate-in fade-in duration-500 max-w-3xl mx-auto pb-10 1">
-            <div className="flex items-center gap-4">
-                <Link href={`/processes/${id}`}>
-                    <Button variant="ghost" size="icon">
-                        <ArrowLeft className="h-4 w-4" />
-                    </Button>
-                </Link>
-                <div>
-                    <h2 className="text-2xl font-bold tracking-tight">Editar Processo</h2>
-                </div>
-            </div>
-
-            <ProcessForm initialData={process} isEditing />
-        </div>
-    )
+    return <EditProcessClient params={{ id }} initialData={process} />
 }

@@ -279,21 +279,24 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                     {/* Row 4: Area & Subject */}
                     <div className="grid md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <Label>Área</Label>
+                            <Label>Área de Atuação</Label>
                             <Select value={formData.area} onValueChange={(v) => handleChange("area", v)}>
-                                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                                <SelectTrigger><SelectValue placeholder="Selecione a área..." /></SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="CIVIL">Cível</SelectItem>
-                                    <SelectItem value="CRIMINAL">Criminal</SelectItem>
                                     <SelectItem value="TRABALHISTA">Trabalhista</SelectItem>
-                                    <SelectItem value="FAMILIA">Família</SelectItem>
+                                    <SelectItem value="CIVIL">Cível</SelectItem>
+                                    <SelectItem value="FAMILIA">Família e Sucessões</SelectItem>
+                                    <SelectItem value="EMPRESARIAL">Empresarial</SelectItem>
+                                    <SelectItem value="TRIBUTARIO">Tributário</SelectItem>
+                                    <SelectItem value="ADMINISTRATIVO">Administrativo</SelectItem>
                                     <SelectItem value="PREVIDENCIARIO">Previdenciário</SelectItem>
-                                    <SelectItem value="OUTROS">Outros</SelectItem>
+                                    <SelectItem value="INSS_ADMIN">INSS Administrativo</SelectItem>
+                                    <SelectItem value="DIGITAL">Direito Digital</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
                         <div className="space-y-2">
-                            <Label>Assunto Principal</Label>
+                            <Label>Assunto (Específico)</Label>
                             <Input
                                 value={formData.subject}
                                 onChange={(e) => handleChange("subject", e.target.value)}

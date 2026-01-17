@@ -36,12 +36,15 @@ const statusLabels: Record<string, string> = {
 }
 
 const areaLabels: Record<string, string> = {
-    CIVIL: "Cível",
-    CRIMINAL: "Criminal",
     TRABALHISTA: "Trabalhista",
-    FAMILIA: "Família",
+    CIVIL: "Cível",
+    FAMILIA: "Família e Sucessões",
+    EMPRESARIAL: "Empresarial",
+    TRIBUTARIO: "Tributário",
+    ADMINISTRATIVO: "Administrativo",
     PREVIDENCIARIO: "Previdenciário",
-    OUTROS: "Outros"
+    INSS_ADMIN: "INSS Administrativo",
+    DIGITAL: "Direito Digital"
 }
 
 export default async function ProcessesPage({ searchParams }: PageProps) {
