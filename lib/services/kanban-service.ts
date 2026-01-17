@@ -47,7 +47,15 @@ export const KanbanService = {
 
         return await db.taskCard.create({
             data: {
-                userId
+                ...taskData,
+                userId,
+                phase: 'TODO', // Default phase
+                tags: tags && tags.length > 0 ? {
+                    connect: tags.map(id => ({ id }))
+                } : undefined,
+                checklist: checklist && checklist.length > 0 ? {
+                    create: checklist.map(title => ({ title }))
+                } : undefined
             }
         })
     },
