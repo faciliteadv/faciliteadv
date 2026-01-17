@@ -1,5 +1,5 @@
 import { db } from "@/lib/db"
-import { TaskCard, TaskPhase, TaskType } from "@prisma/client"
+import { TaskPhase, TaskType } from "@prisma/client"
 
 export const KanbanService = {
     getBoard: async (userId: string) => {
@@ -10,9 +10,12 @@ export const KanbanService = {
                 // Optional: Filter by Process status if needed
             },
             include: {
-                process: { select: { number: true, client: { select: { name: true } } } },
-                client: { select: { name: true } },
-                tags: true
+                client: true,
+                process: true,
+                tags: true,
+                checklist: {
+                    orderBy: { createdAt: 'asc' }
+                }
             },
             orderBy: { fatalDate: 'asc' }
         })
@@ -29,10 +32,21 @@ export const KanbanService = {
         })
     },
 
-    createTask: async (userId: string, data: any) => {
+    createTask: async (userId: string, data: {
+        title: string
+        description?: string
+        type: TaskType
+        fatalDate?: Date
+        endDate?: Date
+        processId?: string
+        clientId?: string
+        tags?: string[] // Tag IDs
+        checklist?: string[] // Checklist Titles
+    }) => {
+        const { checklist, tags, ...taskData } = data
+
         return await db.taskCard.create({
             data: {
-                ...data,
                 userId
             }
         })

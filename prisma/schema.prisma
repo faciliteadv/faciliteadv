@@ -118,10 +118,23 @@ model TaskCard {
   process     Process?  @relation(fields: [processId], references: [id])
   user        User      @relation(fields: [userId], references: [id])
   tags        Tag[]     @relation("TagToTaskCard")
+  checklist   ChecklistItem[]
 
   @@index([userId])
   @@index([fatalDate])
   @@index([phase])
+}
+
+model ChecklistItem {
+  id          String    @id @default(uuid())
+  title       String
+  isCompleted Boolean   @default(false)
+  taskId      String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  task        TaskCard  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
 }
 
 model Tag {

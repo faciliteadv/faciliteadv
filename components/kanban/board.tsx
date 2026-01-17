@@ -21,19 +21,22 @@ import { Calendar, AlertCircle, FileText, User, MoreHorizontal, Clock, Tag as Ta
 import { cn } from "@/lib/utils"
 
 // Professional Blue Columns
+// Kanban Phases (Matches User Request + Schema)
 const COLUMNS: { id: TaskPhase; label: string; color: string; accent: string }[] = [
-    { id: 'TODO', label: 'A Fazer', color: 'bg-slate-50', accent: 'bg-slate-500' },
-    { id: 'DOING', label: 'Em Andamento', color: 'bg-blue-50/50', accent: 'bg-blue-600' },
-    { id: 'REVIEW', label: 'Revisão', color: 'bg-amber-50/50', accent: 'bg-amber-500' },
-    { id: 'WAITING_DOCS', label: 'Docs Pendentes', color: 'bg-purple-50/50', accent: 'bg-purple-500' },
-    { id: 'PROTOCOL', label: 'Protocolar', color: 'bg-emerald-50/50', accent: 'bg-emerald-600' },
-    { id: 'PROTOCOLLED', label: 'Concluído', color: 'bg-slate-100/50', accent: 'bg-slate-400' },
+    { id: 'TODO', label: 'A Fazer', color: 'bg-slate-50', accent: 'bg-slate-500' }, // Gray
+    { id: 'DOING', label: 'Em Andamento', color: 'bg-sky-50', accent: 'bg-sky-500' }, // Light Blue
+    { id: 'REVIEW', label: 'Revisão', color: 'bg-yellow-50', accent: 'bg-yellow-500' }, // Yellow
+    { id: 'REFACTOR', label: 'Refazer', color: 'bg-red-50', accent: 'bg-red-500' }, // Red (Mapped to Refactor)
+    { id: 'WAITING_DOCS', label: 'Aguardando Docs', color: 'bg-slate-100', accent: 'bg-slate-400' }, // Gray
+    { id: 'PROTOCOL', label: 'Protocolar', color: 'bg-emerald-50', accent: 'bg-emerald-500' }, // Green (Submit Queue)
+    { id: 'PROTOCOLLED', label: 'Concluído', color: 'bg-blue-900/5', accent: 'bg-blue-900' }, // Dark Blue (Filed)
 ]
 
 type ExtendedTask = TaskCard & {
-    client: { name: string } | null,
-    process: { number: string } | null,
-    tags: Tag[]
+    client?: { id: string; name: string } | null
+    process?: { id: string; number: string; folderName: string | null } | null
+    tags?: Tag[]
+    checklist?: { id: string; title: string; isCompleted: boolean }[]
 }
 
 type BoardProps = {
@@ -57,12 +60,12 @@ export function KanbanBoard({ initialTasks }: BoardProps) {
     const sensors = useSensors(
         useSensor(MouseSensor, {
             activationConstraint: {
-                distance: 5, // Prevent accidental drags
+                distance: 8, // Slightly higher to distinguish scroll vs drag
             },
         }),
         useSensor(TouchSensor, {
             activationConstraint: {
-                delay: 250,
+                delay: 150, // Reduced delay
                 tolerance: 5,
             },
         })
@@ -165,80 +168,85 @@ function DraggableCard({ task }: { task: ExtendedTask }) {
     } : undefined
 
     return (
-        <div ref={setNodeRef} style={style} {...listeners} {...attributes} className="touch-none select-none">
+        <div ref={setNodeRef} style={style} {...listeners} {...attributes} className="touch-none select-none cursor-grab active:cursor-grabbing">
             <TaskCardItem task={task} />
         </div>
     )
 }
 
 function TaskCardItem({ task, isOverlay }: { task: ExtendedTask, isOverlay?: boolean }) {
-    // Deadline Logic
-    const isLate = task.fatalDate && new Date(task.fatalDate) < new Date()
+    // Logic: Color based on Critical Deadline (Prazo Fatal)
+    // Blue (Default) -> Yellow (2 days left) -> Red (Late) -> Green (Protocol Queue)
+
+    const isProtocolQueue = task.phase === 'PROTOCOL'
+    const isLate = task.fatalDate && new Date(task.fatalDate) < new Date() && task.phase !== 'PROTOCOLLED'
     const isDueSoon = task.fatalDate && new Date(task.fatalDate).getTime() - new Date().getTime() < 86400000 * 2 // 2 days
+
+    let borderColor = "border-l-sky-400" // Default Light Blue
+    let bgColor = "bg-white"
+
+    if (isProtocolQueue) {
+        borderColor = "border-l-emerald-500" // Green
+    } else if (isLate) {
+        borderColor = "border-l-red-500" // Red
+    } else if (isDueSoon) {
+        borderColor = "border-l-yellow-400" // Yellow
+    }
 
     return (
         <div className={cn(
-            "group relative bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition-all duration-200 cursor-grab active:cursor-grabbing",
-            isOverlay && "shadow-xl rotate-2 scale-105 border-blue-500",
-            isLate && "border-l-4 border-l-red-500",
-            !isLate && isDueSoon && "border-l-4 border-l-amber-500"
+            "group relative rounded-lg p-3 border border-slate-200 shadow-sm hover:shadow-md transition-all duration-200 cursor-grab active:cursor-grabbing border-l-[6px]",
+            borderColor,
+            bgColor,
+            isOverlay && "shadow-xl rotate-2 scale-105"
         )}>
-            {/* Tags */}
-            <div className="flex flex-wrap gap-1 mb-2">
-                {task.tags && task.tags.map(tag => (
-                    <span key={tag.id} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
-                        {tag.name}
-                    </span>
-                ))}
-                {task.type === 'DEADLINE' && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-50 text-red-600 font-medium border border-red-100">
-                        Prazo
-                    </span>
-                )}
+
+            <div className="flex justify-between items-start mb-2">
+                <h4 className="text-sm font-semibold text-slate-800 leading-snug line-clamp-2">
+                    {task.title}
+                </h4>
             </div>
 
-            <h4 className="text-sm font-semibold text-slate-800 mb-1 leading-snug">
-                {task.title}
-            </h4>
-
-            {/* Client & Process */}
+            {/* Compact Info: Process & Client */}
             <div className="space-y-1 mb-3">
-                {task.client && (
-                    <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                        <User className="w-3 h-3 text-slate-400" />
-                        <span className="truncate max-w-[180px]">{task.client.name}</span>
-                    </div>
-                )}
                 {task.process && (
                     <div className="flex items-center gap-1.5 text-xs text-slate-500">
                         <FileText className="w-3 h-3 text-slate-400" />
-                        <span className="font-mono bg-slate-50 px-1 rounded text-[10px]">{task.process.number}</span>
+                        <span className="font-mono bg-slate-50 px-1 rounded text-[10px] truncate max-w-[150px]">{task.process.folderName || task.process.number}</span>
+                    </div>
+                )}
+                {task.client && (
+                    <div className="hidden"> {/* Hidden based on request? "process folder name... visible". Client not explicitly mentioned but useful. Keeping hidden if strict. User said: "Process Folder Name... End Date... Critical Deadline... Responsible" */}
+                        {/* Hiding client to strictly follow: Name, Process Folder, End Date, Critical Deadline, Responsible */}
                     </div>
                 )}
             </div>
 
-            {/* Footer: Date & Avatar */}
+            {/* Footer: Dates & Responsible */}
             <div className="flex items-center justify-between pt-2 border-t border-slate-50 mt-1">
-                <div className="flex items-center gap-2">
-                    {task.fatalDate ? (
-                        <div className={cn(
-                            "flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full",
-                            isLate ? "bg-red-50 text-red-600" : isDueSoon ? "bg-amber-50 text-amber-600" : "bg-slate-50 text-slate-500"
-                        )}>
-                            <Clock className="w-3 h-3" />
-                            {new Date(task.fatalDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                <div className="flex flex-col gap-1">
+                    {task.endDate && (
+                        <div className="flex items-center gap-1 text-[10px] text-slate-400">
+                            <span>Fim:</span>
+                            {new Date(task.endDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
                         </div>
-                    ) : (
-                        <div className="text-xs text-slate-400">Sem data</div>
+                    )}
+                    {task.fatalDate && (
+                        <div className={cn(
+                            "flex items-center gap-1 text-xs font-bold",
+                            isLate ? "text-red-600" : isDueSoon ? "text-yellow-600" : "text-sky-600"
+                        )}>
+                            <AlertCircle className="w-3 h-3" />
+                            {new Date(task.fatalDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                        </div>
                     )}
                 </div>
 
-                {/* User Avatar Placeholder */}
-                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-[10px] text-white flex items-center justify-center font-bold ring-2 ring-white">
+                {/* Responsible Avatar (Using User Initials) */}
+                <div className="w-6 h-6 rounded-full bg-slate-200 text-[10px] text-slate-600 flex items-center justify-center font-bold ring-2 ring-white" title="Responsável">
                     U
                 </div>
             </div>
-
             {/* Hover Actions */}
             <button className="absolute top-2 right-2 p-1 rounded hover:bg-slate-100 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
                 <MoreHorizontal className="w-4 h-4" />

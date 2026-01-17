@@ -1,6 +1,8 @@
 import { db } from "@/lib/db"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users, Briefcase, CalendarCheck, Clock, ArrowUpRight } from "lucide-react"
+import { Users, Briefcase, CalendarCheck, Clock, ArrowUpRight, Plus, UserPlus, FilePlus } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import Link from "next/link"
 import { createClient } from "@/utils/supabase/server"
 import { redirect } from "next/navigation"
 
@@ -49,56 +51,83 @@ export default async function DashboardPage() {
                 <p className="text-muted-foreground mt-1">Bem-vindo de volta! Aqui está o resumo do seu escritório.</p>
             </div>
 
+            {/* Quick Actions Toolbar */}
+            <div className="flex items-center gap-4 py-4 overflow-x-auto">
+                <Link href="/tasks">
+                    <Button variant="outline" className="border-dashed border-slate-300 hover:border-blue-500 hover:bg-blue-50 text-slate-600">
+                        <Plus className="mr-2 h-4 w-4" /> Nova Tarefa
+                    </Button>
+                </Link>
+                <Link href="/clients/new">
+                    <Button variant="outline" className="border-dashed border-slate-300 hover:border-blue-500 hover:bg-blue-50 text-slate-600">
+                        <UserPlus className="mr-2 h-4 w-4" /> Novo Cliente
+                    </Button>
+                </Link>
+                <Link href="/processes/new">
+                    <Button variant="outline" className="border-dashed border-slate-300 hover:border-blue-500 hover:bg-blue-50 text-slate-600">
+                        <FilePlus className="mr-2 h-4 w-4" /> Novo Processo
+                    </Button>
+                </Link>
+            </div>
+
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-                <Card className="border-l-4 border-l-chart-1 shadow-sm hover:shadow-md transition-shadow">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">Processos Ativos</CardTitle>
-                        <Briefcase className="h-4 w-4 text-chart-1" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-foreground">{processCount}</div>
-                        <p className="text-xs text-muted-foreground mt-1">processos em andamento</p>
-                    </CardContent>
-                </Card>
+                <Link href="/processes">
+                    <Card className="border-l-4 border-l-chart-1 shadow-sm hover:shadow-md transition-shadow cursor-pointer hover:bg-slate-50">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium text-muted-foreground">Processos Ativos</CardTitle>
+                            <Briefcase className="h-4 w-4 text-chart-1" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold text-foreground">{processCount}</div>
+                            <p className="text-xs text-muted-foreground mt-1">processos em andamento</p>
+                        </CardContent>
+                    </Card>
+                </Link>
 
-                <Card className="border-l-4 border-l-chart-2 shadow-sm hover:shadow-md transition-shadow">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">Clientes</CardTitle>
-                        <Users className="h-4 w-4 text-chart-2" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-foreground">{clientCount}</div>
-                        <p className="text-xs text-muted-foreground mt-1">clientes cadastrados</p>
-                    </CardContent>
-                </Card>
+                <Link href="/clients">
+                    <Card className="border-l-4 border-l-chart-2 shadow-sm hover:shadow-md transition-shadow cursor-pointer hover:bg-slate-50">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium text-muted-foreground">Clientes</CardTitle>
+                            <Users className="h-4 w-4 text-chart-2" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold text-foreground">{clientCount}</div>
+                            <p className="text-xs text-muted-foreground mt-1">clientes cadastrados</p>
+                        </CardContent>
+                    </Card>
+                </Link>
 
-                <Card className="border-l-4 border-l-chart-3 shadow-sm hover:shadow-md transition-shadow">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">Tarefas Pendentes</CardTitle>
-                        <CalendarCheck className="h-4 w-4 text-chart-3" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-foreground">{activeTaskCount}</div>
-                        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                            {fatalDeadlineCount > 0 ? (
-                                <span className="text-destructive font-medium">{fatalDeadlineCount} com prazo fatal</span>
-                            ) : (
-                                'nenhum prazo fatal'
-                            )}
-                        </p>
-                    </CardContent>
-                </Card>
+                <Link href="/kanban">
+                    <Card className="border-l-4 border-l-chart-3 shadow-sm hover:shadow-md transition-shadow cursor-pointer hover:bg-slate-50">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium text-muted-foreground">Tarefas Pendentes</CardTitle>
+                            <CalendarCheck className="h-4 w-4 text-chart-3" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold text-foreground">{activeTaskCount}</div>
+                            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                                {fatalDeadlineCount > 0 ? (
+                                    <span className="text-destructive font-medium">{fatalDeadlineCount} com prazo fatal</span>
+                                ) : (
+                                    'nenhum prazo fatal'
+                                )}
+                            </p>
+                        </CardContent>
+                    </Card>
+                </Link>
 
-                <Card className="border-l-4 border-l-chart-4 shadow-sm hover:shadow-md transition-shadow">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">Compromissos Hoje</CardTitle>
-                        <Clock className="h-4 w-4 text-chart-4" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-foreground">{appointmentsToday}</div>
-                        <p className="text-xs text-muted-foreground mt-1">agendados para hoje</p>
-                    </CardContent>
-                </Card>
+                <Link href="/agenda">
+                    <Card className="border-l-4 border-l-chart-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer hover:bg-slate-50">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium text-muted-foreground">Compromissos Hoje</CardTitle>
+                            <Clock className="h-4 w-4 text-chart-4" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold text-foreground">{appointmentsToday}</div>
+                            <p className="text-xs text-muted-foreground mt-1">agendados para hoje</p>
+                        </CardContent>
+                    </Card>
+                </Link>
             </div>
 
             {/* Recent Activity Section Placeholder */}
