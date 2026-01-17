@@ -41,3 +41,17 @@ export async function updateClientAction(clientId: string, data: any) {
         throw error
     }
 }
+export async function deleteClientAction(clientId: string) {
+    const supabase = await createSupabaseClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) throw new Error("Unauthorized")
+
+    try {
+        await ClientService.softDelete(user.id, clientId)
+        revalidatePath("/clients")
+    } catch (error: any) {
+        console.error("Error deleting client:", error)
+        throw error
+    }
+}

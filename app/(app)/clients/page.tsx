@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button"
 import { SearchInput } from "@/components/ui/SearchInput"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Plus, MoreHorizontal, MessageCircle, Users } from "lucide-react"
+import { Plus, MessageCircle, Users } from "lucide-react"
+import { ClientActionsMenu } from "@/components/clients/client-actions-menu"
 
 export const dynamic = 'force-dynamic'
 
@@ -93,9 +94,7 @@ export default async function ClientsPage({ searchParams }: PageProps) {
                                     </Badge>
                                 </TableCell>
                                 <TableCell>
-                                    <Button variant="ghost" size="icon" className="hover:bg-muted hover:text-foreground">
-                                        <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
-                                    </Button>
+                                    <ClientActionsMenu clientId={client.id} clientName={client.name} />
                                 </TableCell>
                             </TableRow>
                         ))}
