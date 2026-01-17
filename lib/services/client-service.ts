@@ -5,13 +5,14 @@ import crypto from "crypto"
 
 // --- Encryption Helper ---
 const ALGORITHM = 'aes-256-cbc';
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'default_secret_key_32_bytes_long!!'; // 32 chars
+// Ensure the key is exactly 32 bytes. Using sha256 to hash the passphrase is a reliable way to get 32 bytes.
+const ENCRYPTION_KEY = crypto.createHash('sha256').update(process.env.ENCRYPTION_KEY || 'default_secret_key').digest(); // 32 bytes Buffer
 const IV_LENGTH = 16;
 
 function encrypt(text: string): string {
     if (!text) return text;
     const iv = crypto.randomBytes(IV_LENGTH);
-    const cipher = crypto.createCipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY), iv);
+    const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY, iv); // Use the Buffer directly
     let encrypted = cipher.update(text);
     encrypted = Buffer.concat([encrypted, cipher.final()]);
     return iv.toString('hex') + ':' + encrypted.toString('hex');
@@ -22,7 +23,7 @@ function decrypt(text: string): string {
     const textParts = text.split(':');
     const iv = Buffer.from(textParts.shift()!, 'hex');
     const encryptedText = Buffer.from(textParts.join(':'), 'hex');
-    const decipher = crypto.createDecipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY), iv);
+    const decipher = crypto.createDecipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
     let decrypted = decipher.update(encryptedText);
     decrypted = Buffer.concat([decrypted, decipher.final()]);
     return decrypted.toString();
@@ -37,6 +38,13 @@ export const ClientCreateSchema = z.object({
     phone: z.string().optional(), // Main phone
     whatsapp: z.string().optional(),
     rg: z.string().optional(),
+    ctps: z.string().optional(),
+    pis: z.string().optional(),
+    fatherName: z.string().optional(),
+    motherName: z.string().optional(),
+    messageContactName: z.string().optional(),
+    messageContactRelation: z.string().optional(),
+    acquisitionChannel: z.string().optional(),
 
     // Sensitive
     govAccessPassword: z.string().optional(),
@@ -45,9 +53,11 @@ export const ClientCreateSchema = z.object({
     address: z.object({
         street: z.string().optional(),
         number: z.string().optional(),
+        neighborhood: z.string().optional(),
         city: z.string().optional(),
         state: z.string().optional(),
-        zip: z.string().optional()
+        zip: z.string().optional(),
+        complement: z.string().optional()
     }).optional(),
 })
 
@@ -112,10 +122,18 @@ export const ClientService = {
                 type: validated.type,
                 cpfCnpj: validated.cpfCnpj,
                 email: validated.email,
-                // phone: validated.phone, // Removed from schema due to DB push issue
-                whatsapp: validated.whatsapp || validated.phone, // fallback to phone
+                whatsapp: validated.whatsapp,
+                rg: validated.rg,
+                ctps: validated.ctps,
+                pis: validated.pis,
+                fatherName: validated.fatherName,
+                motherName: validated.motherName,
+                messageContactName: validated.messageContactName,
+                messageContactRelation: validated.messageContactRelation,
+                acquisitionChannel: validated.acquisitionChannel,
                 govAccessPassword: validated.govAccessPassword,
                 address: validated.address ?? Prisma.DbNull,
+                contacts: validated.phone ? { phone: validated.phone } : Prisma.DbNull, // Store phone in contacts
                 status: 'NEW_LEAD'
             }
         })
@@ -126,11 +144,17 @@ export const ClientService = {
         if (data.govAccessPassword) {
             data.govAccessPassword = encrypt(data.govAccessPassword)
         }
+
+        const updateData: any = { ...data };
+        delete updateData.address; // Handle separately or explicitly
+        delete updateData.phone; // Handle separately
+
         return await db.client.update({
             where: { id: clientId, userId }, // Enforce ownership
             data: {
-                ...data,
-                address: data.address ? data.address : undefined
+                ...updateData,
+                address: data.address ? data.address : undefined,
+                contacts: data.phone ? { phone: data.phone } : undefined // Update contacts if phone provided
             }
         })
     },

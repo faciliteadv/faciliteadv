@@ -75,6 +75,10 @@ model Client {
   whatsapp           String?
   address            Json?
   contacts           Json?
+  fatherName             String?
+  motherName             String?
+  messageContactName     String?
+  messageContactRelation String?
   acquisitionChannel String?
   status             ClientStatus      @default(NEW_LEAD)
   notes              String?

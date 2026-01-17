@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/server"
 import { redirect } from "next/navigation"
+import Link from "next/link"
 import { ClientService } from "@/lib/services/client-service"
 import { Button } from "@/components/ui/button"
 import { SearchInput } from "@/components/ui/SearchInput"
@@ -33,9 +34,11 @@ export default async function ClientsPage({ searchParams }: PageProps) {
                     <h2 className="text-3xl font-bold tracking-tight text-foreground">Clientes</h2>
                     <p className="text-muted-foreground mt-1">Gerencie sua base de clientes e leads.</p>
                 </div>
-                <Button className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm">
-                    <Plus className="mr-2 h-4 w-4" /> Novo Cliente
-                </Button>
+                <Link href="/clients/new">
+                    <Button className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm">
+                        <Plus className="mr-2 h-4 w-4" /> Novo Cliente
+                    </Button>
+                </Link>
             </div>
 
             <div className="flex items-center gap-4">
@@ -47,37 +50,38 @@ export default async function ClientsPage({ searchParams }: PageProps) {
                     <TableHeader className="bg-muted/50">
                         <TableRow className="hover:bg-muted/50 border-border">
                             <TableHead className="text-muted-foreground font-medium">Nome</TableHead>
-                            <TableHead className="text-muted-foreground font-medium">CPF/CNPJ</TableHead>
-                            <TableHead className="text-muted-foreground font-medium">Contato</TableHead>
+                            <TableHead className="text-muted-foreground font-medium">Telefone</TableHead>
+                            <TableHead className="text-muted-foreground font-medium">Email</TableHead>
                             <TableHead className="text-muted-foreground font-medium">Status</TableHead>
                             <TableHead className="w-[100px]"></TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {clients.map((client) => (
-                            <TableRow key={client.id} className="hover:bg-muted/30 border-border transition-colors">
+                            <TableRow key={client.id} className="hover:bg-muted/30 border-border transition-colors cursor-pointer" >
                                 <TableCell>
                                     <div className="flex flex-col">
-                                        <span className="font-medium text-foreground">{client.name}</span>
+                                        <a href={`/clients/${client.id}`} className="font-medium text-foreground hover:underline">{client.name}</a>
                                         <span className="text-xs text-muted-foreground capitalize">{client.type?.toLowerCase()}</span>
                                     </div>
                                 </TableCell>
-                                <TableCell className="font-mono text-xs text-muted-foreground">{client.cpfCnpj || "-"}</TableCell>
                                 <TableCell>
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-xs text-muted-foreground">{client.email}</span>
-                                        {client.whatsapp && (
-                                            <a
-                                                href={`https://wa.me/${client.whatsapp.replace(/\D/g, '')}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="flex items-center gap-1 text-xs font-medium text-green-600 hover:text-green-700"
-                                            >
-                                                <MessageCircle className="h-3 w-3" />
-                                                WhatsApp
-                                            </a>
-                                        )}
-                                    </div>
+                                    {client.whatsapp ? (
+                                        <a
+                                            href={`https://wa.me/${client.whatsapp.replace(/\D/g, '')}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-1 text-xs font-medium text-green-600 hover:text-green-700"
+                                        >
+                                            <MessageCircle className="h-3 w-3" />
+                                            {client.whatsapp}
+                                        </a>
+                                    ) : (
+                                        <span className="text-xs text-muted-foreground">-</span>
+                                    )}
+                                </TableCell>
+                                <TableCell>
+                                    <span className="text-xs text-muted-foreground">{client.email || "-"}</span>
                                 </TableCell>
                                 <TableCell>
                                     <Badge variant="outline" className={

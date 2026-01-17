@@ -53,7 +53,7 @@ export default async function DashboardPage() {
 
             {/* Quick Actions Toolbar */}
             <div className="flex items-center gap-4 py-4 overflow-x-auto">
-                <Link href="/tasks">
+                <Link href="/kanban">
                     <Button variant="outline" className="border-dashed border-slate-300 hover:border-blue-500 hover:bg-blue-50 text-slate-600">
                         <Plus className="mr-2 h-4 w-4" /> Nova Tarefa
                     </Button>
