@@ -49,7 +49,7 @@ export function ProcessListItem({ process: proc, statusColors, statusLabels, are
 
                 {proc.opponent && (
                     <p className="text-xs text-muted-foreground mt-1.5">
-                        <span className="font-medium">Parte Contrária:</span> {proc.opponent} ({proc.position === "AUTOR" ? "Réu" : "Autor"})
+                        <span className="font-medium">Parte Contrária:</span> {proc.opponentName || proc.opponent} ({proc.position === "AUTOR" ? "Réu" : "Autor"})
                     </p>
                 )}
             </div>

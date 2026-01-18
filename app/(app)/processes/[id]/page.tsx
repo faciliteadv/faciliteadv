@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { notFound, redirect } from "next/navigation"
 import { db } from "@/lib/db"
+import { ProcessService } from "@/lib/services/process-service"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -68,10 +69,7 @@ export default async function ProcessDetailPage({ params }: PageProps) {
     }
 
     const { id } = await params
-    const process = await db.process.findUnique({
-        where: { id, userId: user.id },
-        include: { client: true }
-    })
+    const process = await ProcessService.getById(user.id, id)
 
     if (!process) {
         notFound()
@@ -179,10 +177,10 @@ export default async function ProcessDetailPage({ params }: PageProps) {
                             <Separator />
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <DetailRow label="Parte Contrária" value={process.opponent} />
-                                    {process.opponent && <div className="mt-1"><CopyButton value={process.opponent} label="Nome da Parte Contrária" /></div>}
+                                    <DetailRow label="Parte Contrária" value={(process as any).opponentName || process.opponent} />
+                                    {process.opponent && <div className="mt-1"><CopyButton value={(process as any).opponentName || process.opponent || ""} label="Nome da Parte Contrária" /></div>}
                                 </div>
-                                <DetailRow label="Posição da Parte Contrária" value="-" /> {/* Logic handling for opponent position is redundant if we show explicitly in dropdown text, but can be inferred if needed */}
+                                <DetailRow label="Posição da Parte Contrária" value={process.position === "AUTOR" ? "Réu" : process.position === "REU" ? "Autor" : "-"} />
                             </div>
                         </CardContent>
                     </Card>

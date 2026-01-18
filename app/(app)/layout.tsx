@@ -1,11 +1,14 @@
 import { Sidebar } from "@/components/layout/sidebar"
 import { Header } from "@/components/layout/header"
+import { ensureUserExists } from "@/lib/auth/ensure-user"
 
-export default function AppLayout({
+export default async function AppLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
+    const user = await ensureUserExists()
+
     return (
         <div className="flex h-screen overflow-hidden bg-background">
             <Sidebar />

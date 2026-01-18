@@ -33,21 +33,21 @@ model Subscription {
 }
 
 model User {
-  id            String         @id @default(uuid())
-  email         String         @unique
-  name          String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  clients       Client[]
-  processes     Process[]
-  responsibleProcesses Process[] @relation("ResponsibleLawyer")
-  subscription  Subscription?
-  actionTypes   ActionType[]
-  taskCards     TaskCard[]
-  appointments  Appointment[]
-  caseCards     CaseCard[]
-  inssCases     INSSCase[]
-  kanbanColumns KanbanColumn[]
+  id                   String         @id @default(uuid())
+  email                String         @unique
+  name                 String?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  actionTypes          ActionType[]
+  appointments         Appointment[]
+  caseCards            CaseCard[]
+  clients              Client[]
+  inssCases            INSSCase[]
+  kanbanColumns        KanbanColumn[]
+  responsibleProcesses Process[]      @relation("ResponsibleLawyer")
+  processes            Process[]
+  subscription         Subscription?
+  taskCards            TaskCard[]
 }
 
 model KanbanColumn {
@@ -55,7 +55,7 @@ model KanbanColumn {
   name      String
   color     String   @default("#6366f1")
   order     Int      @default(0)
-  boardType String   @default("tasks") // "tasks", "cases", "inss"
+  boardType String   @default("tasks")
   userId    String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -65,99 +65,96 @@ model KanbanColumn {
 }
 
 model Client {
-  id                 String            @id @default(uuid())
-  type               ClientType        @default(PF)
-  name               String
-  cpfCnpj            String?
-  rg                 String?
-  ctps               String?
-  pis                String?
-  govAccessPassword  String?
-  civilStatus        String?
-  profession         String?
-  email              String?
-  whatsapp           String?
-  address            Json?
-  contacts           Json?
+  id                     String            @id @default(uuid())
+  type                   ClientType        @default(PF)
+  name                   String
+  cpfCnpj                String?
+  rg                     String?
+  ctps                   String?
+  pis                    String?
+  govAccessPassword      String?
+  email                  String?
+  whatsapp               String?
+  address                Json?
+  contacts               Json?
+  acquisitionChannel     String?
+  status                 ClientStatus      @default(NEW_LEAD)
+  notes                  String?
+  userId                 String
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  deletedAt              DateTime?
   fatherName             String?
-  motherName             String?
   messageContactName     String?
   messageContactRelation String?
-  acquisitionChannel String?
-  status             ClientStatus      @default(NEW_LEAD)
-  notes              String?
-  userId             String
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
-  deletedAt          DateTime?
-  user               User              @relation(fields: [userId], references: [id])
-  financial          FinancialRecord[]
-  processes          Process[]         @relation("ClientProcesses")
-  opposingProcesses  Process[]         @relation("OpponentProcesses")
-  processAuthors     ProcessAuthor[]
-  processOpponents  ProcessOpponent[]
-  tasks              TaskCard[]
-  appointments       Appointment[]
+  motherName             String?
+  civilStatus            String?
+  profession             String?
+  appointments           Appointment[]
+  user                   User              @relation(fields: [userId], references: [id])
+  financial              FinancialRecord[]
+  processes              Process[]         @relation("ClientProcesses")
+  processAuthors         ProcessAuthor[]
+  tasks                  TaskCard[]
 
   @@index([userId])
   @@index([cpfCnpj])
 }
 
 model Process {
-  id               String            @id @default(uuid())
-  folderName       String?
-  number           String
-  area             String
-  subject          String?
-  actionType       String?
-  courtLink        String?
-  position         String? // "Autor" or "Réu"
-  district         String? // Comarca
-  court            String? // Vara
-  link             String? // URL Customizada
-  status           ProcessStatus     @default(ACTIVE)
-  distributionDate DateTime?
-  clientId         String
-  opponent         String?
-  userId           String
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  deletedAt        DateTime?
-  financial        FinancialRecord[]
-  client           Client            @relation("ClientProcesses", fields: [clientId], references: [id])
-  opponentRelation Client?           @relation("OpponentProcesses", fields: [opponent], references: [id])
-  user             User              @relation(fields: [userId], references: [id])
+  id                  String            @id @default(uuid())
+  folderName          String?
+  number              String
+  area                String
+  subject             String?
+  courtLink           String?
+  status              ProcessStatus     @default(ACTIVE)
+  distributionDate    DateTime?
+  clientId            String
+  userId              String
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  deletedAt           DateTime?
+  court               String?
+  district            String?
+  link                String?
+  opponent            String?
+  position            String?
   responsibleLawyerId String?
-  responsibleLawyer   User?          @relation("ResponsibleLawyer", fields: [responsibleLawyerId], references: [id])
-  authors          ProcessAuthor[]
-  opponents        ProcessOpponent[]
-  tasks            TaskCard[]
-  appointments     Appointment[]
+  actionType          String?
+  appointments        Appointment[]
+  financial           FinancialRecord[]
+  client              Client            @relation("ClientProcesses", fields: [clientId], references: [id])
+  responsibleLawyer   User?             @relation("ResponsibleLawyer", fields: [responsibleLawyerId], references: [id])
+  user                User              @relation(fields: [userId], references: [id])
+  authors             ProcessAuthor[]
+  opponents           ProcessOpponent[]
+  tasks               TaskCard[]
 
   @@index([userId])
   @@index([clientId])
 }
 
 model TaskCard {
-  id          String    @id @default(uuid())
+  id          String          @id @default(uuid())
   title       String
   description String?
-  type        TaskType  @default(INTERNAL)
-  phase       String    @default("TODO")
+  type        TaskType        @default(INTERNAL)
   startDate   DateTime?
   endDate     DateTime?
   fatalDate   DateTime?
-  isArchived  Boolean   @default(false)
+  isArchived  Boolean         @default(false)
   clientId    String?
   processId   String?
   userId      String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  client      Client?   @relation(fields: [clientId], references: [id])
-  process     Process?  @relation(fields: [processId], references: [id])
-  user        User      @relation(fields: [userId], references: [id])
-  tags        Tag[]     @relation("TagToTaskCard")
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  phase       String          @default("TODO")
   checklist   ChecklistItem[]
+  client      Client?         @relation(fields: [clientId], references: [id])
+  process     Process?        @relation(fields: [processId], references: [id])
+  user        User            @relation(fields: [userId], references: [id])
+  tags        Tag[]           @relation("TagToTaskCard")
 
   @@index([userId])
   @@index([fatalDate])
@@ -165,13 +162,13 @@ model TaskCard {
 }
 
 model ChecklistItem {
-  id          String    @id @default(uuid())
+  id          String   @id @default(uuid())
   title       String
-  isCompleted Boolean   @default(false)
+  isCompleted Boolean  @default(false)
   taskId      String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  task        TaskCard  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  task        TaskCard @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@index([taskId])
 }
@@ -185,19 +182,19 @@ model Tag {
 }
 
 model CaseCard {
-  id              String       @id @default(uuid())
-  clientName      String
-  defendantName   String?
-  practiceArea    String       @default("OTHER")
-  phase           String       @default("NEW_LEAD")
-  deadline        DateTime?
-  description     String?
-  isArchived      Boolean      @default(false)
-  userId          String
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  user            User         @relation(fields: [userId], references: [id])
-  checklist       CaseChecklistItem[]
+  id            String              @id @default(uuid())
+  clientName    String
+  defendantName String?
+  deadline      DateTime?
+  description   String?
+  isArchived    Boolean             @default(false)
+  userId        String
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  practiceArea  String              @default("OTHER")
+  phase         String              @default("NEW_LEAD")
+  user          User                @relation(fields: [userId], references: [id])
+  checklist     CaseChecklistItem[]
 
   @@index([userId])
   @@index([phase])
@@ -205,32 +202,32 @@ model CaseCard {
 }
 
 model CaseChecklistItem {
-  id          String    @id @default(uuid())
+  id          String   @id @default(uuid())
   title       String
-  isCompleted Boolean   @default(false)
+  isCompleted Boolean  @default(false)
   caseId      String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  case        CaseCard  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  case        CaseCard @relation(fields: [caseId], references: [id], onDelete: Cascade)
 
   @@index([caseId])
 }
 
 model INSSCase {
-  id              String         @id @default(uuid())
-  clientName      String
-  clientCpf       String?
-  govPassword     String?
-  actionType      String         @default("OTHER")
-  phase           String         @default("NEW_CASE")
-  deadline        DateTime?
-  description     String?
-  isArchived      Boolean        @default(false)
-  userId          String
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  user            User           @relation(fields: [userId], references: [id])
-  checklist       INSSChecklistItem[]
+  id          String              @id @default(uuid())
+  clientName  String
+  clientCpf   String?
+  govPassword String?
+  deadline    DateTime?
+  description String?
+  isArchived  Boolean             @default(false)
+  userId      String
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  actionType  String              @default("OTHER")
+  phase       String              @default("NEW_CASE")
+  user        User                @relation(fields: [userId], references: [id])
+  checklist   INSSChecklistItem[]
 
   @@index([userId])
   @@index([phase])
@@ -238,13 +235,13 @@ model INSSCase {
 }
 
 model INSSChecklistItem {
-  id          String    @id @default(uuid())
+  id          String   @id @default(uuid())
   title       String
-  isCompleted Boolean   @default(false)
+  isCompleted Boolean  @default(false)
   inssId      String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  inssCase    INSSCase  @relation(fields: [inssId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  inssCase    INSSCase @relation(fields: [inssId], references: [id], onDelete: Cascade)
 
   @@index([inssId])
 }
@@ -277,13 +274,47 @@ model Appointment {
   userId      String
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
-
-  client  Client?  @relation(fields: [clientId], references: [id])
-  process Process? @relation(fields: [processId], references: [id])
-  user    User     @relation(fields: [userId], references: [id])
+  client      Client?         @relation(fields: [clientId], references: [id])
+  process     Process?        @relation(fields: [processId], references: [id])
+  user        User            @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([startAt])
+}
+
+model ProcessAuthor {
+  id        String   @id @default(uuid())
+  processId String
+  clientId  String
+  position  String
+  createdAt DateTime @default(now())
+  client    Client   @relation(fields: [clientId], references: [id])
+  process   Process  @relation(fields: [processId], references: [id], onDelete: Cascade)
+
+  @@index([processId])
+}
+
+model ProcessOpponent {
+  id        String   @id @default(uuid())
+  processId String
+  name      String
+  cpfCnpj   String?
+  position  String
+  createdAt DateTime @default(now())
+  process   Process  @relation(fields: [processId], references: [id], onDelete: Cascade)
+
+  @@index([processId])
+}
+
+model ActionType {
+  id        String   @id @default(uuid())
+  name      String
+  userId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([name, userId])
+  @@index([userId])
 }
 
 enum ClientType {
@@ -319,42 +350,4 @@ enum AppointmentType {
   MEETING
   HEARING
   DEADLINE
-}
-
-model ProcessAuthor {
-  id         String   @id @default(uuid())
-  processId  String
-  clientId   String
-  position   String   // "Autor", "Representante Legal", etc.
-  createdAt  DateTime @default(now())
-  
-  process    Process  @relation(fields: [processId], references: [id], onDelete: Cascade)
-  client     Client   @relation(fields: [clientId], references: [id])
-  
-  @@index([processId])
-}
-
-model ProcessOpponent {
-  id         String   @id @default(uuid())
-  processId  String
-  clientId   String
-  position   String   // "Réu", "Terceiro Interessado", etc.
-  createdAt  DateTime @default(now())
-  
-  process    Process  @relation(fields: [processId], references: [id], onDelete: Cascade)
-  client     Client   @relation(fields: [clientId], references: [id])
-  
-  @@index([processId])
-}
-
-model ActionType {
-  id        String   @id @default(uuid())
-  name      String
-  userId    String
-  createdAt DateTime @default(now())
-  
-  user      User     @relation(fields: [userId], references: [id])
-  
-  @@unique([name, userId])
-  @@index([userId])
 }

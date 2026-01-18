@@ -1,16 +1,19 @@
 import { createClient } from "@/utils/supabase/server"
 import { redirect } from "next/navigation"
 import { User, Mail, Shield, Bell } from "lucide-react"
+import { ensureUserExists } from "@/lib/auth/ensure-user"
 
 export const dynamic = 'force-dynamic'
 
 export default async function SettingsPage() {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user: authUser } } = await supabase.auth.getUser()
 
-    if (!user) {
+    if (!authUser) {
         redirect('/login')
     }
+
+    const dbUser = await ensureUserExists()
 
     return (
         <div className="space-y-6">
@@ -36,14 +39,14 @@ export default async function SettingsPage() {
                             <label className="block text-sm font-medium text-slate-500 mb-1">Email</label>
                             <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-md border">
                                 <Mail className="h-4 w-4 text-slate-400" />
-                                <span className="text-slate-900">{user.email}</span>
+                                <span className="text-slate-900">{authUser.email}</span>
                             </div>
                         </div>
 
                         <div>
                             <label className="block text-sm font-medium text-slate-500 mb-1">ID do Usuário</label>
                             <div className="px-3 py-2 bg-slate-50 rounded-md border">
-                                <span className="text-xs text-slate-600 font-mono">{user.id}</span>
+                                <span className="text-xs text-slate-600 font-mono">{authUser.id}</span>
                             </div>
                         </div>
 
@@ -51,10 +54,10 @@ export default async function SettingsPage() {
                             <label className="block text-sm font-medium text-slate-500 mb-1">Criado em</label>
                             <div className="px-3 py-2 bg-slate-50 rounded-md border">
                                 <span className="text-slate-900">
-                                    {user.created_at ? new Intl.DateTimeFormat('pt-BR', {
+                                    {authUser.created_at ? new Intl.DateTimeFormat('pt-BR', {
                                         dateStyle: 'long',
                                         timeStyle: 'short'
-                                    }).format(new Date(user.created_at)) : '-'}
+                                    }).format(new Date(authUser.created_at)) : '-'}
                                 </span>
                             </div>
                         </div>
@@ -78,10 +81,10 @@ export default async function SettingsPage() {
                             <label className="block text-sm font-medium text-slate-500 mb-1">Último login</label>
                             <div className="px-3 py-2 bg-slate-50 rounded-md border">
                                 <span className="text-slate-900">
-                                    {user.last_sign_in_at ? new Intl.DateTimeFormat('pt-BR', {
+                                    {authUser.last_sign_in_at ? new Intl.DateTimeFormat('pt-BR', {
                                         dateStyle: 'long',
                                         timeStyle: 'short'
-                                    }).format(new Date(user.last_sign_in_at)) : '-'}
+                                    }).format(new Date(authUser.last_sign_in_at)) : '-'}
                                 </span>
                             </div>
                         </div>
@@ -90,7 +93,7 @@ export default async function SettingsPage() {
                             <label className="block text-sm font-medium text-slate-500 mb-1">Provedor de autenticação</label>
                             <div className="px-3 py-2 bg-slate-50 rounded-md border">
                                 <span className="text-slate-900 capitalize">
-                                    {user.app_metadata?.provider || 'Email'}
+                                    {authUser.app_metadata?.provider || 'Email'}
                                 </span>
                             </div>
                         </div>
