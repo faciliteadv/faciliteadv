@@ -1,8 +1,11 @@
 'use client'
 
 import { useState } from "react"
+
 import { createTaskAction } from "@/lib/actions/kanban-actions"
 import { X, Plus, Trash2 } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
 
 type ProcessOption = {
     id: string
@@ -20,6 +23,8 @@ export function TaskModal({ isOpen, onClose, processes }: Props) {
     const [loading, setLoading] = useState(false)
     const [checklist, setChecklist] = useState<string[]>([])
     const [newChecklistItem, setNewChecklistItem] = useState("")
+    const [taskType, setTaskType] = useState<'INTERNAL' | 'DEADLINE'>('INTERNAL')
+    const [processId, setProcessId] = useState<string>("")
 
     if (!isOpen) return null
 
@@ -31,8 +36,8 @@ export function TaskModal({ isOpen, onClose, processes }: Props) {
         const payload = {
             title: formData.get('title') as string,
             description: formData.get('description') as string,
-            type: formData.get('type') as 'INTERNAL' | 'DEADLINE',
-            processId: formData.get('processId') as string || undefined,
+            type: taskType,
+            processId: processId || undefined,
             endDate: formData.get('endDate') ? new Date(formData.get('endDate') as string) : undefined,
             fatalDate: formData.get('fatalDate') ? new Date(formData.get('fatalDate') as string) : undefined,
             checklist: checklist.length > 0 ? checklist : undefined
@@ -75,22 +80,32 @@ export function TaskModal({ isOpen, onClose, processes }: Props) {
                     {/* Type & Process */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Tipo</label>
-                            <select name="type" className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none bg-white">
-                                <option value="INTERNAL">Atividade Interna</option>
-                                <option value="DEADLINE">Prazo Processual</option>
-                            </select>
+                            <Label className="block text-sm font-medium text-slate-700 mb-1">Tipo</Label>
+                            <Select value={taskType} onValueChange={(v: any) => setTaskType(v)}>
+                                <SelectTrigger className="w-full bg-white border-slate-300">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="INTERNAL">Atividade Interna</SelectItem>
+                                    <SelectItem value="DEADLINE">Prazo Processual</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Processo Vinculado</label>
-                            <select name="processId" className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none bg-white">
-                                <option value="">Sem vínculo</option>
-                                {processes.map(p => (
-                                    <option key={p.id} value={p.id}>
-                                        {p.folderName || p.number}
-                                    </option>
-                                ))}
-                            </select>
+                            <Label className="block text-sm font-medium text-slate-700 mb-1">Processo Vinculado</Label>
+                            <Select value={processId} onValueChange={setProcessId}>
+                                <SelectTrigger className="w-full bg-white border-slate-300">
+                                    <SelectValue placeholder="Sem vínculo" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="NONE">Sem vínculo</SelectItem>
+                                    {processes.map(p => (
+                                        <SelectItem key={p.id} value={p.id}>
+                                            {p.folderName || p.number}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
                     </div>
 

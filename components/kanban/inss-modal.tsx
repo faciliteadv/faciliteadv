@@ -4,6 +4,8 @@ import { useState } from "react"
 import { createINSSCaseAction } from "@/lib/actions/crm-actions"
 import { X, Plus, Trash2 } from "lucide-react"
 import { formatCPF, validateCPF } from "@/lib/utils/validation"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
 
 type Props = {
     isOpen: boolean
@@ -38,6 +40,7 @@ export function INSSModal({ isOpen, onClose }: Props) {
     const [newCheckItem, setNewCheckItem] = useState("")
     const [cpf, setCpf] = useState("")
     const [cpfError, setCpfError] = useState("")
+    const [actionType, setActionType] = useState<string>(INSS_ACTION_TYPES[0].value)
 
     if (!isOpen) return null
 
@@ -73,7 +76,7 @@ export function INSSModal({ isOpen, onClose }: Props) {
             clientName: formData.get('clientName') as string,
             clientCpf: cpf || undefined,
             govPassword: formData.get('govPassword') as string || undefined,
-            actionType: formData.get('actionType') as string,
+            actionType: actionType,
             deadline: formData.get('deadline') ? new Date(formData.get('deadline') as string) : undefined,
             description: formData.get('description') as string || undefined,
             checklist: checklist.length > 0 ? checklist : undefined
@@ -144,12 +147,17 @@ export function INSSModal({ isOpen, onClose }: Props) {
                     {/* Action Type & Deadline */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Tipo de Ação *</label>
-                            <select name="actionType" required className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-indigo-500">
-                                {INSS_ACTION_TYPES.map(action => (
-                                    <option key={action.value} value={action.value}>{action.label}</option>
-                                ))}
-                            </select>
+                            <Label className="block text-sm font-medium text-slate-700 mb-1">Tipo de Ação *</Label>
+                            <Select value={actionType} onValueChange={setActionType}>
+                                <SelectTrigger className="w-full bg-white border-slate-300 focus:ring-2 focus:ring-indigo-500">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {INSS_ACTION_TYPES.map(action => (
+                                        <SelectItem key={action.value} value={action.value}>{action.label}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Prazo</label>

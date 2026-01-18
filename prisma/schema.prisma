@@ -40,7 +40,9 @@ model User {
   updatedAt     DateTime       @updatedAt
   clients       Client[]
   processes     Process[]
+  responsibleProcesses Process[] @relation("ResponsibleLawyer")
   subscription  Subscription?
+  actionTypes   ActionType[]
   taskCards     TaskCard[]
   appointments  Appointment[]
   caseCards     CaseCard[]
@@ -91,6 +93,7 @@ model Client {
   user               User              @relation(fields: [userId], references: [id])
   financial          FinancialRecord[]
   processes          Process[]
+  processAuthors     ProcessAuthor[]
   tasks              TaskCard[]
   appointments       Appointment[]
 
@@ -104,6 +107,7 @@ model Process {
   number           String
   area             String
   subject          String?
+  actionType       String?
   courtLink        String?
   opponent         String?
   position         String? // "Autor" or "Réu"
@@ -120,6 +124,10 @@ model Process {
   financial        FinancialRecord[]
   client           Client            @relation(fields: [clientId], references: [id])
   user             User              @relation(fields: [userId], references: [id])
+  responsibleLawyerId String?
+  responsibleLawyer   User?          @relation("ResponsibleLawyer", fields: [responsibleLawyerId], references: [id])
+  authors          ProcessAuthor[]
+  opponents        ProcessOpponent[]
   tasks            TaskCard[]
   appointments     Appointment[]
 
@@ -308,4 +316,42 @@ enum AppointmentType {
   MEETING
   HEARING
   DEADLINE
+}
+
+model ProcessAuthor {
+  id         String   @id @default(uuid())
+  processId  String
+  clientId   String
+  position   String   // "Autor", "Representante Legal", etc.
+  createdAt  DateTime @default(now())
+  
+  process    Process  @relation(fields: [processId], references: [id], onDelete: Cascade)
+  client     Client   @relation(fields: [clientId], references: [id])
+  
+  @@index([processId])
+}
+
+model ProcessOpponent {
+  id         String   @id @default(uuid())
+  processId  String
+  name       String
+  cpfCnpj    String?
+  position   String   // "Réu", "Terceiro Interessado", etc.
+  createdAt  DateTime @default(now())
+  
+  process    Process  @relation(fields: [processId], references: [id], onDelete: Cascade)
+  
+  @@index([processId])
+}
+
+model ActionType {
+  id        String   @id @default(uuid())
+  name      String
+  userId    String
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [id])
+  
+  @@unique([name, userId])
+  @@index([userId])
 }

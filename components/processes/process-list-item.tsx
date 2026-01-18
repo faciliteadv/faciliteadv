@@ -73,7 +73,11 @@ export function ProcessListItem({ process: proc, statusColors, statusLabels, are
                             <Edit2 className="h-4 w-4" />
                         </Button>
                     </Link>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    <Link href={`/processes/${proc.id}`} onClick={(e) => e.stopPropagation()}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary">
+                            <ChevronRight className="h-4 w-4" />
+                        </Button>
+                    </Link>
                 </div>
             </div>
             <Link href={`/processes/${proc.id}`} className="absolute inset-0 rounded-xl ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 z-10" />

@@ -1,8 +1,11 @@
 'use client'
 
 import { useState } from "react"
+
 import { createCaseAction } from "@/lib/actions/crm-actions"
 import { X, Plus, Trash2 } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
 
 type Props = {
     isOpen: boolean
@@ -23,6 +26,7 @@ export function CaseModal({ isOpen, onClose }: Props) {
     const [loading, setLoading] = useState(false)
     const [checklist, setChecklist] = useState<string[]>([])
     const [newCheckItem, setNewCheckItem] = useState("")
+    const [practiceArea, setPracticeArea] = useState<string>(PRACTICE_AREAS[0].value)
 
     if (!isOpen) return null
 
@@ -34,7 +38,7 @@ export function CaseModal({ isOpen, onClose }: Props) {
         const payload = {
             clientName: formData.get('clientName') as string,
             defendantName: formData.get('defendantName') as string || undefined,
-            practiceArea: formData.get('practiceArea') as string,
+            practiceArea: practiceArea,
             deadline: formData.get('deadline') ? new Date(formData.get('deadline') as string) : undefined,
             description: formData.get('description') as string || undefined,
             checklist: checklist.length > 0 ? checklist : undefined
@@ -84,12 +88,17 @@ export function CaseModal({ isOpen, onClose }: Props) {
                     {/* Practice Area & Deadline */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Área de Atuação *</label>
-                            <select name="practiceArea" required className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none bg-white">
-                                {PRACTICE_AREAS.map(area => (
-                                    <option key={area.value} value={area.value}>{area.label}</option>
-                                ))}
-                            </select>
+                            <Label className="block text-sm font-medium text-slate-700 mb-1">Área de Atuação *</Label>
+                            <Select value={practiceArea} onValueChange={setPracticeArea}>
+                                <SelectTrigger className="w-full bg-white border-slate-300">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {PRACTICE_AREAS.map(area => (
+                                        <SelectItem key={area.value} value={area.value}>{area.label}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Prazo</label>
