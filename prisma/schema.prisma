@@ -92,8 +92,10 @@ model Client {
   deletedAt          DateTime?
   user               User              @relation(fields: [userId], references: [id])
   financial          FinancialRecord[]
-  processes          Process[]
+  processes          Process[]         @relation("ClientProcesses")
+  opposingProcesses  Process[]         @relation("OpponentProcesses")
   processAuthors     ProcessAuthor[]
+  processOpponents  ProcessOpponent[]
   tasks              TaskCard[]
   appointments       Appointment[]
 
@@ -109,7 +111,6 @@ model Process {
   subject          String?
   actionType       String?
   courtLink        String?
-  opponent         String?
   position         String? // "Autor" or "Réu"
   district         String? // Comarca
   court            String? // Vara
@@ -117,12 +118,14 @@ model Process {
   status           ProcessStatus     @default(ACTIVE)
   distributionDate DateTime?
   clientId         String
+  opponent         String?
   userId           String
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   deletedAt        DateTime?
   financial        FinancialRecord[]
-  client           Client            @relation(fields: [clientId], references: [id])
+  client           Client            @relation("ClientProcesses", fields: [clientId], references: [id])
+  opponentRelation Client?           @relation("OpponentProcesses", fields: [opponent], references: [id])
   user             User              @relation(fields: [userId], references: [id])
   responsibleLawyerId String?
   responsibleLawyer   User?          @relation("ResponsibleLawyer", fields: [responsibleLawyerId], references: [id])
@@ -334,12 +337,12 @@ model ProcessAuthor {
 model ProcessOpponent {
   id         String   @id @default(uuid())
   processId  String
-  name       String
-  cpfCnpj    String?
+  clientId   String
   position   String   // "Réu", "Terceiro Interessado", etc.
   createdAt  DateTime @default(now())
   
   process    Process  @relation(fields: [processId], references: [id], onDelete: Cascade)
+  client     Client   @relation(fields: [clientId], references: [id])
   
   @@index([processId])
 }

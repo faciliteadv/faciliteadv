@@ -62,9 +62,10 @@ export async function createClient(data: any) {
     }
 
     try {
-        await ClientService.createClient(user.id, data)
+        const client = await ClientService.createClient(user.id, data)
         revalidatePath("/clients")
         revalidatePath("/dashboard")
+        return client
     } catch (error: any) {
         console.error("Error creating client:", JSON.stringify(error, null, 2))
         if (error instanceof z.ZodError) {

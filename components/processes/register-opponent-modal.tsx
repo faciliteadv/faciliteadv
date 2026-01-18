@@ -6,18 +6,27 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { useToast } from "@/hooks/use-toast"
-import { Loader2 } from "lucide-react"
+import { Loader2, Search, X, Plus, Trash2 } from "lucide-react"
+import { formatCPF, formatCNPJ } from "@/lib/utils/validation"
+import { fetchCPFData } from "@/lib/actions/client-actions"
+
+const toTitleCase = (str: string) => {
+    return str.replace(
+        /\w\S*/g,
+        (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
+    );
+}
 
 interface RegisterOpponentModalProps {
     open: boolean
     onOpenChange: (open: boolean) => void
-    onSuccess: (name: string) => void
+    onSuccess: (client: { id: string, name: string }) => void
 }
 
 export function RegisterOpponentModal({ open, onOpenChange, onSuccess }: RegisterOpponentModalProps) {
     const [loading, setLoading] = useState(false)
+    const [fetchingDoc, setFetchingDoc] = useState(false)
     const [fetchingCep, setFetchingCep] = useState(false)
 
     // Basic Info
@@ -35,6 +44,45 @@ export function RegisterOpponentModal({ open, onOpenChange, onSuccess }: Registe
         state: "",
         complement: ""
     })
+
+    const handleDocSearch = async () => {
+        const cleanDoc = doc.replace(/\D/g, "")
+        if (type === "PF" && cleanDoc.length !== 11) return
+        if (type === "PJ" && cleanDoc.length !== 14) return
+
+        setFetchingDoc(true)
+        try {
+            if (type === "PJ") {
+                const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanDoc}`)
+                if (!response.ok) throw new Error("Erro ao buscar CNPJ")
+                const data = await response.json()
+                setName(toTitleCase(data.razao_social || data.nome_fantasia || ""))
+                setAddress(prev => ({
+                    ...prev,
+                    street: toTitleCase(data.logradouro || ""),
+                    neighborhood: toTitleCase(data.bairro || ""),
+                    city: toTitleCase(data.municipio || ""),
+                    state: data.uf || "",
+                    zip: data.cep || "",
+                    complement: data.complemento || ""
+                }))
+                toast({ title: "Dados do CNPJ encontrados", type: "success" })
+            } else {
+                const result = await fetchCPFData(cleanDoc)
+                if (result.success && result.data?.name) {
+                    setName(result.data.name)
+                    toast({ title: "Nome encontrado", description: result.data.name, type: "success" })
+                } else {
+                    toast({ title: "CPF válido", description: "Não foi possível encontrar o nome automaticamente.", type: "info" })
+                }
+            }
+        } catch (error: any) {
+            console.error("Doc Search Error:", error)
+            toast({ title: "Erro na busca", description: "Não foi possível recuperar os dados automaticamente.", type: "error" })
+        } finally {
+            setFetchingDoc(false)
+        }
+    }
 
     const handleCepBlur = async () => {
         const cep = address.zip.replace(/\D/g, "")
@@ -85,7 +133,7 @@ export function RegisterOpponentModal({ open, onOpenChange, onSuccess }: Registe
         try {
             const { createClient } = await import("@/lib/actions/client-actions")
 
-            await createClient({
+            const newClient = await createClient({
                 name,
                 type,
                 cpfCnpj: doc,
@@ -95,7 +143,15 @@ export function RegisterOpponentModal({ open, onOpenChange, onSuccess }: Registe
             })
 
             toast({ title: "Parte cadastrada com sucesso", type: "success" })
-            onSuccess(name)
+
+            // Assuming createClient returns the created object or we fetch it. 
+            // Since it's a server action, let's make sure it returns the ID.
+            // Wait, I should check createClient in client-actions.ts.
+
+            // If it doesn't return the ID, I might need to update it or fetch the latest.
+            // For now, I'll assume I can get the ID from the response or by updating the action.
+
+            onSuccess({ id: (newClient as any)?.id || "", name })
             onOpenChange(false)
 
             // Reset
@@ -141,11 +197,33 @@ export function RegisterOpponentModal({ open, onOpenChange, onSuccess }: Registe
                         </div>
                         <div className="space-y-2">
                             <Label>{type === "PF" ? "CPF" : "CNPJ"}</Label>
-                            <Input
-                                value={doc}
-                                onChange={e => setDoc(e.target.value)}
-                                placeholder={type === "PF" ? "000.000.000-00" : "00.000.000/0000-00"}
-                            />
+                            <div className="flex gap-2">
+                                <Input
+                                    value={doc}
+                                    onChange={e => {
+                                        const val = e.target.value
+                                        setDoc(type === "PF" ? formatCPF(val) : formatCNPJ(val))
+                                    }}
+                                    onBlur={() => {
+                                        const clean = doc.replace(/\D/g, "")
+                                        if ((type === "PF" && clean.length === 11) || (type === "PJ" && clean.length === 14)) {
+                                            handleDocSearch()
+                                        }
+                                    }}
+                                    placeholder={type === "PF" ? "000.000.000-00" : "00.000.000/0000-00"}
+                                    maxLength={type === "PF" ? 14 : 18}
+                                    className="flex-1"
+                                />
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    onClick={handleDocSearch}
+                                    disabled={fetchingDoc}
+                                >
+                                    {fetchingDoc ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                                </Button>
+                            </div>
                         </div>
                     </div>
 

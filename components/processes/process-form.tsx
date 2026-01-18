@@ -29,27 +29,34 @@ const ACTION_TYPES_PRESETS = [
     "Divórcio c/c alimentos", "Divórcio c/c visitas", "Inventário", "Usucapião", "Imissão de posse", "Alvará judicial"
 ]
 
-const POSITION_ANTONYMS: Record<string, string> = {
-    "AUTOR": "Réu",
-    "REU": "Autor",
-    "RECLAMANTE": "Reclamada",
-    "RECLAMADA": "Reclamante",
-    "REQUERENTE": "Requerido",
-    "REQUERIDO": "Requerente"
+const PROCESS_UI_CONFIG = {
+    STATUS: {
+        ACTIVE: { label: "Ativo", color: "bg-green-500" },
+        SUSPENDED: { label: "Suspenso", color: "bg-orange-500" },
+        APPEAL: { label: "Recurso", color: "bg-blue-500" },
+        SETTLEMENT: { label: "Acordo", color: "bg-purple-500" },
+        CONSTRUCTION: { label: "Construção", color: "bg-gray-400" },
+        ARCHIVED: { label: "Arquivado", color: "bg-red-500" },
+        EXTINCT: { label: "Extinto", color: "bg-red-700" },
+        EXTINCT_WITH_JUDGMENT: { label: "Extinto com Julgamento", color: "bg-black" },
+    },
+    AREA: {
+        TRABALHISTA: { label: "Trabalhista" },
+        CIVIL: { label: "Cível" },
+        FAMILIA: { label: "Família e Sucessões" },
+    },
+    POSITION: {
+        AUTOR: { label: "Autor" },
+        REU: { label: "Réu" },
+        RECLAMANTE: { label: "Reclamante" },
+        RECLAMADA: { label: "Reclamada" },
+        REQUERENTE: { label: "Requerente" },
+        REQUERIDO: { label: "Requerido" },
+        REPRESENTANTE: { label: "Representante Legal" },
+        TERCEIRO: { label: "Terceiro Interessado" },
+        OUTRO: { label: "Outro" }
+    }
 }
-
-// Map frontend values to readable names if needed, or use directly
-const POSITIONS = [
-    { value: "AUTOR", label: "Autor" },
-    { value: "REU", label: "Réu" },
-    { value: "RECLAMANTE", label: "Reclamante" },
-    { value: "RECLAMADA", label: "Reclamada" },
-    { value: "REQUERENTE", label: "Requerente" },
-    { value: "REQUERIDO", label: "Requerido" },
-    { value: "REPRESENTANTE", label: "Representante Legal" },
-    { value: "TERCEIRO", label: "Terceiro Interessado" },
-    { value: "OUTRO", label: "Outro" }
-]
 
 interface ProcessFormProps {
     initialData?: any
@@ -78,7 +85,7 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
         clientId: "",
         status: "",
         position: "", // Primary Client Position
-        opponent: "", // Primary Opponent Name
+        opponent: "", // Primary Opponent ID
         opponentPosition: "", // Primary Opponent Position
         district: "",
         court: "",
@@ -89,14 +96,8 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
 
     // Additional Parties
     const [authors, setAuthors] = useState<{ clientId: string, position: string }[]>([])
-    const [opponents, setOpponents] = useState<{ name: string, position: string }[]>([])
+    const [opponents, setOpponents] = useState<{ clientId: string, position: string }[]>([])
 
-    // Status Labels
-    const statusLabels: Record<string, string> = {
-        ACTIVE: "Ativo", SUSPENDED: "Suspenso", APPEAL: "Recurso", SETTLEMENT: "Acordo",
-        CONSTRUCTION: "Construção", ARCHIVED: "Arquivado", EXTINCT: "Extinto",
-        EXTINCT_WITH_JUDGMENT: "Extinto com Julgamento"
-    }
 
     // --- Loading Initial Data ---
     useEffect(() => {
@@ -120,39 +121,30 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
 
     useEffect(() => {
         if (initialData) {
+            const normalize = (val: string | null | undefined, configKey: keyof typeof PROCESS_UI_CONFIG) => {
+                if (!val) return ""
+                const upperVal = val.toUpperCase()
+                const config = PROCESS_UI_CONFIG[configKey] as any
+                const match = Object.keys(config).find(k => k.toUpperCase() === upperVal)
+                return match || val
+            }
+
             setFormData({
                 number: initialData.number || "",
-                area: initialData.area || "",
-                actionType: initialData.actionType || initialData.subject || "", // Fallback to subject if old record
+                area: normalize(initialData.area, "AREA"),
+                actionType: initialData.actionType || initialData.subject || "",
                 folderName: initialData.folderName || "",
                 clientId: initialData.clientId || "",
-                status: initialData.status || "ACTIVE",
-                position: initialData.position || "",
+                status: normalize(initialData.status, "STATUS") || "ACTIVE",
+                position: normalize(initialData.position, "POSITION"),
                 opponent: initialData.opponent || "",
-                opponentPosition: "", // Needs calculation or db fetch if stored separately. 
-                // Currently 'position' in DB is mostly for client. Opponent position wasn't explicitly stored in main table before.
-                // We will infer or leave empty.
+                opponentPosition: normalize(initialData.opponentPosition, "POSITION"),
                 district: initialData.district || "",
                 court: initialData.court || "",
                 link: initialData.link || "",
                 responsibleLawyerId: initialData.responsibleLawyerId || ""
             })
 
-            // Infer opponent position based on client position if possible
-            if (initialData.position && !initialData.opponentPosition) {
-                // Logic to reverse map if needed, but for now Antonyms map uses Form Value -> Display Text
-                // The DB stored "AUTOR" or "REU". 
-                // If client is "AUTOR", opponent is implied "REU". 
-                // We will set opponentPosition state derived from that if editing.
-                const ant = POSITION_ANTONYMS[initialData.position]
-                // We need the KEY for the Select (e.g. "REU"). 
-                // The map above values are "Réu".
-                // Reverse lookup:
-                const key = Object.keys(POSITION_ANTONYMS).find(k => POSITION_ANTONYMS[k] === ant)
-                // ACTUALLY, the prompt asked to FILL automatically. 
-                // "Sempre com seu antônimo, tipo: Autor - Réu". 
-                // stored position is UPPERCASE enum usually.
-            }
 
             // Load additional parties if they exist
             // (Assumes initialData includes these relations)
@@ -160,7 +152,7 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                 setAuthors(initialData.authors.map((a: any) => ({ clientId: a.clientId, position: a.position })))
             }
             if (initialData.opponents) {
-                setOpponents(initialData.opponents.map((o: any) => ({ name: o.name, position: o.position })))
+                setOpponents(initialData.opponents.map((o: any) => ({ clientId: o.clientId, position: o.position })))
             }
         }
     }, [initialData])
@@ -170,7 +162,7 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
         // Auto-Folder Name
         if (!isEditing && formData.clientId) {
             const cName = clients.find(c => c.id === formData.clientId)?.name?.split(" ").slice(0, 2).join(" ") || ""
-            const oName = formData.opponent
+            const oName = clients.find(c => c.id === formData.opponent)?.name?.split(" ").slice(0, 2).join(" ") || ""
             if (cName) {
                 setFormData(prev => ({ ...prev, folderName: oName ? `${cName} vs ${oName}` : cName }))
             }
@@ -180,7 +172,15 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
     // Auto-Fill Opponent Position
     useEffect(() => {
         if (formData.position) {
-            const antonym = POSITION_ANTONYMS[formData.position]
+            const antonyms: Record<string, string> = {
+                "AUTOR": "REU",
+                "REU": "AUTOR",
+                "RECLAMANTE": "RECLAMADA",
+                "RECLAMADA": "RECLAMANTE",
+                "REQUERENTE": "REQUERIDO",
+                "REQUERIDO": "REQUERENTE"
+            }
+            const antonym = antonyms[formData.position]
             if (antonym) {
                 setFormData(prev => ({ ...prev, opponentPosition: antonym }))
             }
@@ -207,31 +207,25 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
     }
 
     const handleAddOpponent = () => {
-        setOpponents([...opponents, { name: "", position: "" }])
+        setOpponents([...opponents, { clientId: "", position: "" }])
     }
 
     const handleRemoveOpponent = (index: number) => {
         setOpponents(opponents.filter((_, i) => i !== index))
     }
 
-    const handleOpponentChange = (index: number, field: "name" | "position", value: string) => {
+    const handleOpponentChange = (index: number, field: "clientId" | "position", value: string) => {
         const newOpponents = [...opponents]
         newOpponents[index][field] = value
         setOpponents(newOpponents)
     }
 
-    const handleOpponentCreated = (name: string) => {
-        // Refresh clients list if possible, or just add temporarily to selection if it was a client?
-        // Actually, we want to allow selecting this new person as the opponent.
-        // We will assume simpler: Just set the name.
-        if (!formData.opponent) {
-            handleChange("opponent", name)
-        } else {
-            // Add to list
-            setOpponents([...opponents, { name, position: "REU" }])
-        }
-        // Force refresh clients as we just created one
-        // getClientsForSelect().then(setClients) // Optional: optimize later
+    const handleOpponentCreated = (newClient: { id: string, name: string }) => {
+        // Instantaneous selection in parent
+        setFormData(prev => ({ ...prev, opponent: newClient.id, opponentPosition: "REU" }))
+        // Fast re-fetch
+        getClientsForSelect().then(setClients)
+        router.refresh()
     }
 
     const handleRegisterOpponentClick = (e: React.MouseEvent) => {
@@ -301,15 +295,15 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                 onSuccess={handleOpponentCreated}
             />
 
-            <Card className="bg-[#0f4c75] text-white border-none shadow-xl"> {/* Custom dark blue theme similar to image */}
+            <Card className="border-none shadow-md">
                 <CardHeader>
-                    <CardTitle className="text-white">{isEditing ? "Editar Processo" : "Editar Processo / Novo"}</CardTitle>
+                    <CardTitle>{isEditing ? "Editar Processo" : "Novo Processo"}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     {/* Row 1 */}
                     <div className="grid md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <Label className="text-white">Nome da pasta</Label>
+                            <Label>Nome da pasta</Label>
                             <Input
                                 value={formData.folderName}
                                 onChange={(e) => handleChange("folderName", e.target.value)}
@@ -317,39 +311,30 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                             />
                         </div>
                         <div className="space-y-2 flex flex-col">
-                            <Label className="text-white">Status do processo</Label>
-                            <Select value={formData.status} onValueChange={(v) => handleChange("status", v)}>
-                                <SelectTrigger className="bg-gray-100 text-black border-none hover:bg-gray-200">
-                                    <SelectValue placeholder="Selecione..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {Object.entries(statusLabels).map(([key, label]) => (
-                                        <SelectItem key={key} value={key}>
-                                            <div className="flex items-center gap-2">
-                                                <div className={cn("h-2 w-2 rounded-full",
-                                                    key === "ACTIVE" ? "bg-green-500" :
-                                                        key === "SUSPENDED" ? "bg-orange-500" :
-                                                            key === "APPEAL" ? "bg-blue-500" :
-                                                                key === "SETTLEMENT" ? "bg-purple-500" :
-                                                                    key === "CONSTRUCTION" ? "bg-gray-400" :
-                                                                        key === "ARCHIVED" ? "bg-red-500" :
-                                                                            key === "EXTINCT" ? "bg-red-700" :
-                                                                                key === "EXTINCT_WITH_JUDGMENT" ? "bg-black" :
-                                                                                    "bg-gray-500"
-                                                )} />
-                                                <span>{label}</span>
-                                            </div>
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <Label>Status do processo</Label>
+                            <Combobox
+                                value={formData.status}
+                                onValueChange={(v) => handleChange("status", v)}
+                                options={Object.entries(PROCESS_UI_CONFIG.STATUS).map(([key, config]) => ({ value: key, label: config.label }))}
+                                placeholder="Selecione..."
+                                showAddCustom={false}
+                                renderItem={(op) => {
+                                    const config = (PROCESS_UI_CONFIG.STATUS as any)[op.value]
+                                    return (
+                                        <div className="flex items-center gap-2">
+                                            {config?.color && <div className={cn("h-2 w-2 rounded-full", config.color)} />}
+                                            <span>{op.label}</span>
+                                        </div>
+                                    )
+                                }}
+                            />
                         </div>
                     </div>
 
                     {/* Row 2: Client */}
                     <div className="grid md:grid-cols-2 gap-4">
                         <div className="space-y-2 flex flex-col">
-                            <Label className={cn("text-white", formErrors.includes("Cliente é obrigatório") && "text-red-400")}>Cliente *</Label>
+                            <Label className={cn(formErrors.includes("Cliente é obrigatório") && "text-red-500")}>Cliente *</Label>
                             <Combobox
                                 value={formData.clientId}
                                 onValueChange={(v) => handleChange("clientId", v)}
@@ -360,27 +345,24 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                             />
                         </div>
                         <div className="space-y-2 flex flex-col">
-                            <Label className="text-white">Posição do Cliente no Processo</Label>
-                            <Select value={formData.position} onValueChange={(v) => handleChange("position", v)}>
-                                <SelectTrigger className="bg-gray-100 text-black border-none hover:bg-gray-200">
-                                    <SelectValue placeholder="Selecione..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {POSITIONS.map(p => (
-                                        <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <Label>Posição do Cliente no Processo</Label>
+                            <Combobox
+                                value={formData.position}
+                                onValueChange={(v) => handleChange("position", v)}
+                                options={Object.entries(PROCESS_UI_CONFIG.POSITION).map(([key, config]) => ({ value: key, label: config.label }))}
+                                placeholder="Selecione..."
+                                showAddCustom={false}
+                            />
                         </div>
                     </div>
 
                     {/* Additional Authors */}
                     <div className="space-y-2">
-                        <Button type="button" variant="ghost" className="text-white hover:text-gray-200 pl-0 hover:bg-transparent" onClick={handleAddAuthor}>
-                            <Plus className="h-4 w-4 mr-1 bg-white text-[#0f4c75] rounded-full p-0.5" /> Parte autora ou representante
+                        <Button type="button" variant="ghost" className="text-blue-600 hover:text-blue-700 pl-0 hover:bg-transparent" onClick={handleAddAuthor}>
+                            <Plus className="h-4 w-4 mr-1 bg-blue-600 text-white rounded-full p-0.5" /> Parte autora ou representante
                         </Button>
                         {authors.map((author, index) => (
-                            <div key={index} className="grid md:grid-cols-2 gap-4 items-end bg-white/5 p-2 rounded-md">
+                            <div key={`author-${index}`} className="grid md:grid-cols-2 gap-4 items-end bg-gray-50 p-2 rounded-md border border-gray-100">
                                 <div className="space-y-1">
                                     <Combobox
                                         value={author.clientId}
@@ -394,16 +376,14 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                                 <div className="space-y-1 flex gap-2">
                                     <div className="flex-1">
                                         <Label className="text-xs text-gray-300">Posição</Label>
-                                        <Select value={author.position} onValueChange={(v) => handleAuthorChange(index, "position", v)}>
-                                            <SelectTrigger className="bg-gray-100 text-black border-none hover:bg-gray-200 h-8">
-                                                <SelectValue placeholder="Selecione..." />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {POSITIONS.map(p => (
-                                                    <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                        <Combobox
+                                            value={author.position}
+                                            onValueChange={(v) => handleAuthorChange(index, "position", v)}
+                                            options={Object.entries(PROCESS_UI_CONFIG.POSITION).map(([key, config]) => ({ value: key, label: config.label }))}
+                                            placeholder="Selecione..."
+                                            showAddCustom={false}
+                                            className="h-8"
+                                        />
                                     </div>
                                     <Button type="button" size="icon" variant="ghost" onClick={() => handleRemoveAuthor(index)} className="h-8 w-8 text-red-300 hover:text-red-100 hover:bg-red-500/20">
                                         <Trash2 className="h-4 w-4" />
@@ -416,76 +396,76 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                     {/* Row 3: Opponent */}
                     <div className="grid md:grid-cols-2 gap-4">
                         <div className="space-y-2 relative flex flex-col">
-                            <Label className="text-white">Parte Contrária</Label>
+                            <Label>Parte Contrária</Label>
                             <Combobox
                                 value={formData.opponent}
                                 onValueChange={(v) => handleChange("opponent", v)}
-                                options={clients.map(c => ({ value: c.name, label: c.name }))}
+                                options={clients.map(c => ({ value: c.id, label: c.name }))}
                                 placeholder="Selecione ou busque..."
                                 searchPlaceholder="Buscar nome..."
                                 customEmpty={(search) => (
                                     <div className="p-4 flex flex-col items-center gap-2">
-                                        <span className="text-sm text-muted-foreground">Nenhum encontrado.</span>
+                                        <span className="text-sm text-muted-foreground">Nenhum encontrado em Clientes.</span>
                                         <Button
                                             size="sm"
+                                            variant="outline"
                                             className="w-full"
+                                            onPointerDown={(e) => e.preventDefault()}
                                             onClick={(e) => {
                                                 e.preventDefault();
                                                 handleRegisterOpponentClick(e);
                                             }}
                                         >
                                             <Plus className="mr-2 h-4 w-4" />
-                                            Cadastrar "{search}"
+                                            Cadastrar "{search}" como Cliente
                                         </Button>
                                     </div>
                                 )}
                             />
                         </div>
                         <div className="space-y-2 flex flex-col">
-                            <Label className="text-white">Posição da Parte Contrária no Processo</Label>
-                            <Select value={formData.opponentPosition} onValueChange={(v) => handleChange("opponentPosition", v)}>
-                                <SelectTrigger className="bg-gray-100 text-black border-none hover:bg-gray-200">
-                                    <SelectValue placeholder={formData.position ? (POSITION_ANTONYMS[formData.position] || "Selecione...") : "Selecione..."} />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {POSITIONS.map(p => (
-                                        <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <Label>Posição da Parte Contrária no Processo</Label>
+                            <Combobox
+                                value={formData.opponentPosition}
+                                onValueChange={(v) => handleChange("opponentPosition", v)}
+                                options={Object.entries(PROCESS_UI_CONFIG.POSITION).map(([key, config]) => ({ value: key, label: config.label }))}
+                                placeholder="Selecione..."
+                                showAddCustom={false}
+                            />
                         </div>
                     </div>
 
                     {/* Additional Opponents */}
                     <div className="space-y-2">
-                        <Button type="button" variant="ghost" className="text-white hover:text-gray-200 pl-0 hover:bg-transparent" onClick={handleAddOpponent}>
-                            <Plus className="h-4 w-4 mr-1 bg-white text-[#0f4c75] rounded-full p-0.5" /> Parte contrária ou interessado
+                        <Button type="button" variant="ghost" className="text-blue-600 hover:text-blue-700 pl-0 hover:bg-transparent" onClick={handleAddOpponent}>
+                            <Plus className="h-4 w-4 mr-1 bg-blue-600 text-white rounded-full p-0.5" /> Parte contrária ou interessado
                         </Button>
                         {opponents.map((opp, index) => (
-                            <div key={index} className="grid md:grid-cols-2 gap-4 items-end bg-white/5 p-2 rounded-md">
+                            <div key={`opponent-${index}`} className="grid md:grid-cols-2 gap-4 items-end bg-gray-50 p-2 rounded-md border border-gray-100">
                                 <div className="space-y-1">
-                                    <Label className="text-xs text-gray-300">Nome</Label>
-                                    <Input
-                                        value={opp.name}
-                                        onChange={(e) => handleOpponentChange(index, "name", e.target.value)}
-                                        className="bg-gray-100 text-black border-none h-8"
+                                    <Label className="text-xs text-muted-foreground">Nome</Label>
+                                    <Combobox
+                                        value={opp.clientId}
+                                        onValueChange={(v) => handleOpponentChange(index, "clientId", v)}
+                                        options={clients.map(c => ({ value: c.id, label: c.name }))}
+                                        placeholder="Selecione..."
+                                        searchPlaceholder="Buscar cliente..."
+                                        className="h-8"
                                     />
                                 </div>
                                 <div className="space-y-1 flex gap-2">
                                     <div className="flex-1">
-                                        <Label className="text-xs text-gray-300">Posição</Label>
-                                        <Select value={opp.position} onValueChange={(v) => handleOpponentChange(index, "position", v)}>
-                                            <SelectTrigger className="bg-gray-100 text-black border-none hover:bg-gray-200 h-8">
-                                                <SelectValue placeholder="Selecione..." />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {POSITIONS.map(p => (
-                                                    <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                        <Label className="text-xs text-muted-foreground">Posição</Label>
+                                        <Combobox
+                                            value={opp.position}
+                                            onValueChange={(v) => handleOpponentChange(index, "position", v)}
+                                            options={Object.entries(PROCESS_UI_CONFIG.POSITION).map(([key, config]) => ({ value: key, label: config.label }))}
+                                            placeholder="Selecione..."
+                                            showAddCustom={false}
+                                            className="h-8"
+                                        />
                                     </div>
-                                    <Button type="button" size="icon" variant="ghost" onClick={() => handleRemoveOpponent(index)} className="h-8 w-8 text-red-300 hover:text-red-100 hover:bg-red-500/20">
+                                    <Button type="button" size="icon" variant="ghost" onClick={() => handleRemoveOpponent(index)} className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50">
                                         <Trash2 className="h-4 w-4" />
                                     </Button>
                                 </div>
@@ -497,7 +477,7 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                     {/* Row 4: Details */}
                     <div className="grid md:grid-cols-3 gap-4">
                         <div className="space-y-2">
-                            <Label className={cn("text-white", formErrors.includes("Número do processo é obrigatório") && "text-red-400")}>Número do processo *</Label>
+                            <Label className={cn(formErrors.includes("Número do processo é obrigatório") && "text-red-500")}>Número do processo *</Label>
                             <Input
                                 value={formData.number}
                                 onChange={(e) => handleChange("number", e.target.value)}
@@ -505,20 +485,17 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                             />
                         </div>
                         <div className="space-y-2 flex flex-col">
-                            <Label className="text-white">Área de atuação</Label>
-                            <Select value={formData.area} onValueChange={(v) => handleChange("area", v)}>
-                                <SelectTrigger className="bg-gray-100 text-black border-none hover:bg-gray-200">
-                                    <SelectValue placeholder="Selecione..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="TRABALHISTA">Trabalhista</SelectItem>
-                                    <SelectItem value="CIVIL">Cível</SelectItem>
-                                    <SelectItem value="FAMILIA">Família e Sucessões</SelectItem>
-                                </SelectContent>
-                            </Select>
+                            <Label>Área de atuação</Label>
+                            <Combobox
+                                value={formData.area}
+                                onValueChange={(v) => handleChange("area", v)}
+                                options={Object.entries(PROCESS_UI_CONFIG.AREA).map(([key, config]) => ({ value: key, label: config.label }))}
+                                placeholder="Selecione..."
+                                showAddCustom={false}
+                            />
                         </div>
                         <div className="space-y-2 flex flex-col">
-                            <Label className="text-white">Tipo de ação</Label>
+                            <Label>Tipo de ação</Label>
                             <Combobox
                                 value={formData.actionType}
                                 onValueChange={(v) => handleChange("actionType", v)}
@@ -532,7 +509,7 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                     {/* Row 5: Link, Court */}
                     <div className="grid md:grid-cols-3 gap-4">
                         <div className="space-y-2">
-                            <Label className="text-white">Link do processo</Label>
+                            <Label>Link do processo</Label>
                             <Input
                                 value={formData.link}
                                 onChange={(e) => handleChange("link", e.target.value)}
@@ -540,36 +517,30 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                             />
                         </div>
                         <div className="space-y-2 flex flex-col">
-                            <Label className="text-white">Vara</Label>
-                            <Select value={formData.court} onValueChange={(v) => handleChange("court", v)}>
-                                <SelectTrigger className="bg-gray-100 text-black border-none hover:bg-gray-200">
-                                    <SelectValue placeholder="Selecione..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {COURT_OPTIONS.map(c => (
-                                        <SelectItem key={c} value={c}>{c}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <Label>Vara</Label>
+                            <Combobox
+                                value={formData.court}
+                                onValueChange={(v) => handleChange("court", v)}
+                                options={COURT_OPTIONS.map(c => ({ value: c, label: c }))}
+                                placeholder="Selecione..."
+                                showAddCustom={true}
+                            />
                         </div>
                         <div className="space-y-2 flex flex-col">
-                            <Label className="text-white">Comarca</Label>
-                            <Select value={formData.district} onValueChange={(v) => handleChange("district", v)}>
-                                <SelectTrigger className="bg-gray-100 text-black border-none hover:bg-gray-200">
-                                    <SelectValue placeholder="Selecione..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {DISTRICT_OPTIONS.map(d => (
-                                        <SelectItem key={d} value={d}>{d}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <Label>Comarca</Label>
+                            <Combobox
+                                value={formData.district}
+                                onValueChange={(v) => handleChange("district", v)}
+                                options={DISTRICT_OPTIONS.map(d => ({ value: d, label: d }))}
+                                placeholder="Selecione..."
+                                showAddCustom={true}
+                            />
                         </div>
                     </div>
 
                     {/* Row 6: Responsible */}
                     <div className="space-y-2 flex flex-col">
-                        <Label className="text-white">Advogado Responsável</Label>
+                        <Label>Advogado Responsável</Label>
                         <Combobox
                             value={formData.responsibleLawyerId}
                             onValueChange={(v) => handleChange("responsibleLawyerId", v)}
@@ -580,9 +551,9 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                     </div>
 
                     <div className="flex justify-end pt-4">
-                        <Button type="submit" className="w-[200px] bg-white text-[#0f4c75] hover:bg-gray-100 font-bold" disabled={loading}>
+                        <Button type="submit" className="w-full md:w-[200px]" disabled={loading}>
                             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Salvar
+                            Salvar Processo
                         </Button>
                     </div>
                 </CardContent >
@@ -625,8 +596,7 @@ function Combobox({
                 <Button
                     variant="outline"
                     role="combobox"
-                    aria-expanded={open}
-                    className={cn("w-full justify-between bg-gray-100 text-black border-none hover:bg-gray-200", className)}
+                    className={cn("w-full justify-between bg-gray-100 text-black border-none hover:bg-gray-200 h-10", className)}
                 >
                     <div className="flex items-center gap-2 truncate">
                         {selectedOption ? (
@@ -638,7 +608,12 @@ function Combobox({
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[400px] p-0" align="start">
+            <PopoverContent
+                className="w-[var(--radix-popover-trigger-width)] p-0 shadow-2xl"
+                align="start"
+                // Isso evita que o foco volte de forma estranha pro botão
+                onCloseAutoFocus={(e) => e.preventDefault()}
+            >
                 <Command shouldFilter={true}>
                     <CommandInput
                         placeholder={searchPlaceholder || "Buscar..."}
@@ -649,24 +624,22 @@ function Combobox({
                         <CommandEmpty>
                             {customEmpty ? customEmpty(searchTerm) : (
                                 showAddCustom && searchTerm ? (
-                                    <div className="p-2 flex flex-col gap-2">
-                                        <span className="text-sm text-muted-foreground text-center">Nenhum resultado encontrado.</span>
+                                    <div className="p-2">
                                         <Button
                                             size="sm"
                                             variant="secondary"
                                             className="w-full"
+                                            onPointerDown={(e) => e.preventDefault()}
                                             onClick={() => {
                                                 onValueChange(searchTerm)
                                                 setOpen(false)
                                                 setSearchTerm("")
                                             }}
                                         >
-                                            Usar "{searchTerm}"
+                                            <Plus className="mr-2 h-3 w-3" /> Usar "{searchTerm}"
                                         </Button>
                                     </div>
-                                ) : (
-                                    <div className="p-4 text-sm text-center text-muted-foreground">Nenhum resultado encontrado.</div>
-                                )
+                                ) : <div className="p-4 text-center text-sm text-muted-foreground">Nenhum resultado.</div>
                             )}
                         </CommandEmpty>
                         <CommandGroup>
@@ -674,14 +647,21 @@ function Combobox({
                                 <CommandItem
                                     key={op.value}
                                     value={op.label}
-                                    onSelect={() => {
-                                        onValueChange(op.value)
-                                        setOpen(false)
-                                        setSearchTerm("")
+                                    // TRUQUE PARA O MOUSE: 
+                                    // Usamos onPointerDown para evitar perda de foco e o clique funcionar de primeira
+                                    onPointerDown={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
                                     }}
+                                    onSelect={() => {
+                                        onValueChange(op.value);
+                                        setOpen(false);
+                                        setSearchTerm("");
+                                    }}
+                                    className="cursor-pointer"
                                 >
                                     <Check className={cn("mr-2 h-4 w-4", value === op.value ? "opacity-100" : "opacity-0")} />
-                                    <div className="flex-1">
+                                    <div className="flex-1 truncate">
                                         {renderItem ? renderItem(op) : op.label}
                                     </div>
                                 </CommandItem>

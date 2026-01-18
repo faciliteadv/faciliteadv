@@ -137,7 +137,7 @@ export async function createProcess(data: any) {
                 await tx.processOpponent.createMany({
                     data: data.opponents.map((o: any) => ({
                         processId: process.id,
-                        name: o.name,
+                        clientId: o.clientId,
                         position: o.position
                     }))
                 })
@@ -198,7 +198,7 @@ export async function updateProcessAction(processId: string, data: any) {
                 await tx.processOpponent.createMany({
                     data: data.opponents.map((o: any) => ({
                         processId,
-                        name: o.name,
+                        clientId: o.clientId,
                         position: o.position
                     }))
                 })

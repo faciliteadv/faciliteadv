@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator"
 import { ArrowLeft, Loader2, Search, Plus, Trash2, Eye, EyeOff } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { createClient, updateClientAction } from "@/lib/actions/client-actions"
+import { formatCPF, formatCNPJ, formatPhone as formatPhoneUtil } from "@/lib/utils/validation"
 
 const COUNTRY_CODES = [
     { code: "+55", country: "BR", mask: "(99) 99999-9999" },
@@ -126,22 +127,6 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
     }, [initialData])
 
     // Formatters
-    const formatCPF = (value: string) => {
-        return value.replace(/\D/g, '').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})/, '$1-$2').replace(/(-\d{2})\d+?$/, '$1')
-    }
-    const formatCNPJ = (value: string) => {
-        return value.replace(/\D/g, '').replace(/(\d{2})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1/$2').replace(/(\d{4})(\d)/, '$1-$2').replace(/(-\d{2})\d+?$/, '$1')
-    }
-    const formatPhone = (value: string, countryCode: string) => {
-        const clean = value.replace(/\D/g, "")
-        if (countryCode === "+55" && clean.length <= 11) {
-            return clean.replace(/^(\d{2})(\d)/g, '($1) $2').replace(/(\d)(\d{4})$/, '$1-$2')
-        }
-        return clean
-    }
-    const formatCEP = (value: string) => {
-        return value.replace(/\D/g, '').replace(/(\d{5})(\d)/, '$1-$2').replace(/(-\d{3})\d+?$/, '$1')
-    }
 
     const validateField = (name: string, value: string) => {
         let error = ""
@@ -165,8 +150,8 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
 
         // Masks
         if (name === "cpfCnpj") value = clientType === 'PF' ? formatCPF(value) : formatCNPJ(value)
-        if (name === "whatsapp") value = formatPhone(value, whatsappCountry)
-        if (name === "address.zip") value = formatCEP(value)
+        if (name === "whatsapp") value = formatPhoneUtil(value)
+        if (name === "address.zip") value = value.replace(/\D/g, '').replace(/(\d{5})(\d)/, '$1-$2').replace(/(-\d{3})\d+?$/, '$1')
 
         validateField(name, value)
 
@@ -191,7 +176,7 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
     // Additional Contacts Logic
     const handleContactChange = (index: number, field: string, value: string) => {
         const updated = [...additionalContacts]
-        if (field === "phone") value = formatPhone(value, "+55") // Default BR for now
+        if (field === "phone") value = formatPhoneUtil(value)
         updated[index] = { ...updated[index], [field]: value }
         setAdditionalContacts(updated)
     }
@@ -354,6 +339,7 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
                                     value={formData.cpfCnpj}
                                     onChange={handleInputChange}
                                     className={errors.cpfCnpj ? "border-red-500" : ""}
+                                    maxLength={clientType === 'PF' ? 14 : 18}
                                 />
                                 <Button
                                     type="button"
