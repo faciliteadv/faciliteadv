@@ -122,6 +122,7 @@ model Process {
   position            String?
   responsibleLawyerId String?
   actionType          String?
+  claimValue          Decimal?
   appointments        Appointment[]
   financial           FinancialRecord[]
   client              Client            @relation("ClientProcesses", fields: [clientId], references: [id])
@@ -339,6 +340,11 @@ enum ProcessStatus {
   EXTINCT
   EXTINCT_WITH_JUDGMENT
   SUSPENDED
+  SENTENCED
+  EXECUTION
+  EXTINCT_WITH_MERIT
+  EXTINCT_WITHOUT_MERIT
+  WITHDRAWAL
 }
 
 enum TaskType {

@@ -31,14 +31,17 @@ const ACTION_TYPES_PRESETS = [
 
 const PROCESS_UI_CONFIG = {
     STATUS: {
-        ACTIVE: { label: "Ativo", color: "bg-green-500" },
-        SUSPENDED: { label: "Suspenso", color: "bg-orange-500" },
-        APPEAL: { label: "Recurso", color: "bg-blue-500" },
-        SETTLEMENT: { label: "Acordo", color: "bg-purple-500" },
+        ACTIVE: { label: "Em andamento", color: "bg-blue-400" },
+        SUSPENDED: { label: "Suspenso", color: "bg-red-300" },
+        SENTENCED: { label: "Sentenciado", color: "bg-green-900" },
+        APPEAL: { label: "Em recurso", color: "bg-red-900" },
+        EXECUTION: { label: "Em execução", color: "bg-green-400" },
+        EXTINCT_WITH_MERIT: { label: "Extinto com resolução de mérito", color: "bg-blue-900" },
+        EXTINCT_WITHOUT_MERIT: { label: "Extinto sem resolução de mérito", color: "bg-red-600" },
+        WITHDRAWAL: { label: "Desistência do processo pelo cliente", color: "bg-gray-500" },
         CONSTRUCTION: { label: "Construção", color: "bg-gray-400" },
-        ARCHIVED: { label: "Arquivado", color: "bg-red-500" },
-        EXTINCT: { label: "Extinto", color: "bg-red-700" },
-        EXTINCT_WITH_JUDGMENT: { label: "Extinto com Julgamento", color: "bg-black" },
+        ARCHIVED: { label: "Arquivado", color: "bg-gray-600" },
+        SETTLEMENT: { label: "Acordo", color: "bg-purple-500" },
     },
     AREA: {
         TRABALHISTA: { label: "Trabalhista" },
@@ -67,7 +70,7 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
     const router = useRouter()
     const { toast } = useToast()
     const [loading, setLoading] = useState(false)
-    const [clients, setClients] = useState<{ id: string, name: string }[]>([])
+    const [clients, setClients] = useState<{ id: string, name: string, cpfCnpj?: string | null }[]>([])
     const [users, setUsers] = useState<{ id: string, name: string | null, email: string }[]>([])
     const [actionTypes, setActionTypes] = useState<string[]>([])
     const [customActionType, setCustomActionType] = useState("")
@@ -90,6 +93,7 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
         district: "",
         court: "",
         link: "",
+        claimValue: "",
         responsibleLawyerId: ""
     })
     const [searchTerm, setSearchTerm] = useState("")
@@ -108,7 +112,7 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                     getUsersForResponsibleSelect(),
                     getActionTypes()
                 ])
-                setClients(c)
+                setClients(c as any)
                 setUsers(u)
                 const combinedTypes = Array.from(new Set([...ACTION_TYPES_PRESETS, ...a])).sort()
                 setActionTypes(combinedTypes)
@@ -142,6 +146,7 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                 district: initialData.district || "",
                 court: initialData.court || "",
                 link: initialData.link || "",
+                claimValue: initialData.claimValue?.toString() || "",
                 responsibleLawyerId: initialData.responsibleLawyerId || ""
             })
 
@@ -266,6 +271,7 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
         try {
             const payload = {
                 ...formData,
+                claimValue: formData.claimValue ? parseFloat(formData.claimValue.replace(/[^\d.,]/g, "").replace(",", ".")) : null,
                 authors,
                 opponents
             }
@@ -338,9 +344,9 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                             <Combobox
                                 value={formData.clientId}
                                 onValueChange={(v) => handleChange("clientId", v)}
-                                options={clients.map(c => ({ value: c.id, label: c.name }))}
+                                options={clients.map(c => ({ value: c.id, label: c.name, search: `${c.name} ${c.cpfCnpj || ""}` }))}
                                 placeholder="Selecione..."
-                                searchPlaceholder="Buscar cliente..."
+                                searchPlaceholder="Buscar cliente por nome ou CPF..."
                                 className={cn(!formData.clientId && formErrors.includes("Cliente é obrigatório") && "border-2 border-red-500")}
                             />
                         </div>
@@ -367,9 +373,25 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                                     <Combobox
                                         value={author.clientId}
                                         onValueChange={(v) => handleAuthorChange(index, "clientId", v)}
-                                        options={clients.map(c => ({ value: c.id, label: c.name }))}
+                                        options={clients.map(c => ({ value: c.id, label: c.name, search: `${c.name} ${c.cpfCnpj || ""}` }))}
                                         placeholder="Selecione..."
-                                        searchPlaceholder="Buscar cliente..."
+                                        searchPlaceholder="Buscar por nome ou CPF..."
+                                        customEmpty={(search) => (
+                                            <div className="p-2">
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="w-full text-xs"
+                                                    onPointerDown={(e) => e.preventDefault()}
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        setRegisterOpponentOpen(true);
+                                                    }}
+                                                >
+                                                    <Plus className="mr-2 h-3 w-3" /> Cadastrar "{search}"
+                                                </Button>
+                                            </div>
+                                        )}
                                         className="h-8"
                                     />
                                 </div>
@@ -400,9 +422,9 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                             <Combobox
                                 value={formData.opponent}
                                 onValueChange={(v) => handleChange("opponent", v)}
-                                options={clients.map(c => ({ value: c.id, label: c.name }))}
+                                options={clients.map(c => ({ value: c.id, label: c.name, search: `${c.name} ${c.cpfCnpj || ""}` }))}
                                 placeholder="Selecione ou busque..."
-                                searchPlaceholder="Buscar nome..."
+                                searchPlaceholder="Buscar por nome ou CPF..."
                                 customEmpty={(search) => (
                                     <div className="p-4 flex flex-col items-center gap-2">
                                         <span className="text-sm text-muted-foreground">Nenhum encontrado em Clientes.</span>
@@ -447,9 +469,25 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                                     <Combobox
                                         value={opp.clientId}
                                         onValueChange={(v) => handleOpponentChange(index, "clientId", v)}
-                                        options={clients.map(c => ({ value: c.id, label: c.name }))}
+                                        options={clients.map(c => ({ value: c.id, label: c.name, search: `${c.name} ${c.cpfCnpj || ""}` }))}
                                         placeholder="Selecione..."
-                                        searchPlaceholder="Buscar cliente..."
+                                        searchPlaceholder="Buscar por nome ou CPF..."
+                                        customEmpty={(search) => (
+                                            <div className="p-2">
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="w-full text-xs"
+                                                    onPointerDown={(e) => e.preventDefault()}
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        setRegisterOpponentOpen(true);
+                                                    }}
+                                                >
+                                                    <Plus className="mr-2 h-3 w-3" /> Cadastrar "{search}"
+                                                </Button>
+                                            </div>
+                                        )}
                                         className="h-8"
                                     />
                                 </div>
@@ -502,6 +540,15 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                                 options={actionTypes.map(t => ({ value: t, label: t }))}
                                 placeholder="Selecione ou digite..."
                                 searchPlaceholder="Buscar ou criar tipo..."
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Valor da Causa</Label>
+                            <Input
+                                value={formData.claimValue}
+                                onChange={(e) => handleChange("claimValue", e.target.value)}
+                                placeholder="R$ 0,00"
+                                className="bg-gray-100 text-black border-none"
                             />
                         </div>
                     </div>
@@ -565,11 +612,11 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
 interface ComboboxProps {
     value: string
     onValueChange: (val: string) => void
-    options: { value: string, label: string }[]
+    options: { value: string, label: string, search?: string }[]
     placeholder?: string
     searchPlaceholder?: string
     className?: string
-    renderItem?: (option: { value: string, label: string }) => React.ReactNode
+    renderItem?: (option: { value: string, label: string, search?: string }) => React.ReactNode
     showAddCustom?: boolean
     customEmpty?: (search: string) => React.ReactNode
 }
@@ -646,7 +693,7 @@ function Combobox({
                             {options.map((op) => (
                                 <CommandItem
                                     key={op.value}
-                                    value={op.label}
+                                    value={op.search || op.label}
                                     // TRUQUE PARA O MOUSE: 
                                     // Usamos onPointerDown para evitar perda de foco e o clique funcionar de primeira
                                     onPointerDown={(e) => {

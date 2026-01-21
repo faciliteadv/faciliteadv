@@ -16,23 +16,32 @@ interface PageProps {
 }
 
 const statusColors: Record<string, string> = {
-    ACTIVE: "bg-green-100 text-green-700 hover:bg-green-100/80 border-green-200",
-    ARCHIVED: "bg-red-100 text-red-700 hover:bg-red-100/80 border-red-200",
-    EXTINCT: "bg-red-100 text-red-700 hover:bg-red-100/80 border-red-200",
-    SUSPENDED: "bg-orange-100 text-orange-700 hover:bg-orange-100/80 border-orange-200",
-    APPEAL: "bg-blue-100 text-blue-700 hover:bg-blue-100/80 border-blue-200",
+    ACTIVE: "bg-blue-100 text-blue-700 hover:bg-blue-100/80 border-blue-200",
+    SUSPENDED: "bg-red-100 text-red-700 hover:bg-red-100/80 border-red-200", // matte/light red
+    SENTENCED: "bg-green-100 text-green-900 hover:bg-green-100/80 border-green-900", // dark green text
+    APPEAL: "bg-red-100 text-red-900 hover:bg-red-100/80 border-red-900", // dark red text
+    EXECUTION: "bg-green-100 text-green-600 hover:bg-green-100/80 border-green-400", // light green
+    EXTINCT_WITH_MERIT: "bg-blue-100 text-blue-900 hover:bg-blue-100/80 border-blue-900", // dark blue text
+    EXTINCT_WITHOUT_MERIT: "bg-red-100 text-red-600 hover:bg-red-100/80 border-red-600", // blood red text
+    WITHDRAWAL: "bg-gray-100 text-gray-500 hover:bg-gray-100/80 border-gray-500",
+    CONSTRUCTION: "bg-gray-100 text-gray-700 hover:bg-gray-100/80 border-gray-200",
+    ARCHIVED: "bg-gray-100 text-gray-600 hover:bg-gray-100/80 border-gray-300",
     SETTLEMENT: "bg-purple-100 text-purple-700 hover:bg-purple-100/80 border-purple-200",
-    CONSTRUCTION: "bg-gray-100 text-gray-700 hover:bg-gray-100/80 border-gray-200"
 }
 
 const statusLabels: Record<string, string> = {
-    ACTIVE: "Ativo",
-    ARCHIVED: "Arquivado",
-    EXTINCT: "Extinto",
+    ACTIVE: "Em andamento",
     SUSPENDED: "Suspenso",
-    APPEAL: "Recurso",
-    SETTLEMENT: "Acordo",
+    SENTENCED: "Sentenciado",
+    APPEAL: "Em recurso",
+    EXECUTION: "Em execução",
+    EXTINCT_WITH_MERIT: "Extinto com resolução de mérito",
+    EXTINCT_WITHOUT_MERIT: "Extinto sem resolução de mérito",
+    WITHDRAWAL: "Desistência do processo pelo cliente",
     CONSTRUCTION: "Construção",
+    ARCHIVED: "Arquivado",
+    SETTLEMENT: "Acordo",
+    EXTINCT: "Extinto",
     EXTINCT_WITH_JUDGMENT: "Extinto com Julgamento"
 }
 
@@ -80,7 +89,7 @@ export default async function ProcessesPage({ searchParams }: PageProps) {
             </div>
 
             <div className="space-y-4">
-                {processes.map((proc) => (
+                {processes.map((proc: any) => (
                     <ProcessListItem
                         key={proc.id}
                         process={proc}

@@ -1,5 +1,5 @@
-import { db } from "@/lib/db"
 import { Prisma } from "@prisma/client"
+import { db } from "@/lib/db"
 
 export const ProcessService = {
     // LIST with Hierarchy Logic
@@ -44,10 +44,10 @@ export const ProcessService = {
                 opponentName: p.opponent && opponentMap.has(p.opponent)
                     ? opponentMap.get(p.opponent)
                     : p.opponent
-            }))
+            })) as any
         }
 
-        return processes.map(p => ({ ...p, opponentName: p.opponent }))
+        return processes.map(p => ({ ...p, opponentName: p.opponent })) as any
     },
 
     create: async (userId: string, data: Omit<Prisma.ProcessUncheckedCreateInput, 'userId'>) => {

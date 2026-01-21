@@ -13,7 +13,7 @@ export async function getClientsForSelect() {
 
     const clients = await db.client.findMany({
         where: { userId: user.id, deletedAt: null },
-        select: { id: true, name: true },
+        select: { id: true, name: true, cpfCnpj: true },
         orderBy: { name: 'asc' }
     })
     return clients
@@ -117,8 +117,9 @@ export async function createProcess(data: any) {
                     district: data.district,
                     court: data.court,
                     link: data.link,
+                    claimValue: data.claimValue,
                     responsibleLawyerId: data.responsibleLawyerId
-                }
+                } as any
             })
 
             // Add Authors
@@ -175,9 +176,10 @@ export async function updateProcessAction(processId: string, data: any) {
                     district: data.district,
                     court: data.court,
                     link: data.link,
+                    claimValue: data.claimValue,
                     responsibleLawyerId: data.responsibleLawyerId
                     // clientId is generally not editable
-                }
+                } as any
             })
 
             // Handle Authors

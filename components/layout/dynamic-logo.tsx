@@ -1,7 +1,6 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import Image from "next/image"
 import { Scale } from "lucide-react"
 import { useEffect, useState } from "react"
 

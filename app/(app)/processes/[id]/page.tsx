@@ -27,24 +27,32 @@ interface PageProps {
 }
 
 const statusColors: Record<string, string> = {
-    ACTIVE: "bg-green-100 text-green-700 border-green-200",
-    ARCHIVED: "bg-red-100 text-red-700 border-red-200",
-    EXTINCT: "bg-red-100 text-red-700 border-red-200",
-    SUSPENDED: "bg-orange-100 text-orange-700 border-orange-200",
-    APPEAL: "bg-blue-100 text-blue-700 border-blue-200",
-    SETTLEMENT: "bg-purple-100 text-purple-700 border-purple-200",
+    ACTIVE: "bg-blue-100 text-blue-700 border-blue-200",
+    SUSPENDED: "bg-red-100 text-red-700 border-red-200",
+    SENTENCED: "bg-green-100 text-green-900 border-green-900",
+    APPEAL: "bg-red-100 text-red-900 border-red-900",
+    EXECUTION: "bg-green-100 text-green-600 border-green-400",
+    EXTINCT_WITH_MERIT: "bg-blue-100 text-blue-900 border-blue-900",
+    EXTINCT_WITHOUT_MERIT: "bg-red-100 text-red-600 border-red-600",
+    WITHDRAWAL: "bg-gray-100 text-gray-500 border-gray-500",
     CONSTRUCTION: "bg-gray-100 text-gray-700 border-gray-200",
-    EXTINCT_WITH_JUDGMENT: "bg-gray-900 text-white border-gray-900"
+    ARCHIVED: "bg-gray-100 text-gray-600 border-gray-300",
+    SETTLEMENT: "bg-purple-100 text-purple-700 border-purple-200",
 }
 
 const statusLabels: Record<string, string> = {
-    ACTIVE: "Ativo",
-    ARCHIVED: "Arquivado",
-    EXTINCT: "Extinto",
+    ACTIVE: "Em andamento",
     SUSPENDED: "Suspenso",
-    APPEAL: "Recurso",
-    SETTLEMENT: "Acordo",
+    SENTENCED: "Sentenciado",
+    APPEAL: "Em recurso",
+    EXECUTION: "Em execução",
+    EXTINCT_WITH_MERIT: "Extinto com resolução de mérito",
+    EXTINCT_WITHOUT_MERIT: "Extinto sem resolução de mérito",
+    WITHDRAWAL: "Desistência do processo pelo cliente",
     CONSTRUCTION: "Construção",
+    ARCHIVED: "Arquivado",
+    SETTLEMENT: "Acordo",
+    EXTINCT: "Extinto",
     EXTINCT_WITH_JUDGMENT: "Extinto com Julgamento"
 }
 
@@ -69,7 +77,7 @@ export default async function ProcessDetailPage({ params }: PageProps) {
     }
 
     const { id } = await params
-    const process = await ProcessService.getById(user.id, id)
+    const process = await ProcessService.getById(user.id, id) as any
 
     if (!process) {
         notFound()
@@ -130,12 +138,19 @@ export default async function ProcessDetailPage({ params }: PageProps) {
                         <CardContent className="grid gap-6">
                             <div className="grid grid-cols-2 gap-4">
                                 <DetailRow label="Área de Atuação" value={areaLabels[process.area] || process.area} />
-                                <DetailRow label="Assunto" value={process.subject} />
+                                <DetailRow label="Assunto / Tipo de ação" value={process.actionType || process.subject} />
                             </div>
                             <Separator />
                             <div className="grid grid-cols-2 gap-4">
                                 <DetailRow label="Comarca" value={process.district} icon={<MapPin className="h-3 w-3" />} />
                                 <DetailRow label="Vara" value={process.court} icon={<Building2 className="h-3 w-3" />} />
+                            </div>
+                            <Separator />
+                            <div className="grid grid-cols-2 gap-4">
+                                <DetailRow
+                                    label="Valor da Causa"
+                                    value={process.claimValue ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(process.claimValue)) : "-"}
+                                />
                             </div>
                             {process.link && (
                                 <>
@@ -180,7 +195,19 @@ export default async function ProcessDetailPage({ params }: PageProps) {
                                     <DetailRow label="Parte Contrária" value={(process as any).opponentName || process.opponent} />
                                     {process.opponent && <div className="mt-1"><CopyButton value={(process as any).opponentName || process.opponent || ""} label="Nome da Parte Contrária" /></div>}
                                 </div>
-                                <DetailRow label="Posição da Parte Contrária" value={process.position === "AUTOR" ? "Réu" : process.position === "REU" ? "Autor" : "-"} />
+                                <DetailRow
+                                    label="Posição da Parte Contrária"
+                                    value={(() => {
+                                        const pos = process.position?.toUpperCase()
+                                        if (pos === "AUTOR") return "Réu"
+                                        if (pos === "REU") return "Autor"
+                                        if (pos === "RECLAMANTE") return "Reclamada"
+                                        if (pos === "RECLAMADA") return "Reclamante"
+                                        if (pos === "REQUERENTE") return "Requerido"
+                                        if (pos === "REQUERIDO") return "Requerente"
+                                        return "-"
+                                    })()}
+                                />
                             </div>
                         </CardContent>
                     </Card>

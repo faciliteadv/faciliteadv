@@ -44,12 +44,23 @@ export function ProcessListItem({ process: proc, statusColors, statusLabels, are
                     <span className="text-muted-foreground/30">•</span>
                     <span>{areaLabels[proc.area] || proc.area}</span>
                     <span className="text-muted-foreground/30">•</span>
-                    <span className="truncate max-w-[200px]">{proc.subject || "Sem assunto"}</span>
+                    <span className="truncate max-w-[200px]">{proc.actionType || proc.subject || "Sem assunto"}</span>
                 </div>
 
                 {proc.opponent && (
                     <p className="text-xs text-muted-foreground mt-1.5">
-                        <span className="font-medium">Parte Contrária:</span> {proc.opponentName || proc.opponent} ({proc.position === "AUTOR" ? "Réu" : "Autor"})
+                        <span className="font-medium">Parte Contrária:</span> {proc.opponentName || proc.opponent} ({
+                            (() => {
+                                const pos = proc.position?.toUpperCase()
+                                if (pos === "AUTOR") return "Réu"
+                                if (pos === "REU") return "Autor"
+                                if (pos === "RECLAMANTE") return "Reclamada"
+                                if (pos === "RECLAMADA") return "Reclamante"
+                                if (pos === "REQUERENTE") return "Requerido"
+                                if (pos === "REQUERIDO") return "Requerente"
+                                return "Parte Contrária"
+                            })()
+                        })
                     </p>
                 )}
             </div>
