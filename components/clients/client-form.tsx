@@ -276,21 +276,69 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
+
+        // Frontend validation before submission
+        const validationErrors: Record<string, string> = {}
+
+        // Required fields
+        if (!formData.name || formData.name.trim().length < 2) {
+            validationErrors.name = "Nome deve ter pelo menos 2 caracteres"
+        }
+
+        if (!formData.cpfCnpj) {
+            validationErrors.cpfCnpj = "CPF/CNPJ é obrigatório"
+        } else {
+            const clean = formData.cpfCnpj.replace(/\D/g, "")
+            if (clientType === 'PF' && clean.length !== 11) {
+                validationErrors.cpfCnpj = "CPF deve ter 11 dígitos"
+            }
+            if (clientType === 'PJ' && clean.length !== 14) {
+                validationErrors.cpfCnpj = "CNPJ deve ter 14 dígitos"
+            }
+        }
+
+        // Email validation (only if provided)
+        if (formData.email && formData.email.trim() !== '') {
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+                validationErrors.email = "Email inválido"
+            }
+        }
+
+        // Show validation errors
+        if (Object.keys(validationErrors).length > 0) {
+            setErrors(validationErrors)
+            const firstError = Object.values(validationErrors)[0]
+            toast({
+                title: "Campos inválidos",
+                description: firstError,
+                type: "error"
+            })
+            return
+        }
+
         setLoading(true)
 
-        // Prep data
+        // Prep data - convert empty strings to null
         const validContacts = additionalContacts.filter(c => c.name || c.phone)
         const primaryMsgContact = validContacts[0] || { name: "", relation: "", phone: "" }
         const otherContacts = validContacts.slice(1)
 
+        // Clean payload - convert empty strings to null
+        const cleanFormData = Object.fromEntries(
+            Object.entries(formData).map(([key, value]) => [
+                key,
+                typeof value === 'string' && value.trim() === '' ? null : value
+            ])
+        )
+
         const payload = {
-            ...formData,
+            ...cleanFormData,
             type: clientType,
-            messageContactName: primaryMsgContact.name,
-            messageContactRelation: primaryMsgContact.relation,
-            phone: primaryMsgContact.phone,
+            messageContactName: primaryMsgContact.name || null,
+            messageContactRelation: primaryMsgContact.relation || null,
+            phone: primaryMsgContact.phone || null,
             contacts: {
-                phone: primaryMsgContact.phone,
+                phone: primaryMsgContact.phone || null,
                 list: otherContacts
             }
         }
@@ -307,7 +355,16 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
             router.refresh()
         } catch (error: any) {
             console.error(error)
-            toast({ title: "Erro", description: error.message || "Erro ao salvar", type: "error" })
+
+            // Parse Zod errors if present
+            let errorMessage = error.message || "Erro ao salvar"
+            if (error.issues && Array.isArray(error.issues)) {
+                errorMessage = error.issues.map((issue: any) =>
+                    `${issue.path.join('.')}: ${issue.message}`
+                ).join(', ')
+            }
+
+            toast({ title: "Erro ao salvar", description: errorMessage, type: "error" })
         } finally {
             setLoading(false)
         }
@@ -332,7 +389,9 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
                     {/* Identification */}
                     <div className="grid md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <Label>CPF/CNPJ</Label>
+                            <Label className={errors.cpfCnpj ? "text-red-500" : ""}>
+                                CPF/CNPJ <span className="text-red-500">*</span>
+                            </Label>
                             <div className="flex gap-2">
                                 <Input
                                     name="cpfCnpj"
@@ -340,6 +399,7 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
                                     onChange={handleInputChange}
                                     className={errors.cpfCnpj ? "border-red-500" : ""}
                                     maxLength={clientType === 'PF' ? 14 : 18}
+                                    required
                                 />
                                 <Button
                                     type="button"
@@ -355,8 +415,17 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
                             {errors.cpfCnpj && <p className="text-red-500 text-xs">{errors.cpfCnpj}</p>}
                         </div>
                         <div className="space-y-2">
-                            <Label>Nome Completo / Razão Social</Label>
-                            <Input name="name" value={formData.name} onChange={handleInputChange} required />
+                            <Label className={errors.name ? "text-red-500" : ""}>
+                                Nome Completo / Razão Social <span className="text-red-500">*</span>
+                            </Label>
+                            <Input
+                                name="name"
+                                value={formData.name}
+                                onChange={handleInputChange}
+                                required
+                                className={errors.name ? "border-red-500" : ""}
+                            />
+                            {errors.name && <p className="text-red-500 text-xs">{errors.name}</p>}
                         </div>
                     </div>
 

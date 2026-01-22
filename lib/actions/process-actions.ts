@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
+import { sanitizeFormData, sanitizeRelations, sanitizeNumeric, prepareForPrisma } from "@/lib/utils/data-sanitizer"
 
 // Simple fetch for select
 export async function getClientsForSelect() {
@@ -89,68 +90,108 @@ export async function createProcess(data: any) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error("Não autorizado")
 
-    // Basic validation
-    if (!data.clientId || !data.number) {
-        throw new Error("Campos obrigatórios ausentes")
-    }
-
     try {
+        // Sanitize ALL input data FIRST
+        const sanitized = sanitizeFormData(data)
+
+        // Basic validation
+        if (!sanitized.clientId || !sanitized.number) {
+            throw new Error("Número do processo e cliente são obrigatórios")
+        }
+
+        // Sanitize relations
+        const sanitizedAuthors = sanitizeRelations(sanitized.authors)
+        const sanitizedOpponents = sanitizeRelations(sanitized.opponents)
+
+        // Sanitize numeric values
+        const claimValue = sanitizeNumeric(sanitized.claimValue)
+
         await db.$transaction(async (tx) => {
-            const process = await tx.process.create({
-                data: {
-                    userId: user.id,
-                    clientId: data.clientId,
-                    number: data.number,
-                    area: data.area,
-                    // subject is now potentially used or deprecated. 
-                    // User asked for "Tipo de ação" dropdown. 
-                    // We can store it in subject OR the new actionType field. 
-                    // Let's use actionType in the new schema, but keep subject for backward capability if needed?
-                    // The prompt said "Tipo de ação (não sera mais assunto especifico)".
-                    // So we map 'type' from form to 'actionType' in DB.
-                    actionType: data.actionType,
-                    subject: data.subject, // Optional now
-                    folderName: data.folderName,
-                    status: data.status || 'ACTIVE',
-                    opponent: data.opponent,
-                    position: data.position,
-                    district: data.district,
-                    court: data.court,
-                    link: data.link,
-                    claimValue: data.claimValue,
-                    responsibleLawyerId: data.responsibleLawyerId
-                } as any
+            // Prepare process data - ensure ALL fields are serializable
+            const processData = prepareForPrisma({
+                userId: user.id,
+                clientId: sanitized.clientId,
+                number: sanitized.number,
+                area: sanitized.area || null,
+                actionType: sanitized.actionType || null,
+                subject: sanitized.subject || null,
+                folderName: sanitized.folderName || null,
+                status: sanitized.status || 'ACTIVE',
+                opponent: sanitized.opponent || null,
+                position: sanitized.position || null,
+                district: sanitized.district || null,
+                court: sanitized.court || null,
+                link: sanitized.link || null,
+                claimValue: claimValue,
+                responsibleLawyerId: sanitized.responsibleLawyerId || null
             })
 
-            // Add Authors
-            if (data.authors && data.authors.length > 0) {
+            const process = await tx.process.create({
+                data: processData as any
+            })
+
+            // Add Authors - only if we have valid data
+            if (sanitizedAuthors.length > 0) {
                 await tx.processAuthor.createMany({
-                    data: data.authors.map((a: any) => ({
+                    data: sanitizedAuthors.map((a: any) => ({
                         processId: process.id,
                         clientId: a.clientId,
-                        position: a.position
+                        position: a.position || 'AUTOR'
                     }))
                 })
             }
 
-            // Add Opponents
-            if (data.opponents && data.opponents.length > 0) {
-                await tx.processOpponent.createMany({
-                    data: data.opponents.map((o: any) => ({
+            // Add Opponents - ProcessOpponent uses name/cpfCnpj, NOT clientId
+            // We need to fetch client names if clientIds were provided
+            if (sanitizedOpponents.length > 0) {
+                // Get client info for opponents
+                const opponentClientIds = sanitizedOpponents
+                    .map((o: any) => o.clientId)
+                    .filter(Boolean)
+
+                const opponentClients = opponentClientIds.length > 0
+                    ? await tx.client.findMany({
+                        where: { id: { in: opponentClientIds } },
+                        select: { id: true, name: true, cpfCnpj: true }
+                    })
+                    : []
+
+                const clientMap = new Map(opponentClients.map(c => [c.id, c]))
+
+                // Map opponents with actual names
+                const opponentDataList = sanitizedOpponents.map((o: any) => {
+                    const client = o.clientId ? clientMap.get(o.clientId) : null
+                    return {
                         processId: process.id,
-                        clientId: o.clientId,
-                        position: o.position
-                    }))
+                        name: client?.name || o.name || 'Não informado',
+                        cpfCnpj: client?.cpfCnpj || o.cpfCnpj || null,
+                        position: o.position || 'REU'
+                    }
+                })
+
+                await tx.processOpponent.createMany({
+                    data: opponentDataList
                 })
             }
         })
 
         revalidatePath("/processes")
         revalidatePath("/dashboard")
-        revalidatePath(`/clients/${data.clientId}`)
+        revalidatePath(`/clients/${sanitized.clientId}`)
+
+        return { success: true, message: "Processo criado com sucesso" }
     } catch (error: any) {
         console.error("Error creating process:", error)
-        throw new Error(error.message || "Falha ao criar processo")
+
+        // Provide specific error messages
+        if (error.code === 'P2002') {
+            throw new Error("Já existe um processo com este número")
+        }
+        if (error.code === 'P2003') {
+            throw new Error("Cliente selecionado não existe ou foi removido")
+        }
+
+        throw new Error(error.message || "Falha ao criar processo. Verifique os dados e tente novamente.")
     }
 }
 
@@ -160,49 +201,80 @@ export async function updateProcessAction(processId: string, data: any) {
     if (!user) throw new Error("Não autorizado")
 
     try {
+        // Sanitize ALL input data
+        const sanitized = sanitizeFormData(data)
+
+        // Sanitize relations
+        const sanitizedAuthors = sanitizeRelations(sanitized.authors)
+        const sanitizedOpponents = sanitizeRelations(sanitized.opponents)
+
+        // Sanitize numeric values
+        const claimValue = sanitizeNumeric(sanitized.claimValue)
+
         await db.$transaction(async (tx) => {
+            // Prepare update data
+            const processData = prepareForPrisma({
+                number: sanitized.number,
+                area: sanitized.area || null,
+                subject: sanitized.subject || null,
+                actionType: sanitized.actionType || null,
+                folderName: sanitized.folderName || null,
+                status: sanitized.status || null,
+                opponent: sanitized.opponent || null,
+                position: sanitized.position || null,
+                district: sanitized.district || null,
+                court: sanitized.court || null,
+                link: sanitized.link || null,
+                claimValue: claimValue,
+                responsibleLawyerId: sanitized.responsibleLawyerId || null
+            })
+
             // Update main process
             await tx.process.update({
                 where: { id: processId, userId: user.id },
-                data: {
-                    number: data.number,
-                    area: data.area,
-                    subject: data.subject,
-                    actionType: data.actionType,
-                    folderName: data.folderName,
-                    status: data.status,
-                    opponent: data.opponent,
-                    position: data.position,
-                    district: data.district,
-                    court: data.court,
-                    link: data.link,
-                    claimValue: data.claimValue,
-                    responsibleLawyerId: data.responsibleLawyerId
-                    // clientId is generally not editable
-                } as any
+                data: processData as any
             })
 
-            // Handle Authors
+            // Handle Authors - delete and recreate
             await tx.processAuthor.deleteMany({ where: { processId } })
-            if (data.authors && data.authors.length > 0) {
+            if (sanitizedAuthors.length > 0) {
                 await tx.processAuthor.createMany({
-                    data: data.authors.map((a: any) => ({
+                    data: sanitizedAuthors.map((a: any) => ({
                         processId,
                         clientId: a.clientId,
-                        position: a.position
+                        position: a.position || 'AUTOR'
                     }))
                 })
             }
 
-            // Handle Opponents
+            // Handle Opponents - delete and recreate  
             await tx.processOpponent.deleteMany({ where: { processId } })
-            if (data.opponents && data.opponents.length > 0) {
-                await tx.processOpponent.createMany({
-                    data: data.opponents.map((o: any) => ({
+            if (sanitizedOpponents.length > 0) {
+                // Get client info for opponents
+                const opponentClientIds = sanitizedOpponents
+                    .map((o: any) => o.clientId)
+                    .filter(Boolean)
+
+                const opponentClients = await tx.client.findMany({
+                    where: { id: { in: opponentClientIds } },
+                    select: { id: true, name: true, cpfCnpj: true }
+                })
+
+                const clientMap = new Map(opponentClients.map(c => [c.id, c]))
+
+                // Map opponents with actual names
+                const opponentDataList = sanitizedOpponents.map((o: any) => {
+                    const client = o.clientId ? clientMap.get(o.clientId) : null
+                    return {
                         processId,
-                        clientId: o.clientId,
-                        position: o.position
-                    }))
+                        name: client?.name || o.name || 'Não informado',
+                        cpfCnpj: client?.cpfCnpj || o.cpfCnpj || null,
+                        position: o.position || 'REU'
+                    }
+                })
+
+                await tx.processOpponent.createMany({
+                    data: opponentDataList
                 })
             }
         })
@@ -210,9 +282,20 @@ export async function updateProcessAction(processId: string, data: any) {
         revalidatePath("/processes")
         revalidatePath(`/processes/${processId}`)
         revalidatePath("/dashboard")
-    } catch (error) {
+
+        return { success: true, message: "Processo atualizado com sucesso" }
+    } catch (error: any) {
         console.error("Error updating process:", error)
-        throw new Error("Falha ao atualizar processo")
+
+        // Specific error messages
+        if (error.code === 'P2025') {
+            throw new Error("Processo não encontrado ou você não tem permissão")
+        }
+        if (error.code === 'P2002') {
+            throw new Error("Já existe um processo com este número")
+        }
+
+        throw new Error(error.message || "Falha ao atualizar processo")
     }
 }
 

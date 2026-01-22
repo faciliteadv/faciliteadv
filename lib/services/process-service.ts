@@ -41,13 +41,30 @@ export const ProcessService = {
 
             return processes.map(p => ({
                 ...p,
+                // Convert Decimal to number for serialization
+                claimValue: p.claimValue ? Number(p.claimValue) : null,
+                // Convert Date to ISO string for serialization
+                createdAt: p.createdAt.toISOString(),
+                updatedAt: p.updatedAt.toISOString(),
+                deletedAt: p.deletedAt?.toISOString() || null,
+                distributionDate: p.distributionDate?.toISOString() || null,
                 opponentName: p.opponent && opponentMap.has(p.opponent)
                     ? opponentMap.get(p.opponent)
                     : p.opponent
             })) as any
         }
 
-        return processes.map(p => ({ ...p, opponentName: p.opponent })) as any
+        return processes.map(p => ({
+            ...p,
+            // Convert Decimal to number for serialization
+            claimValue: p.claimValue ? Number(p.claimValue) : null,
+            // Convert Date to ISO string for serialization
+            createdAt: p.createdAt.toISOString(),
+            updatedAt: p.updatedAt.toISOString(),
+            deletedAt: p.deletedAt?.toISOString() || null,
+            distributionDate: p.distributionDate?.toISOString() || null,
+            opponentName: p.opponent
+        })) as any
     },
 
     create: async (userId: string, data: Omit<Prisma.ProcessUncheckedCreateInput, 'userId'>) => {
@@ -72,17 +89,47 @@ export const ProcessService = {
             }
         })
 
-        if (process && process.opponent && process.opponent.length === 36) {
+        if (!process) return null
+
+        // Serialize for Client Components
+        const serialized = {
+            ...process,
+            // Convert Decimal to number
+            claimValue: process.claimValue ? Number(process.claimValue) : null,
+            // Convert Dates to ISO strings
+            createdAt: process.createdAt.toISOString(),
+            updatedAt: process.updatedAt.toISOString(),
+            deletedAt: process.deletedAt?.toISOString() || null,
+            distributionDate: process.distributionDate?.toISOString() || null,
+            // Serialize client dates
+            client: process.client ? {
+                ...process.client,
+                createdAt: process.client.createdAt.toISOString(),
+                updatedAt: process.client.updatedAt.toISOString(),
+                deletedAt: process.client.deletedAt?.toISOString() || null,
+            } : null,
+            // Serialize tasks dates
+            tasks: process.tasks.map(task => ({
+                ...task,
+                startDate: task.startDate?.toISOString() || null,
+                endDate: task.endDate?.toISOString() || null,
+                fatalDate: task.fatalDate?.toISOString() || null,
+                createdAt: task.createdAt.toISOString(),
+                updatedAt: task.updatedAt.toISOString(),
+            }))
+        }
+
+        if (process.opponent && process.opponent.length === 36) {
             const opponentClient = await db.client.findUnique({
                 where: { id: process.opponent },
                 select: { name: true }
             })
             return {
-                ...process,
+                ...serialized,
                 opponentName: opponentClient?.name || process.opponent
             }
         }
 
-        return process ? { ...process, opponentName: process.opponent } : null
+        return { ...serialized, opponentName: process.opponent }
     }
 }

@@ -2,6 +2,7 @@ import { db } from "@/lib/db"
 import { Prisma } from "@prisma/client"
 import { z } from "zod"
 import crypto from "crypto"
+import { sanitizeFormData, prepareForPrisma } from "@/lib/utils/data-sanitizer"
 
 // --- Encryption Helper ---
 const ALGORITHM = 'aes-256-cbc';
@@ -31,34 +32,38 @@ function decrypt(text: string): string {
 
 // --- Validation Schemas ---
 export const ClientCreateSchema = z.object({
-    name: z.string().min(2),
+    name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
     type: z.enum(["PF", "PJ"]),
-    cpfCnpj: z.string().min(11, "Documento inválido"), // Add sophisticated validation logic if needed
-    email: z.string().email().optional().or(z.literal("")),
-    phone: z.string().optional(), // Main phone
-    whatsapp: z.string().optional(),
-    rg: z.string().optional(),
-    ctps: z.string().optional(),
-    pis: z.string().optional(),
-    fatherName: z.string().optional(),
-    motherName: z.string().optional(),
-    messageContactName: z.string().optional(),
-    messageContactRelation: z.string().optional(),
-    acquisitionChannel: z.string().optional(),
+    cpfCnpj: z.string().min(11, "Documento inválido"),
+
+    // Optional fields that accept null or empty string
+    email: z.string().email("Email inválido").nullable().or(z.literal("")).optional(),
+    phone: z.string().nullable().optional(),
+    whatsapp: z.string().nullable().optional(),
+    rg: z.string().nullable().optional(),
+    ctps: z.string().nullable().optional(),
+    pis: z.string().nullable().optional(),
+    fatherName: z.string().nullable().optional(),
+    motherName: z.string().nullable().optional(),
+    messageContactName: z.string().nullable().optional(),
+    messageContactRelation: z.string().nullable().optional(),
+    acquisitionChannel: z.string().nullable().optional(),
+    profession: z.string().nullable().optional(),
+    civilStatus: z.string().nullable().optional(),
 
     // Sensitive
-    govAccessPassword: z.string().optional(),
+    govAccessPassword: z.string().nullable().optional(),
 
-    // Address (Simple for now)
+    // Address - all fields nullable
     address: z.object({
-        street: z.string().optional(),
-        number: z.string().optional(),
-        neighborhood: z.string().optional(),
-        city: z.string().optional(),
-        state: z.string().optional(),
-        zip: z.string().optional(),
-        complement: z.string().optional()
-    }).optional(),
+        street: z.string().nullable().optional(),
+        number: z.string().nullable().optional(),
+        neighborhood: z.string().nullable().optional(),
+        city: z.string().nullable().optional(),
+        state: z.string().nullable().optional(),
+        zip: z.string().nullable().optional(),
+        complement: z.string().nullable().optional()
+    }).nullable().optional(),
 })
 
 export const ClientService = {
@@ -108,54 +113,66 @@ export const ClientService = {
     },
 
     createClient: async (userId: string, data: z.infer<typeof ClientCreateSchema>) => {
-        const validated = ClientCreateSchema.parse(data) // Throws if invalid
+        // Sanitize ALL input data to prevent serialization errors
+        const sanitized = sanitizeFormData(data)
+        const validated = ClientCreateSchema.parse(sanitized) // Throws if invalid
 
         // Encrypt sensitive
         if (validated.govAccessPassword) {
             validated.govAccessPassword = encrypt(validated.govAccessPassword)
         }
 
+        // Prepare data for Prisma, ensuring all values are serializable
+        const clientData = prepareForPrisma({
+            userId,
+            name: validated.name,
+            type: validated.type,
+            cpfCnpj: validated.cpfCnpj,
+            email: validated.email || null,
+            whatsapp: validated.whatsapp || null,
+            rg: validated.rg || null,
+            ctps: validated.ctps || null,
+            pis: validated.pis || null,
+            fatherName: validated.fatherName || null,
+            motherName: validated.motherName || null,
+            messageContactName: validated.messageContactName || null,
+            messageContactRelation: validated.messageContactRelation || null,
+            acquisitionChannel: validated.acquisitionChannel || null,
+            govAccessPassword: validated.govAccessPassword || null,
+            address: validated.address && Object.keys(validated.address).length > 0
+                ? validated.address
+                : null,
+            contacts: validated.phone ? { phone: validated.phone } : null,
+            status: 'NEW_LEAD'
+        })
+
         return await db.client.create({
-            data: {
-                userId,
-                name: validated.name,
-                type: validated.type,
-                cpfCnpj: validated.cpfCnpj,
-                email: validated.email,
-                whatsapp: validated.whatsapp,
-                rg: validated.rg,
-                ctps: validated.ctps,
-                pis: validated.pis,
-                fatherName: validated.fatherName,
-                motherName: validated.motherName,
-                messageContactName: validated.messageContactName,
-                messageContactRelation: validated.messageContactRelation,
-                acquisitionChannel: validated.acquisitionChannel,
-                govAccessPassword: validated.govAccessPassword,
-                address: validated.address ?? Prisma.DbNull,
-                contacts: validated.phone ? { phone: validated.phone } : Prisma.DbNull, // Store phone in contacts
-                status: 'NEW_LEAD'
-            }
+            data: clientData
         })
     },
 
     updateClient: async (userId: string, clientId: string, data: Partial<z.infer<typeof ClientCreateSchema>>) => {
-        // Logic would be similar: encrypt password if present, etc.
-        if (data.govAccessPassword) {
-            data.govAccessPassword = encrypt(data.govAccessPassword)
+        // Sanitize input data
+        const sanitized = sanitizeFormData(data)
+
+        // Encrypt password if present
+        if (sanitized.govAccessPassword) {
+            sanitized.govAccessPassword = encrypt(sanitized.govAccessPassword)
         }
 
-        const updateData: any = { ...data };
-        delete updateData.address; // Handle separately or explicitly
-        delete updateData.phone; // Handle separately
+        // Prepare update data
+        const updateData: any = { ...sanitized };
+        const { address, phone, ...restData } = updateData;
+
+        const finalData = prepareForPrisma({
+            ...restData,
+            address: address && Object.keys(address).length > 0 ? address : undefined,
+            contacts: phone ? { phone } : undefined
+        })
 
         return await db.client.update({
             where: { id: clientId, userId }, // Enforce ownership
-            data: {
-                ...updateData,
-                address: data.address ? data.address : undefined,
-                contacts: data.phone ? { phone: data.phone } : undefined // Update contacts if phone provided
-            }
+            data: finalData
         })
     },
 
