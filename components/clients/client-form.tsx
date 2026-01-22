@@ -72,6 +72,12 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
             state: "",
             zip: "",
             complement: ""
+        },
+        bankDetails: {
+            bank: "",
+            agency: "",
+            account: "",
+            pixKey: ""
         }
     })
 
@@ -103,6 +109,12 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
                     state: initialData.address?.state || "",
                     zip: initialData.address?.zip || "",
                     complement: initialData.address?.complement || ""
+                },
+                bankDetails: {
+                    bank: (initialData.bankDetails as any)?.bank || "",
+                    agency: (initialData.bankDetails as any)?.agency || "",
+                    account: (initialData.bankDetails as any)?.account || "",
+                    pixKey: (initialData.bankDetails as any)?.pixKey || ""
                 }
             })
             // Load additional contacts
@@ -472,6 +484,19 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
                                     <SelectItem value="OTHER">Outros</SelectItem>
                                 </SelectContent>
                             </Select>
+                        </div>
+                    </div>
+
+                    <Separator />
+
+                    {/* Bank Details */}
+                    <div className="space-y-2">
+                        <Label className="font-semibold">Dados Bancários</Label>
+                        <div className="grid md:grid-cols-4 gap-4">
+                            <div className="space-y-2"><Label>Banco</Label><Input value={formData.bankDetails.bank} onChange={e => setFormData(p => ({ ...p, bankDetails: { ...p.bankDetails, bank: e.target.value } }))} /></div>
+                            <div className="space-y-2"><Label>Agência</Label><Input value={formData.bankDetails.agency} onChange={e => setFormData(p => ({ ...p, bankDetails: { ...p.bankDetails, agency: e.target.value } }))} /></div>
+                            <div className="space-y-2"><Label>Conta</Label><Input value={formData.bankDetails.account} onChange={e => setFormData(p => ({ ...p, bankDetails: { ...p.bankDetails, account: e.target.value } }))} /></div>
+                            <div className="space-y-2"><Label>Chave PIX</Label><Input value={formData.bankDetails.pixKey} onChange={e => setFormData(p => ({ ...p, bankDetails: { ...p.bankDetails, pixKey: e.target.value } }))} /></div>
                         </div>
                     </div>
 

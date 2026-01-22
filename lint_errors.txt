@@ -1,0 +1,246 @@
+
+> facilite-client@0.1.0 lint
+> eslint
+
+
+C:\Users\falan\OneDrive\Área de Trabalho\FaciliteAdv\faciliteadv\app\(app)\clients\[id]\page.tsx
+   10:74   warning  'Folder' is defined but never used        @typescript-eslint/no-unused-vars
+   10:88   warning  'ChevronRight' is defined but never used  @typescript-eslint/no-unused-vars
+   10:102  warning  'Edit2' is defined but never used         @typescript-eslint/no-unused-vars
+   84:39   error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  218:82   error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  237:54   error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  279:59   error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\falan\OneDrive\Área de Trabalho\FaciliteAdv\faciliteadv\app\(app)\layout.tsx
+  10:11  warning  'user' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\falan\OneDrive\Área de Trabalho\FaciliteAdv\faciliteadv\app\(app)\processes\[id]\edit\edit-client.tsx
+  10:18  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  13:45  warning  'params' is defined but never used        @typescript-eslint/no-unused-vars
+
+C:\Users\falan\OneDrive\Área de Trabalho\FaciliteAdv\faciliteadv\app\(app)\processes\[id]\edit\page.tsx
+  1:10  warning  'db' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\falan\OneDrive\Área de Trabalho\FaciliteAdv\faciliteadv\app\(app)\processes\[id]\page.tsx
+   80:66   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  195:91   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  196:111  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\falan\OneDrive\Área de Trabalho\FaciliteAdv\faciliteadv\app\(app)\processes\page.tsx
+    6:10  warning  'Badge' is defined but never used                                @typescript-eslint/no-unused-vars
+    7:10  warning  'Folder' is defined but never used                               @typescript-eslint/no-unused-vars
+    7:24  warning  'ExternalLink' is defined but never used                         @typescript-eslint/no-unused-vars
+    7:49  warning  'FileText' is defined but never used                             @typescript-eslint/no-unused-vars
+    7:59  warning  'ChevronRight' is defined but never used                         @typescript-eslint/no-unused-vars
+    7:73  warning  'Edit2' is defined but never used                                @typescript-eslint/no-unused-vars
+    9:10  warning  'Card' is defined but never used                                 @typescript-eslint/no-unused-vars
+   92:39  error    Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+  108:85  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  108:99  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+
+C:\Users\falan\OneDrive\Área de Trabalho\FaciliteAdv\faciliteadv\app\(app)\settings\page.tsx
+  16:11  warning  'dbUser' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\falan\OneDrive\Área de Trabalho\FaciliteAdv\faciliteadv\components\clients\client-actions-menu.tsx
+  39:18  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\falan\OneDrive\Área de Trabalho\FaciliteAdv\faciliteadv\components\clients\client-form.tsx
+    8:29  warning  'CardDescription' is defined but never used           @typescript-eslint/no-unused-vars
+   11:10  warning  'ArrowLeft' is defined but never used                 @typescript-eslint/no-unused-vars
+   23:19  error    Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+   45:12  warning  'phoneCountry' is assigned a value but never used     @typescript-eslint/no-unused-vars
+   45:26  warning  'setPhoneCountry' is assigned a value but never used  @typescript-eslint/no-unused-vars
+   93:49  error    Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+  114:55  error    Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+  115:57  error    Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+  116:58  error    Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+  117:57  error    Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+  121:29  error    Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+  129:42  error    Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+  130:59  error    Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+  161:15  error    'name' is never reassigned. Use 'const' instead       prefer-const
+  250:21  error    Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+  368:25  error    Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+  374:57  error    Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+  391:71  error    Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+
+C:\Users\falan\OneDrive\Área de Trabalho\FaciliteAdv\faciliteadv\components\kanban\task-modal.tsx
+  84:73  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\falan\OneDrive\Área de Trabalho\FaciliteAdv\faciliteadv\components\layout\dynamic-logo.tsx
+  15:9  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\falan\OneDrive\Área de Trabalho\FaciliteAdv\faciliteadv\components\layout\dynamic-logo.tsx:15:9
+  13 |
+  14 |     useEffect(() => {
+> 15 |         setMounted(true)
+     |         ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  16 |     }, [])
+  17 |
+  18 |     if (!mounted) return null  react-hooks/set-state-in-effect
+
+C:\Users\falan\OneDrive\Área de Trabalho\FaciliteAdv\faciliteadv\components\processes\process-actions.tsx
+  11:5   warning  'AlertDialogAction' is defined but never used  @typescript-eslint/no-unused-vars
+  29:11  warning  'router' is assigned a value but never used    @typescript-eslint/no-unused-vars
+  40:22  warning  'error' is defined but never used              @typescript-eslint/no-unused-vars
+
+C:\Users\falan\OneDrive\Área de Trabalho\FaciliteAdv\faciliteadv\components\processes\process-form.tsx
+   10:10   warning  'Select' is defined but never used                               @typescript-eslint/no-unused-vars
+   10:18   warning  'SelectContent' is defined but never used                        @typescript-eslint/no-unused-vars
+   10:33   warning  'SelectItem' is defined but never used                           @typescript-eslint/no-unused-vars
+   10:45   warning  'SelectTrigger' is defined but never used                        @typescript-eslint/no-unused-vars
+   10:60   warning  'SelectValue' is defined but never used                          @typescript-eslint/no-unused-vars
+   13:56   warning  'UserPlus' is defined but never used                             @typescript-eslint/no-unused-vars
+   66:19   error    Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+   78:12   warning  'customActionType' is assigned a value but never used            @typescript-eslint/no-unused-vars
+   78:30   warning  'setCustomActionType' is assigned a value but never used         @typescript-eslint/no-unused-vars
+  102:12   warning  'searchTerm' is assigned a value but never used                  @typescript-eslint/no-unused-vars
+  102:24   warning  'setSearchTerm' is assigned a value but never used               @typescript-eslint/no-unused-vars
+  119:33   error    Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+  136:64   error    Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+  163:56   error    Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+  166:60   error    Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+  294:25   error    Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+  334:81   error    Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+  397:97   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  397:106  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  448:55   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  448:64   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  493:97   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  493:106  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  703:84   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  703:97   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+
+C:\Users\falan\OneDrive\Área de Trabalho\FaciliteAdv\faciliteadv\components\processes\process-list-item.tsx
+  9:14  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\falan\OneDrive\Área de Trabalho\FaciliteAdv\faciliteadv\components\processes\register-opponent-modal.tsx
+   10:27  warning  'X' is defined but never used             @typescript-eslint/no-unused-vars
+   10:30  warning  'Plus' is defined but never used          @typescript-eslint/no-unused-vars
+   10:36  warning  'Trash2' is defined but never used        @typescript-eslint/no-unused-vars
+   79:25  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  154:43  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  161:25  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  167:53  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\falan\OneDrive\Área de Trabalho\FaciliteAdv\faciliteadv\components\ui\command.tsx
+  26:11  error  An interface declaring no members is equivalent to its supertype  @typescript-eslint/no-empty-object-type
+
+C:\Users\falan\OneDrive\Área de Trabalho\FaciliteAdv\faciliteadv\components\ui\copy-button.tsx
+  23:18  warning  'err' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\falan\OneDrive\Área de Trabalho\FaciliteAdv\faciliteadv\components\ui\money-input.tsx
+  22:29  error  Error: Cannot access variable before it is declared
+
+`formatCurrency` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+C:\Users\falan\OneDrive\Área de Trabalho\FaciliteAdv\faciliteadv\components\ui\money-input.tsx:22:29
+  20 |         // If it's a number (initial load from DB), format it
+  21 |         if (typeof value === 'number') {
+> 22 |             setDisplayValue(formatCurrency(value))
+     |                             ^^^^^^^^^^^^^^ `formatCurrency` accessed before it is declared
+  23 |         } else if (typeof value === 'string') {
+  24 |             // Keep as is if already formatted, or format if it looks like a raw number
+  25 |             if (value.includes("R$")) {
+
+C:\Users\falan\OneDrive\Área de Trabalho\FaciliteAdv\faciliteadv\components\ui\money-input.tsx:35:5
+  33 |     }, [value])
+  34 |
+> 35 |     const formatCurrency = (val: number) => {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 36 |         return new Intl.NumberFormat('pt-BR', {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 37 |             style: 'currency',
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 38 |             currency: 'BRL',
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 39 |         }).format(val)
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 40 |     }
+     | ^^^^^^ `formatCurrency` is declared here
+  41 |
+  42 |     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  43 |         let val = e.target.value  react-hooks/immutability
+
+C:\Users\falan\OneDrive\Área de Trabalho\FaciliteAdv\faciliteadv\components\ui\toaster.tsx
+  13:9  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\falan\OneDrive\Área de Trabalho\FaciliteAdv\faciliteadv\components\ui\toaster.tsx:13:9
+  11 |
+  12 |     useEffect(() => {
+> 13 |         setMounted(true)
+     |         ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  14 |     }, [])
+  15 |
+  16 |     if (!mounted) return null  react-hooks/set-state-in-effect
+
+C:\Users\falan\OneDrive\Área de Trabalho\FaciliteAdv\faciliteadv\lib\actions\client-actions.ts
+    3:10  warning  'db' is defined but never used            @typescript-eslint/no-unused-vars
+   38:18  warning  'e' is defined but never used             @typescript-eslint/no-unused-vars
+   50:21  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   56:42  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   69:21  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   78:66  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   88:21  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  102:21  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\falan\OneDrive\Área de Trabalho\FaciliteAdv\faciliteadv\lib\actions\process-actions.ts
+   88:43  error    Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  112:21  warning  'clientId' is assigned a value but never used             @typescript-eslint/no-unused-vars
+  112:31  warning  'responsibleLawyerId' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  112:55  warning  'restData' is assigned a value but never used             @typescript-eslint/no-unused-vars
+  130:31  error    Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  147:52  error    Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  160:30  error    Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  173:69  error    Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  194:21  error    Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  209:68  error    Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  227:21  warning  'responsibleLawyerId' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  227:45  warning  'restSanitized' is assigned a value but never used        @typescript-eslint/no-unused-vars
+  244:31  error    Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  264:52  error    Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  277:30  error    Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  288:69  error    Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  309:21  error    Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+
+C:\Users\falan\OneDrive\Área de Trabalho\FaciliteAdv\faciliteadv\lib\actions\settings-actions.ts
+  13:18  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\falan\OneDrive\Área de Trabalho\FaciliteAdv\faciliteadv\lib\services\client-service.ts
+    2:10  warning  'Prisma' is defined but never used        @typescript-eslint/no-unused-vars
+  173:27  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\falan\OneDrive\Área de Trabalho\FaciliteAdv\faciliteadv\lib\services\process-service.ts
+  54:20  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  67:16  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\falan\OneDrive\Área de Trabalho\FaciliteAdv\faciliteadv\lib\utils\data-sanitizer.ts
+   12:38  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   12:44  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   31:26  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   46:59  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   54:38  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   60:38  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   66:57  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   71:47  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   73:18  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   84:40  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  136:40  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  136:46  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  146:25  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+✖ 129 problems (85 errors, 44 warnings)
+

@@ -261,7 +261,7 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
         setLoading(true)
 
         // Handle Custom Action Type creation if needed
-        let finalActionType = formData.actionType
+        const finalActionType = formData.actionType
         if (finalActionType && !actionTypes.includes(finalActionType)) {
             try {
                 // Determine if it's a new custom type or just a value.

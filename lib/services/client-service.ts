@@ -64,6 +64,14 @@ export const ClientCreateSchema = z.object({
         zip: z.string().nullable().optional(),
         complement: z.string().nullable().optional()
     }).nullable().optional(),
+
+    // Bank Details - all fields nullable
+    bankDetails: z.object({
+        bank: z.string().nullable().optional(),
+        agency: z.string().nullable().optional(),
+        account: z.string().nullable().optional(),
+        pixKey: z.string().nullable().optional()
+    }).nullable().optional(),
 })
 
 export const ClientService = {
@@ -139,6 +147,7 @@ export const ClientService = {
             messageContactRelation: validated.messageContactRelation || null,
             acquisitionChannel: validated.acquisitionChannel || null,
             govAccessPassword: validated.govAccessPassword || null,
+            bankDetails: validated.bankDetails || null,
             address: validated.address && Object.keys(validated.address).length > 0
                 ? validated.address
                 : null,
