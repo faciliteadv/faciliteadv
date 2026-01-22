@@ -4,13 +4,14 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { MoneyInput } from "@/components/ui/money-input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Check, ChevronsUpDown, Loader2, Plus, Trash2, UserPlus } from "lucide-react"
-import { createProcess, updateProcessAction, getClientsForSelect, getActionTypes, createActionType, getUsersForResponsibleSelect } from "@/lib/actions/process-actions"
+import { createProcess, updateProcessAction, getClientsForSelect, getActionTypes, createActionType, getUsersForResponsibleSelect, getUniqueSubjects } from "@/lib/actions/process-actions"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { RegisterOpponentModal } from "./register-opponent-modal"
@@ -73,6 +74,7 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
     const [clients, setClients] = useState<{ id: string, name: string, cpfCnpj?: string | null }[]>([])
     const [users, setUsers] = useState<{ id: string, name: string | null, email: string }[]>([])
     const [actionTypes, setActionTypes] = useState<string[]>([])
+    const [subjects, setSubjects] = useState<string[]>([])
     const [customActionType, setCustomActionType] = useState("")
 
     // UI States
@@ -84,6 +86,7 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
         number: "",
         area: "",
         actionType: "",
+        subject: "",
         folderName: "",
         clientId: "",
         status: "",
@@ -107,15 +110,17 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
     useEffect(() => {
         const loadData = async () => {
             try {
-                const [c, u, a] = await Promise.all([
+                const [c, u, a, s] = await Promise.all([
                     getClientsForSelect(),
                     getUsersForResponsibleSelect(),
-                    getActionTypes()
+                    getActionTypes(),
+                    getUniqueSubjects()
                 ])
                 setClients(c as any)
                 setUsers(u)
-                const combinedTypes = Array.from(new Set([...ACTION_TYPES_PRESETS, ...a])).sort()
+                const combinedTypes = Array.from(new Set([...ACTION_TYPES_PRESETS, ...(a as string[])])).sort()
                 setActionTypes(combinedTypes)
+                setSubjects(s)
             } catch (error) {
                 console.error("Failed to load select data", error)
             }
@@ -136,7 +141,8 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
             setFormData({
                 number: initialData.number || "",
                 area: normalize(initialData.area, "AREA"),
-                actionType: initialData.actionType || initialData.subject || "",
+                actionType: initialData.actionType || "",
+                subject: initialData.subject || "",
                 folderName: initialData.folderName || "",
                 clientId: initialData.clientId || "",
                 status: normalize(initialData.status, "STATUS") || "ACTIVE",
@@ -271,7 +277,7 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
         try {
             const payload = {
                 ...formData,
-                claimValue: formData.claimValue ? parseFloat(formData.claimValue.replace(/[^\d.,]/g, "").replace(",", ".")) : null,
+                claimValue: formData.claimValue, // The sanitizer will handle parsing the string "R$ 1.500,00"
                 authors,
                 opponents
             }
@@ -528,8 +534,9 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                                 value={formData.area}
                                 onValueChange={(v) => handleChange("area", v)}
                                 options={Object.entries(PROCESS_UI_CONFIG.AREA).map(([key, config]) => ({ value: key, label: config.label }))}
-                                placeholder="Selecione..."
-                                showAddCustom={false}
+                                placeholder="Selecione ou digite..."
+                                showAddCustom={true}
+                                searchPlaceholder="Buscar ou adicionar área..."
                             />
                         </div>
                         <div className="space-y-2 flex flex-col">
@@ -542,12 +549,22 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                                 searchPlaceholder="Buscar ou criar tipo..."
                             />
                         </div>
+                        <div className="space-y-2 flex flex-col">
+                            <Label>Assunto</Label>
+                            <Combobox
+                                value={formData.subject}
+                                onValueChange={(v) => handleChange("subject", v)}
+                                options={subjects.map(s => ({ value: s, label: s }))}
+                                placeholder="Selecione ou digite..."
+                                searchPlaceholder="Buscar ou criar assunto..."
+                                showAddCustom={true}
+                            />
+                        </div>
                         <div className="space-y-2">
                             <Label>Valor da Causa</Label>
-                            <Input
+                            <MoneyInput
                                 value={formData.claimValue}
-                                onChange={(e) => handleChange("claimValue", e.target.value)}
-                                placeholder="R$ 0,00"
+                                onValueChange={(v) => handleChange("claimValue", v)}
                                 className="bg-gray-100 text-black border-none"
                             />
                         </div>
@@ -649,7 +666,7 @@ function Combobox({
                         {selectedOption ? (
                             renderItem ? renderItem(selectedOption) : <span>{selectedOption.label}</span>
                         ) : (
-                            <span className="text-muted-foreground">{placeholder || "Selecione..."}</span>
+                            value ? <span>{value}</span> : <span className="text-muted-foreground">{placeholder || "Selecione..."}</span>
                         )}
                     </div>
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />

@@ -86,11 +86,28 @@ export function sanitizeNumeric(value: any): number | null {
         return null
     }
 
-    const num = typeof value === 'string'
-        ? parseFloat(value.replace(/[^\d.,]/g, '').replace(',', '.'))
-        : Number(value)
+    if (typeof value === 'number') {
+        return isNaN(value) ? null : value
+    }
 
-    return isNaN(num) ? null : num
+    if (typeof value === 'string') {
+        // Remove currency symbols and non-numeric chars except dot, comma and minus
+        // "R$ 7.500,00" -> "7.500,00"
+        let clean = value.replace(/[^\d.,-]/g, "")
+
+        if (clean.includes(',')) {
+            // Assume BRL: 1.500,00 -> 1500.00
+            clean = clean.replace(/\./g, '').replace(',', '.')
+        } else {
+            // Assume BRL (no decimals or integer): 1.500 -> 1500
+            clean = clean.replace(/\./g, '')
+        }
+
+        const num = parseFloat(clean)
+        return isNaN(num) ? null : num
+    }
+
+    return null
 }
 
 /**

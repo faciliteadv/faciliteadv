@@ -108,9 +108,10 @@ export async function createProcess(data: any) {
 
         await db.$transaction(async (tx) => {
             // Prepare process data - ensure ALL fields are serializable
+            // Prepare process data
+            const { clientId, responsibleLawyerId, ...restData } = sanitized
+
             const processData = prepareForPrisma({
-                userId: user.id,
-                clientId: sanitized.clientId,
                 number: sanitized.number,
                 area: sanitized.area || null,
                 actionType: sanitized.actionType || null,
@@ -122,12 +123,22 @@ export async function createProcess(data: any) {
                 district: sanitized.district || null,
                 court: sanitized.court || null,
                 link: sanitized.link || null,
-                claimValue: claimValue,
-                responsibleLawyerId: sanitized.responsibleLawyerId || null
+                claimValue: claimValue
+                // responsibleLawyerId excluded
             })
 
+            const createData: any = {
+                ...processData,
+                user: { connect: { id: user.id } },
+                client: { connect: { id: sanitized.clientId } }
+            }
+
+            if (sanitized.responsibleLawyerId) {
+                createData.responsibleLawyer = { connect: { id: sanitized.responsibleLawyerId } }
+            }
+
             const process = await tx.process.create({
-                data: processData as any
+                data: createData
             })
 
             // Add Authors - only if we have valid data
@@ -213,6 +224,8 @@ export async function updateProcessAction(processId: string, data: any) {
 
         await db.$transaction(async (tx) => {
             // Prepare update data
+            const { responsibleLawyerId, ...restSanitized } = sanitized
+
             const processData = prepareForPrisma({
                 number: sanitized.number,
                 area: sanitized.area || null,
@@ -225,14 +238,23 @@ export async function updateProcessAction(processId: string, data: any) {
                 district: sanitized.district || null,
                 court: sanitized.court || null,
                 link: sanitized.link || null,
-                claimValue: claimValue,
-                responsibleLawyerId: sanitized.responsibleLawyerId || null
+                claimValue: claimValue
             })
+
+            const updateData: any = {
+                ...processData
+            }
+
+            if (sanitized.responsibleLawyerId) {
+                updateData.responsibleLawyer = { connect: { id: sanitized.responsibleLawyerId } }
+            } else if (sanitized.responsibleLawyerId === null) {
+                updateData.responsibleLawyer = { disconnect: true }
+            }
 
             // Update main process
             await tx.process.update({
                 where: { id: processId, userId: user.id },
-                data: processData as any
+                data: updateData
             })
 
             // Handle Authors - delete and recreate
