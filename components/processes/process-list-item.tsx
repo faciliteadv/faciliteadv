@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Folder, ExternalLink, ChevronRight, Edit2, FileText } from "lucide-react"
 import Link from "next/link"
+import { CopyButton } from "@/components/ui/copy-button"
 
 interface ProcessListItemProps {
     process: any // Ideally typed with Prisma Process type
@@ -27,19 +28,21 @@ export function ProcessListItem({ process: proc, statusColors, statusLabels, are
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
                     <span className="flex items-center gap-1">
                         <FileText className="h-3 w-3" />
-                        {proc.link ? (
-                            <a
-                                href={proc.link}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="hover:underline hover:text-primary font-medium flex items-center gap-1 z-20 relative"
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                {proc.number} <ExternalLink className="h-3 w-3" />
-                            </a>
-                        ) : (
-                            <span className="font-medium">{proc.number}</span>
-                        )}
+                        <div className="flex items-center gap-1 z-20 relative" onClick={e => e.stopPropagation()}>
+                            {proc.link ? (
+                                <a
+                                    href={proc.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="hover:underline hover:text-primary font-medium flex items-center gap-1"
+                                >
+                                    {proc.number} <ExternalLink className="h-3 w-3" />
+                                </a>
+                            ) : (
+                                <span className="font-medium">{proc.number}</span>
+                            )}
+                            <CopyButton value={proc.number} label="Número do processo" />
+                        </div>
                     </span>
                     <span className="text-muted-foreground/30">•</span>
                     <span>{areaLabels[proc.area] || proc.area}</span>

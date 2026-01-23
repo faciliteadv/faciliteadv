@@ -1,81 +1,38 @@
 import { db } from "@/lib/db"
 import { Prisma } from "@prisma/client"
 import { z } from "zod"
-// import crypto from "crypto"
+import crypto from "crypto"
+import { ClientCreateSchema } from "@/lib/validations/client"
 import { sanitizeFormData, prepareForPrisma } from "@/lib/utils/data-sanitizer"
 
 // --- Encryption Helper ---
 const ALGORITHM = 'aes-256-cbc';
 // Ensure the key is exactly 32 bytes.
-// const ENCRYPTION_KEY = crypto.createHash('sha256').update(process.env.ENCRYPTION_KEY || 'default_secret_key').digest(); // 32 bytes Buffer
+const ENCRYPTION_KEY = crypto.createHash('sha256').update(process.env.ENCRYPTION_KEY || 'default_secret_key').digest(); // 32 bytes Buffer
 const IV_LENGTH = 16;
 
 function encrypt(text: string): string {
-    // if (!text) return text;
-    // const iv = crypto.randomBytes(IV_LENGTH);
-    // const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY, iv); 
-    // let encrypted = cipher.update(text);
-    // encrypted = Buffer.concat([encrypted, cipher.final()]);
-    // return iv.toString('hex') + ':' + encrypted.toString('hex');
-    return text; // STUB
+    if (!text) return text;
+    const iv = crypto.randomBytes(IV_LENGTH);
+    const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
+    let encrypted = cipher.update(text);
+    encrypted = Buffer.concat([encrypted, cipher.final()]);
+    return iv.toString('hex') + ':' + encrypted.toString('hex');
 }
 
 function decrypt(text: string): string {
-    // if (!text) return text;
-    // const textParts = text.split(':');
-    // const iv = Buffer.from(textParts.shift()!, 'hex');
-    // const encryptedText = Buffer.from(textParts.join(':'), 'hex');
-    // const decipher = crypto.createDecipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
-    // let decrypted = decipher.update(encryptedText);
-    // decrypted = Buffer.concat([decrypted, decipher.final()]);
-    // return decrypted.toString();
-    return text; // STUB
+    if (!text) return text;
+    const textParts = text.split(':');
+    const iv = Buffer.from(textParts.shift()!, 'hex');
+    const encryptedText = Buffer.from(textParts.join(':'), 'hex');
+    const decipher = crypto.createDecipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
+    let decrypted = decipher.update(encryptedText);
+    decrypted = Buffer.concat([decrypted, decipher.final()]);
+    return decrypted.toString();
 }
 
-// --- Validation Schemas ---
-export const ClientCreateSchema = z.object({
-    name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
-    type: z.enum(["PF", "PJ"]),
-    cpfCnpj: z.string().min(11, "Documento inválido"),
+// --- Validation Schemas moved to @/lib/validations/client.ts ---
 
-    // Optional fields that accept null or empty string
-    email: z.string().email("Email inválido").nullable().or(z.literal("")).optional(),
-    phone: z.string().nullable().optional(),
-    whatsapp: z.string().nullable().optional(),
-    rg: z.string().nullable().optional(),
-    ctps: z.string().nullable().optional(),
-    pis: z.string().nullable().optional(),
-    fatherName: z.string().nullable().optional(),
-    motherName: z.string().nullable().optional(),
-    messageContactName: z.string().nullable().optional(),
-    messageContactRelation: z.string().nullable().optional(),
-    acquisitionChannel: z.string().nullable().optional(),
-    profession: z.string().nullable().optional(),
-    civilStatus: z.string().nullable().optional(),
-
-    // Sensitive
-    govAccessPassword: z.string().nullable().optional(),
-
-    // Address - all fields nullable
-    address: z.object({
-        street: z.string().nullable().optional(),
-        number: z.string().nullable().optional(),
-        neighborhood: z.string().nullable().optional(),
-        city: z.string().nullable().optional(),
-        state: z.string().nullable().optional(),
-        zip: z.string().nullable().optional(),
-        complement: z.string().nullable().optional()
-    }).nullable().optional(),
-
-    // Bank Details - all fields nullable
-    bankDetails: z.object({
-        bank: z.string().nullable().optional(),
-        agency: z.string().nullable().optional(),
-        account: z.string().nullable().optional(),
-        pixKey: z.string().nullable().optional(),
-        pixType: z.string().nullable().optional()
-    }).nullable().optional(),
-})
 
 export const ClientService = {
     // LIST: Always filters by userId, optionally by search term

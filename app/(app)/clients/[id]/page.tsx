@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator"
 import { MessageCircle, FileText, Briefcase, DollarSign, Calendar, Edit, Folder, Plus, ChevronRight, Edit2 } from "lucide-react"
 import Link from "next/link"
 import { ProcessListItem } from "@/components/processes/process-list-item"
+import { CopyButton } from "@/components/ui/copy-button"
 
 export const dynamic = 'force-dynamic'
 
@@ -92,8 +93,11 @@ export default async function ClientByTypePage({ params }: PageProps) {
                     <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-2xl">
                         {client.name.substring(0, 2).toUpperCase()}
                     </div>
-                    <div>
-                        <h1 className="text-2xl font-bold tracking-tight text-foreground">{client.name}</h1>
+                    <div className="flex flex-col">
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-2xl font-bold tracking-tight text-foreground">{client.name}</h1>
+                            <CopyButton value={client.name} label="Nome do cliente" />
+                        </div>
                         <div className="flex items-center gap-2 mt-1">
                             <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 capitalize">
                                 {client.status === 'NEW_LEAD' ? 'Novo Lead' : client.status === 'ACTIVE' ? 'Ativo' : client.status}
@@ -313,9 +317,14 @@ export default async function ClientByTypePage({ params }: PageProps) {
 function Row({ label, value }: { label: string, value?: string | null }) {
     if (!value) return null
     return (
-        <div className="flex flex-col">
+        <div className="flex flex-col group relative">
             <span className="text-xs text-muted-foreground font-medium uppercase">{label}</span>
-            <span className="text-sm text-foreground">{value}</span>
+            <div className="flex items-center gap-2">
+                <span className="text-sm text-foreground">{value}</span>
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                    <CopyButton value={value} label={label} />
+                </div>
+            </div>
         </div>
     )
 }
