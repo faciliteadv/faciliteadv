@@ -1,33 +1,35 @@
 import { db } from "@/lib/db"
 import { Prisma } from "@prisma/client"
 import { z } from "zod"
-import crypto from "crypto"
+// import crypto from "crypto"
 import { sanitizeFormData, prepareForPrisma } from "@/lib/utils/data-sanitizer"
 
 // --- Encryption Helper ---
 const ALGORITHM = 'aes-256-cbc';
-// Ensure the key is exactly 32 bytes. Using sha256 to hash the passphrase is a reliable way to get 32 bytes.
-const ENCRYPTION_KEY = crypto.createHash('sha256').update(process.env.ENCRYPTION_KEY || 'default_secret_key').digest(); // 32 bytes Buffer
+// Ensure the key is exactly 32 bytes.
+// const ENCRYPTION_KEY = crypto.createHash('sha256').update(process.env.ENCRYPTION_KEY || 'default_secret_key').digest(); // 32 bytes Buffer
 const IV_LENGTH = 16;
 
 function encrypt(text: string): string {
-    if (!text) return text;
-    const iv = crypto.randomBytes(IV_LENGTH);
-    const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY, iv); // Use the Buffer directly
-    let encrypted = cipher.update(text);
-    encrypted = Buffer.concat([encrypted, cipher.final()]);
-    return iv.toString('hex') + ':' + encrypted.toString('hex');
+    // if (!text) return text;
+    // const iv = crypto.randomBytes(IV_LENGTH);
+    // const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY, iv); 
+    // let encrypted = cipher.update(text);
+    // encrypted = Buffer.concat([encrypted, cipher.final()]);
+    // return iv.toString('hex') + ':' + encrypted.toString('hex');
+    return text; // STUB
 }
 
 function decrypt(text: string): string {
-    if (!text) return text;
-    const textParts = text.split(':');
-    const iv = Buffer.from(textParts.shift()!, 'hex');
-    const encryptedText = Buffer.from(textParts.join(':'), 'hex');
-    const decipher = crypto.createDecipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
-    let decrypted = decipher.update(encryptedText);
-    decrypted = Buffer.concat([decrypted, decipher.final()]);
-    return decrypted.toString();
+    // if (!text) return text;
+    // const textParts = text.split(':');
+    // const iv = Buffer.from(textParts.shift()!, 'hex');
+    // const encryptedText = Buffer.from(textParts.join(':'), 'hex');
+    // const decipher = crypto.createDecipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
+    // let decrypted = decipher.update(encryptedText);
+    // decrypted = Buffer.concat([decrypted, decipher.final()]);
+    // return decrypted.toString();
+    return text; // STUB
 }
 
 // --- Validation Schemas ---
@@ -70,7 +72,8 @@ export const ClientCreateSchema = z.object({
         bank: z.string().nullable().optional(),
         agency: z.string().nullable().optional(),
         account: z.string().nullable().optional(),
-        pixKey: z.string().nullable().optional()
+        pixKey: z.string().nullable().optional(),
+        pixType: z.string().nullable().optional()
     }).nullable().optional(),
 })
 

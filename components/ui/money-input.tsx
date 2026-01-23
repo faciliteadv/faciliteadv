@@ -11,6 +11,13 @@ interface MoneyInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 export function MoneyInput({ value, onValueChange, className, ...props }: MoneyInputProps) {
     const [displayValue, setDisplayValue] = useState("")
 
+    const formatCurrency = (val: number) => {
+        return new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL',
+        }).format(val)
+    }
+
     useEffect(() => {
         if (!value) {
             setDisplayValue("")
@@ -31,13 +38,6 @@ export function MoneyInput({ value, onValueChange, className, ...props }: MoneyI
             }
         }
     }, [value])
-
-    const formatCurrency = (val: number) => {
-        return new Intl.NumberFormat('pt-BR', {
-            style: 'currency',
-            currency: 'BRL',
-        }).format(val)
-    }
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         let val = e.target.value

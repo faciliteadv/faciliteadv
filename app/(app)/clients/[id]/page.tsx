@@ -82,6 +82,7 @@ export default async function ClientByTypePage({ params }: PageProps) {
 
     // Safely cast address
     const address = client.address as any || {}
+    const bankDetails = (client as any).bankDetails || {}
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500 pb-10">
@@ -216,6 +217,21 @@ export default async function ClientByTypePage({ params }: PageProps) {
                                 <Row label="Nome" value={client.messageContactName} />
                                 <Row label="Vínculo" value={client.messageContactRelation} />
                                 <Row label="Telefone" value={(client.contacts as any)?.phone} />
+                            </CardContent>
+                        </Card>
+
+                        {/* Dados Bancários */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-base uppercase tracking-wider text-muted-foreground text-xs font-semibold">Dados Bancários</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <Row label="Banco" value={bankDetails.bank} />
+                                <Row label="Agência" value={bankDetails.agency} />
+                                <Row label="Conta" value={bankDetails.account} />
+                                <Separator />
+                                <Row label="Tipo PIX" value={bankDetails.pixType?.toUpperCase()} />
+                                <Row label="Chave PIX" value={bankDetails.pixKey} />
                             </CardContent>
                         </Card>
                     </div>

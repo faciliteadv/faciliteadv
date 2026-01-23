@@ -12,11 +12,39 @@ import { ArrowLeft, Loader2, Search, Plus, Trash2, Eye, EyeOff } from "lucide-re
 import { useToast } from "@/hooks/use-toast"
 import { createClient, updateClientAction } from "@/lib/actions/client-actions"
 import { formatCPF, formatCNPJ, formatPhone as formatPhoneUtil } from "@/lib/utils/validation"
+import { Check, ChevronsUpDown } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 const COUNTRY_CODES = [
     { code: "+55", country: "BR", mask: "(99) 99999-9999" },
     { code: "+1", country: "US", mask: "(999) 999-9999" },
     { code: "+351", country: "PT", mask: "999 999 999" },
+]
+
+const BANKS = [
+    { value: "001", label: "Banco do Brasil" },
+    { value: "104", label: "Caixa Econômica Federal" },
+    { value: "237", label: "Bradesco" },
+    { value: "341", label: "Itaú" },
+    { value: "033", label: "Santander" },
+    { value: "260", label: "Nubank" },
+    { value: "077", label: "Inter" },
+    { value: "655", label: "Neon" },
+    { value: "290", label: "PagBank" },
+    { value: "380", label: "PicPay" },
+    { value: "212", label: "Original" },
+    { value: "079", label: "PicPay Bank" }, // Sometimes referred differently
+    { value: "other", label: "Outro" }
+]
+
+const PIX_TYPES = [
+    { value: "cpf", label: "CPF" },
+    { value: "cnpj", label: "CNPJ" },
+    { value: "email", label: "Email" },
+    { value: "phone", label: "Celular" },
+    { value: "random", label: "Chave Aleatória" },
 ]
 
 export interface ClientFormProps {
@@ -77,7 +105,8 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
             bank: "",
             agency: "",
             account: "",
-            pixKey: ""
+            pixKey: "",
+            pixType: ""
         }
     })
 
@@ -114,7 +143,8 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
                     bank: (initialData.bankDetails as any)?.bank || "",
                     agency: (initialData.bankDetails as any)?.agency || "",
                     account: (initialData.bankDetails as any)?.account || "",
-                    pixKey: (initialData.bankDetails as any)?.pixKey || ""
+                    pixKey: (initialData.bankDetails as any)?.pixKey || "",
+                    pixType: (initialData.bankDetails as any)?.pixType || ""
                 }
             })
             // Load additional contacts
@@ -493,10 +523,70 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
                     <div className="space-y-2">
                         <Label className="font-semibold">Dados Bancários</Label>
                         <div className="grid md:grid-cols-4 gap-4">
-                            <div className="space-y-2"><Label>Banco</Label><Input value={formData.bankDetails.bank} onChange={e => setFormData(p => ({ ...p, bankDetails: { ...p.bankDetails, bank: e.target.value } }))} /></div>
-                            <div className="space-y-2"><Label>Agência</Label><Input value={formData.bankDetails.agency} onChange={e => setFormData(p => ({ ...p, bankDetails: { ...p.bankDetails, agency: e.target.value } }))} /></div>
-                            <div className="space-y-2"><Label>Conta</Label><Input value={formData.bankDetails.account} onChange={e => setFormData(p => ({ ...p, bankDetails: { ...p.bankDetails, account: e.target.value } }))} /></div>
-                            <div className="space-y-2"><Label>Chave PIX</Label><Input value={formData.bankDetails.pixKey} onChange={e => setFormData(p => ({ ...p, bankDetails: { ...p.bankDetails, pixKey: e.target.value } }))} /></div>
+                            <div className="space-y-2 flex flex-col">
+                                <Label>Banco</Label>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            role="combobox"
+                                            className={cn(
+                                                "w-full justify-between",
+                                                !formData.bankDetails.bank && "text-muted-foreground"
+                                            )}
+                                        >
+                                            {formData.bankDetails.bank
+                                                ? BANKS.find((b) => b.label === formData.bankDetails.bank)?.label || formData.bankDetails.bank
+                                                : "Selecione o banco"}
+                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-[200px] p-0">
+                                        <Command>
+                                            <CommandInput placeholder="Buscar banco..." />
+                                            <CommandList>
+                                                <CommandEmpty>Nenhum banco encontrado.</CommandEmpty>
+                                                <CommandGroup>
+                                                    {BANKS.map((bank) => (
+                                                        <CommandItem
+                                                            value={bank.label}
+                                                            key={bank.value}
+                                                            onSelect={(currentValue) => {
+                                                                setFormData(p => ({
+                                                                    ...p,
+                                                                    bankDetails: {
+                                                                        ...p.bankDetails,
+                                                                        bank: currentValue
+                                                                    }
+                                                                }))
+                                                            }}
+                                                        >
+                                                            <Check
+                                                                className={cn(
+                                                                    "mr-2 h-4 w-4",
+                                                                    formData.bankDetails.bank === bank.label ? "opacity-100" : "opacity-0"
+                                                                )}
+                                                            />
+                                                            {bank.label}
+                                                        </CommandItem>
+                                                    ))}
+                                                </CommandGroup>
+                                            </CommandList>
+                                        </Command>
+                                    </PopoverContent>
+                                </Popover>
+                            </div>
+                            <div className="space-y-2"><Label>Agência</Label><Input value={formData.bankDetails.agency} onChange={e => setFormData(p => ({ ...p, bankDetails: { ...p.bankDetails, agency: e.target.value.replace(/\D/g, '') } }))} placeholder="0000" maxLength={6} /></div>
+                            <div className="space-y-2"><Label>Conta</Label><Input value={formData.bankDetails.account} onChange={e => setFormData(p => ({ ...p, bankDetails: { ...p.bankDetails, account: e.target.value.replace(/[^0-9-]/g, '') } }))} placeholder="00000-0" maxLength={15} /></div>
+                            <div className="space-y-2"><Label>Tipo PIX</Label>
+                                <Select value={(formData.bankDetails as any).pixType || ""} onValueChange={(v) => setFormData(p => ({ ...p, bankDetails: { ...p.bankDetails, pixType: v } }))}>
+                                    <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                                    <SelectContent>
+                                        {PIX_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2"><Label>Chave PIX</Label><Input value={formData.bankDetails.pixKey} onChange={e => setFormData(p => ({ ...p, bankDetails: { ...p.bankDetails, pixKey: e.target.value } }))} placeholder="Chave..." /></div>
                         </div>
                     </div>
 

@@ -109,7 +109,8 @@ export async function createProcess(data: any) {
         await db.$transaction(async (tx) => {
             // Prepare process data - ensure ALL fields are serializable
             // Prepare process data
-            const { clientId, responsibleLawyerId, ...restData } = sanitized
+            // Prepare process data
+            // const { clientId, responsibleLawyerId, ...restData } = sanitized
 
             const processData = prepareForPrisma({
                 number: sanitized.number,
@@ -224,7 +225,8 @@ export async function updateProcessAction(processId: string, data: any) {
 
         await db.$transaction(async (tx) => {
             // Prepare update data
-            const { responsibleLawyerId, ...restSanitized } = sanitized
+            // Prepare update data
+            // const { responsibleLawyerId, ...restSanitized } = sanitized
 
             const processData = prepareForPrisma({
                 number: sanitized.number,
