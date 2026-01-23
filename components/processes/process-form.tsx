@@ -89,7 +89,7 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
         subject: "",
         folderName: "",
         clientId: "",
-        status: "",
+        status: "ACTIVE",
         position: "", // Primary Client Position
         opponent: "", // Primary Opponent ID
         opponentPosition: "", // Primary Opponent Position
@@ -250,11 +250,13 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
 
         // Validation
         const errors = []
-        if (!formData.number) errors.push("Número do processo é obrigatório")
+        if (!formData.number.trim()) errors.push("Número do processo é obrigatório")
         if (!formData.clientId) errors.push("Cliente é obrigatório")
+        if (!formData.area) errors.push("Área de atuação é obrigatória")
+
         if (errors.length > 0) {
             setFormErrors(errors)
-            toast({ title: "Campos obrigatórios", description: "Verifique os campos em vermelho.", type: "error" })
+            toast({ title: "Campos obrigatórios", description: "Verifique os campos obrigatórios (*) em vermelho.", type: "error" })
             return
         }
 
@@ -349,7 +351,10 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                             <Label className={cn(formErrors.includes("Cliente é obrigatório") && "text-red-500")}>Cliente *</Label>
                             <Combobox
                                 value={formData.clientId}
-                                onValueChange={(v) => handleChange("clientId", v)}
+                                onValueChange={(v) => {
+                                    handleChange("clientId", v)
+                                    if (v) setFormErrors(prev => prev.filter(e => e !== "Cliente é obrigatório"))
+                                }}
                                 options={clients.map(c => ({ value: c.id, label: c.name, search: `${c.name} ${c.cpfCnpj || ""}` }))}
                                 placeholder="Selecione..."
                                 searchPlaceholder="Buscar cliente por nome ou CPF..."
@@ -526,19 +531,26 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                             <Label className={cn(formErrors.includes("Número do processo é obrigatório") && "text-red-500")}>Número do processo *</Label>
                             <Input
                                 value={formData.number}
-                                onChange={(e) => handleChange("number", e.target.value)}
-                                className={cn("bg-gray-100 text-black border-none", !formData.number && formErrors.includes("Número do processo é obrigatório") && "border-2 border-red-500")}
+                                onChange={(e) => {
+                                    handleChange("number", e.target.value)
+                                    if (e.target.value.trim()) setFormErrors(prev => prev.filter(e => e !== "Número do processo é obrigatório"))
+                                }}
+                                className={cn("bg-gray-100 text-black border-none focus-visible:ring-1", !formData.number && formErrors.includes("Número do processo é obrigatório") && "border-2 border-red-500")}
                             />
                         </div>
                         <div className="space-y-2 flex flex-col">
-                            <Label>Área de atuação</Label>
+                            <Label className={cn(formErrors.includes("Área de atuação é obrigatória") && "text-red-500")}>Área de atuação *</Label>
                             <Combobox
                                 value={formData.area}
-                                onValueChange={(v) => handleChange("area", v)}
+                                onValueChange={(v) => {
+                                    handleChange("area", v)
+                                    if (v) setFormErrors(prev => prev.filter(e => e !== "Área de atuação é obrigatória"))
+                                }}
                                 options={Object.entries(PROCESS_UI_CONFIG.AREA).map(([key, config]) => ({ value: key, label: config.label }))}
                                 placeholder="Selecione ou digite..."
                                 showAddCustom={true}
                                 searchPlaceholder="Buscar ou adicionar área..."
+                                className={cn(!formData.area && formErrors.includes("Área de atuação é obrigatória") && "border-2 border-red-500")}
                             />
                         </div>
                         <div className="space-y-2 flex flex-col">

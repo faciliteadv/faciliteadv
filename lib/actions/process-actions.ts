@@ -95,8 +95,8 @@ export async function createProcess(data: any) {
         const sanitized = sanitizeFormData(data)
 
         // Basic validation
-        if (!sanitized.clientId || !sanitized.number) {
-            throw new Error("Número do processo e cliente são obrigatórios")
+        if (!sanitized.clientId || !sanitized.number || !sanitized.area) {
+            throw new Error("Número do processo, cliente e área de atuação são obrigatórios")
         }
 
         // Sanitize relations
