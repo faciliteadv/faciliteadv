@@ -354,6 +354,7 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                                 placeholder="Selecione..."
                                 searchPlaceholder="Buscar cliente por nome ou CPF..."
                                 className={cn(!formData.clientId && formErrors.includes("Cliente é obrigatório") && "border-2 border-red-500")}
+                                fallbackLabel={initialData?.client?.name}
                             />
                         </div>
                         <div className="space-y-2 flex flex-col">
@@ -431,6 +432,7 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                                 options={clients.map(c => ({ value: c.id, label: c.name, search: `${c.name} ${c.cpfCnpj || ""}` }))}
                                 placeholder="Selecione ou busque..."
                                 searchPlaceholder="Buscar por nome ou CPF..."
+                                fallbackLabel={initialData?.opponentName}
                                 customEmpty={(search) => (
                                     <div className="p-4 flex flex-col items-center gap-2">
                                         <span className="text-sm text-muted-foreground">Nenhum encontrado em Clientes.</span>
@@ -636,6 +638,7 @@ interface ComboboxProps {
     renderItem?: (option: { value: string, label: string, search?: string }) => React.ReactNode
     showAddCustom?: boolean
     customEmpty?: (search: string) => React.ReactNode
+    fallbackLabel?: string
 }
 
 function Combobox({
@@ -647,7 +650,8 @@ function Combobox({
     className,
     renderItem,
     showAddCustom = true,
-    customEmpty
+    customEmpty,
+    fallbackLabel
 }: ComboboxProps) {
     const [open, setOpen] = useState(false)
     const [searchTerm, setSearchTerm] = useState("")
@@ -666,7 +670,7 @@ function Combobox({
                         {selectedOption ? (
                             renderItem ? renderItem(selectedOption) : <span>{selectedOption.label}</span>
                         ) : (
-                            value ? <span>{value}</span> : <span className="text-muted-foreground">{placeholder || "Selecione..."}</span>
+                            value ? <span>{fallbackLabel || value}</span> : <span className="text-muted-foreground">{placeholder || "Selecione..."}</span>
                         )}
                     </div>
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
