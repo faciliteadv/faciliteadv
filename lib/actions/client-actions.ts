@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { createClient as createSupabaseClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
 import { ClientService } from "@/lib/services/client-service"
+import { recordAuditLog } from "@/lib/utils/audit"
 import { z } from "zod"
 
 // Helper to capitalize words
@@ -21,7 +22,6 @@ export async function fetchCPFData(cpf: string) {
             return { success: false, error: "CPF inválido" }
         }
 
-        // Try BrasilAPI first (more reliable)
         try {
             const response = await fetch(`https://brasilapi.com.br/api/cpf/v1/${cleanCPF}`)
             if (response.ok) {
@@ -39,7 +39,6 @@ export async function fetchCPFData(cpf: string) {
             console.log("BrasilAPI CPF failed, trying alternative...")
         }
 
-        // Fallback: just validate format
         return {
             success: true,
             data: {
@@ -57,20 +56,25 @@ export async function createClient(data: any) {
     const supabase = await createSupabaseClient()
     const { data: { user } } = await supabase.auth.getUser()
 
-    if (!user) {
-        throw new Error("Unauthorized")
-    }
+    if (!user) throw new Error("Unauthorized")
 
     try {
         const client = await ClientService.createClient(user.id, data)
+
+        // Record Audit Log
+        await recordAuditLog({
+            userId: user.id,
+            entityId: client.id,
+            entityType: 'CLIENT',
+            action: 'CREATE',
+            newData: client
+        })
+
         revalidatePath("/clients")
         revalidatePath("/dashboard")
         return client
     } catch (error: any) {
-        console.error("Error creating client:", JSON.stringify(error, null, 2))
-        if (error instanceof z.ZodError) {
-            console.error("Zod Validation Errors:", error.issues)
-        }
+        console.error("Error creating client:", error)
         throw error
     }
 }
@@ -82,7 +86,19 @@ export async function updateClientAction(clientId: string, data: any) {
     if (!user) throw new Error("Unauthorized")
 
     try {
-        await ClientService.updateClient(user.id, clientId, data)
+        const oldClient = await db.client.findUnique({ where: { id: clientId } })
+        const updatedClient = await ClientService.updateClient(user.id, clientId, data)
+
+        // Record Audit Log
+        await recordAuditLog({
+            userId: user.id,
+            entityId: clientId,
+            entityType: 'CLIENT',
+            action: 'UPDATE',
+            oldData: oldClient,
+            newData: updatedClient
+        })
+
         revalidatePath("/clients")
         revalidatePath(`/clients/${clientId}`)
     } catch (error: any) {
@@ -90,6 +106,7 @@ export async function updateClientAction(clientId: string, data: any) {
         throw error
     }
 }
+
 export async function deleteClientAction(clientId: string) {
     const supabase = await createSupabaseClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -97,7 +114,18 @@ export async function deleteClientAction(clientId: string) {
     if (!user) throw new Error("Unauthorized")
 
     try {
+        const oldClient = await db.client.findUnique({ where: { id: clientId } })
         await ClientService.softDelete(user.id, clientId)
+
+        // Record Audit Log
+        await recordAuditLog({
+            userId: user.id,
+            entityId: clientId,
+            entityType: 'CLIENT',
+            action: 'DELETE',
+            oldData: oldClient
+        })
+
         revalidatePath("/clients")
     } catch (error: any) {
         console.error("Error deleting client:", error)

@@ -5,6 +5,7 @@ import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { sanitizeFormData, sanitizeRelations, sanitizeNumeric, prepareForPrisma } from "@/lib/utils/data-sanitizer"
+import { recordAuditLog } from "@/lib/utils/audit"
 
 // Simple fetch for select
 export async function getClientsForSelect() {
@@ -25,31 +26,6 @@ export async function getUsersForResponsibleSelect() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return []
 
-    // Assuming we want to return all users that have access to the system/office
-    // For now, listing all users in the DB might be what is needed if it's a small team.
-    // However, tenancy is by userId usually? 
-    // Wait, the prompt implies "users registered" i.e. colleagues. 
-    // Current architecture seems single-tenant per user (userId filter everywhere)?
-    // If so, there are no "other users". 
-    // BUT the user said "as vezes tenho 1 ou 2 advogados no escritório". 
-    // If they share the same Login/Account, they are 1 User. 
-    // If they have distinct accounts, do they share data? 
-    // The current schema has `userId` on every table. This implies isolation.
-    // If the user wants to select "Responsible Lawyer", maybe they mean "User Profiles" created within their account?
-    // "não vai puxar os clientes cadastrados, mas, os usuários"
-    // "Advogado Responsável (vai puxar dentro dos usuários cadastrados)"
-    // If the system is multi-user, `db.user.findMany` would return all.
-    // But if isolation is key...
-    // I will assume for now he wants to list USERS of the system.
-
-    // Check if there is a 'Office' or 'Team' concept? No.
-    // Maybe just list just the current user? Or all users?
-    // For safety in this "SaaS" like structure, I should probably only list the current user OR 
-    // if there was an OrganizationId. 
-    // Given the request, I will just list ALL users for now (simple approach) or create a mock.
-    // Actually, `User` table exists.
-
-    // Let's return the current user + any others.
     const users = await db.user.findMany({
         select: { id: true, name: true, email: true },
         orderBy: { name: 'asc' }
@@ -91,32 +67,21 @@ export async function createProcess(data: any) {
     if (!user) throw new Error("Não autorizado")
 
     try {
-        // Sanitize ALL input data FIRST
         const sanitized = sanitizeFormData(data)
 
-        // Basic validation
         if (!sanitized.clientId || !sanitized.number || !sanitized.area) {
             throw new Error("Número do processo, cliente e área de atuação são obrigatórios")
         }
 
-        // Sanitize relations
         const sanitizedAuthors = sanitizeRelations(sanitized.authors)
         const sanitizedOpponents = sanitizeRelations(sanitized.opponents)
-
-        // Sanitize numeric values
         const claimValue = sanitizeNumeric(sanitized.claimValue)
 
-        await db.$transaction(async (tx) => {
-            // Prepare process data - ensure ALL fields are serializable
-            // Prepare process data
-            // Prepare process data
-            // const { clientId, responsibleLawyerId, ...restData } = sanitized
-
+        const result = await db.$transaction(async (tx) => {
             const processData = prepareForPrisma({
                 number: sanitized.number,
                 area: sanitized.area || null,
                 actionType: sanitized.actionType || null,
-                subject: sanitized.subject || null,
                 folderName: sanitized.folderName || null,
                 status: sanitized.status || 'ACTIVE',
                 opponent: sanitized.opponent || null,
@@ -125,7 +90,6 @@ export async function createProcess(data: any) {
                 court: sanitized.court || null,
                 link: sanitized.link || null,
                 claimValue: claimValue
-                // responsibleLawyerId excluded
             })
 
             const createData: any = {
@@ -142,7 +106,6 @@ export async function createProcess(data: any) {
                 data: createData
             })
 
-            // Add Authors - only if we have valid data
             if (sanitizedAuthors.length > 0) {
                 await tx.processAuthor.createMany({
                     data: sanitizedAuthors.map((a: any) => ({
@@ -153,10 +116,7 @@ export async function createProcess(data: any) {
                 })
             }
 
-            // Add Opponents - ProcessOpponent uses name/cpfCnpj, NOT clientId
-            // We need to fetch client names if clientIds were provided
             if (sanitizedOpponents.length > 0) {
-                // Get client info for opponents
                 const opponentClientIds = sanitizedOpponents
                     .map((o: any) => o.clientId)
                     .filter(Boolean)
@@ -170,7 +130,6 @@ export async function createProcess(data: any) {
 
                 const clientMap = new Map(opponentClients.map(c => [c.id, c]))
 
-                // Map opponents with actual names
                 const opponentDataList = sanitizedOpponents.map((o: any) => {
                     const client = o.clientId ? clientMap.get(o.clientId) : null
                     return {
@@ -185,25 +144,27 @@ export async function createProcess(data: any) {
                     data: opponentDataList
                 })
             }
+
+            // Record Audit Log
+            await recordAuditLog({
+                userId: user.id,
+                entityId: process.id,
+                entityType: 'PROCESS',
+                action: 'CREATE',
+                newData: { ...process, authorsCount: sanitizedAuthors.length, opponentsCount: sanitizedOpponents.length }
+            })
+
+            return process
         })
 
         revalidatePath("/processes")
         revalidatePath("/dashboard")
         revalidatePath(`/clients/${sanitized.clientId}`)
 
-        return { success: true, message: "Processo criado com sucesso" }
+        return { success: true, message: "Processo criado com sucesso", id: result.id }
     } catch (error: any) {
         console.error("Error creating process:", error)
-
-        // Provide specific error messages
-        if (error.code === 'P2002') {
-            throw new Error("Já existe um processo com este número")
-        }
-        if (error.code === 'P2003') {
-            throw new Error("Cliente selecionado não existe ou foi removido")
-        }
-
-        throw new Error(error.message || "Falha ao criar processo. Verifique os dados e tente novamente.")
+        throw new Error(error.message || "Falha ao criar processo.")
     }
 }
 
@@ -213,25 +174,20 @@ export async function updateProcessAction(processId: string, data: any) {
     if (!user) throw new Error("Não autorizado")
 
     try {
-        // Sanitize ALL input data
         const sanitized = sanitizeFormData(data)
-
-        // Sanitize relations
         const sanitizedAuthors = sanitizeRelations(sanitized.authors)
         const sanitizedOpponents = sanitizeRelations(sanitized.opponents)
-
-        // Sanitize numeric values
         const claimValue = sanitizeNumeric(sanitized.claimValue)
 
         await db.$transaction(async (tx) => {
-            // Prepare update data
-            // Prepare update data
-            // const { responsibleLawyerId, ...restSanitized } = sanitized
+            const oldProcess = await tx.process.findUnique({
+                where: { id: processId },
+                include: { authors: true, opponents: true }
+            })
 
             const processData = prepareForPrisma({
                 number: sanitized.number,
                 area: sanitized.area || null,
-                subject: sanitized.subject || null,
                 actionType: sanitized.actionType || null,
                 folderName: sanitized.folderName || null,
                 status: sanitized.status || null,
@@ -243,9 +199,7 @@ export async function updateProcessAction(processId: string, data: any) {
                 claimValue: claimValue
             })
 
-            const updateData: any = {
-                ...processData
-            }
+            const updateData: any = { ...processData }
 
             if (sanitized.responsibleLawyerId) {
                 updateData.responsibleLawyer = { connect: { id: sanitized.responsibleLawyerId } }
@@ -253,13 +207,12 @@ export async function updateProcessAction(processId: string, data: any) {
                 updateData.responsibleLawyer = { disconnect: true }
             }
 
-            // Update main process
-            await tx.process.update({
+            const updatedProcess = await tx.process.update({
                 where: { id: processId, userId: user.id },
                 data: updateData
             })
 
-            // Handle Authors - delete and recreate
+            // Handle Authors
             await tx.processAuthor.deleteMany({ where: { processId } })
             if (sanitizedAuthors.length > 0) {
                 await tx.processAuthor.createMany({
@@ -271,10 +224,9 @@ export async function updateProcessAction(processId: string, data: any) {
                 })
             }
 
-            // Handle Opponents - delete and recreate  
+            // Handle Opponents
             await tx.processOpponent.deleteMany({ where: { processId } })
             if (sanitizedOpponents.length > 0) {
-                // Get client info for opponents
                 const opponentClientIds = sanitizedOpponents
                     .map((o: any) => o.clientId)
                     .filter(Boolean)
@@ -286,7 +238,6 @@ export async function updateProcessAction(processId: string, data: any) {
 
                 const clientMap = new Map(opponentClients.map(c => [c.id, c]))
 
-                // Map opponents with actual names
                 const opponentDataList = sanitizedOpponents.map((o: any) => {
                     const client = o.clientId ? clientMap.get(o.clientId) : null
                     return {
@@ -301,6 +252,16 @@ export async function updateProcessAction(processId: string, data: any) {
                     data: opponentDataList
                 })
             }
+
+            // Record Audit Log
+            await recordAuditLog({
+                userId: user.id,
+                entityId: processId,
+                entityType: 'PROCESS',
+                action: 'UPDATE',
+                oldData: oldProcess,
+                newData: { ...updatedProcess, authorsCount: sanitizedAuthors.length, opponentsCount: sanitizedOpponents.length }
+            })
         })
 
         revalidatePath("/processes")
@@ -310,31 +271,8 @@ export async function updateProcessAction(processId: string, data: any) {
         return { success: true, message: "Processo atualizado com sucesso" }
     } catch (error: any) {
         console.error("Error updating process:", error)
-
-        // Specific error messages
-        if (error.code === 'P2025') {
-            throw new Error("Processo não encontrado ou você não tem permissão")
-        }
-        if (error.code === 'P2002') {
-            throw new Error("Já existe um processo com este número")
-        }
-
         throw new Error(error.message || "Falha ao atualizar processo")
     }
-}
-
-export async function getUniqueSubjects() {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return []
-
-    const processes = await db.process.findMany({
-        where: { userId: user.id, deletedAt: null },
-        distinct: ['subject'],
-        select: { subject: true },
-        orderBy: { subject: 'asc' }
-    })
-    return processes.map(p => p.subject).filter(Boolean) as string[]
 }
 
 export async function deleteProcessAction(processId: string) {
@@ -343,10 +281,22 @@ export async function deleteProcessAction(processId: string) {
     if (!user) throw new Error("Não autorizado")
 
     try {
+        const oldProcess = await db.process.findUnique({ where: { id: processId } })
+
         await db.process.update({
             where: { id: processId, userId: user.id },
             data: { deletedAt: new Date() }
         })
+
+        // Record Audit Log
+        await recordAuditLog({
+            userId: user.id,
+            entityId: processId,
+            entityType: 'PROCESS',
+            action: 'DELETE',
+            oldData: oldProcess
+        })
+
         revalidatePath("/processes")
         revalidatePath("/dashboard")
     } catch (error) {

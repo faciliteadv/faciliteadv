@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Check, ChevronsUpDown, Loader2, Plus, Trash2, UserPlus } from "lucide-react"
-import { createProcess, updateProcessAction, getClientsForSelect, getActionTypes, createActionType, getUsersForResponsibleSelect, getUniqueSubjects } from "@/lib/actions/process-actions"
+import { createProcess, updateProcessAction, getClientsForSelect, getActionTypes, createActionType, getUsersForResponsibleSelect } from "@/lib/actions/process-actions"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { RegisterOpponentModal } from "./register-opponent-modal"
@@ -74,7 +74,6 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
     const [clients, setClients] = useState<{ id: string, name: string, cpfCnpj?: string | null }[]>([])
     const [users, setUsers] = useState<{ id: string, name: string | null, email: string }[]>([])
     const [actionTypes, setActionTypes] = useState<string[]>([])
-    const [subjects, setSubjects] = useState<string[]>([])
     const [customActionType, setCustomActionType] = useState("")
 
     // UI States
@@ -86,7 +85,6 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
         number: "",
         area: "",
         actionType: "",
-        subject: "",
         folderName: "",
         clientId: "",
         status: "ACTIVE",
@@ -110,17 +108,15 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
     useEffect(() => {
         const loadData = async () => {
             try {
-                const [c, u, a, s] = await Promise.all([
+                const [c, u, a] = await Promise.all([
                     getClientsForSelect(),
                     getUsersForResponsibleSelect(),
-                    getActionTypes(),
-                    getUniqueSubjects()
+                    getActionTypes()
                 ])
                 setClients(c as any)
                 setUsers(u)
                 const combinedTypes = Array.from(new Set([...ACTION_TYPES_PRESETS, ...(a as string[])])).sort()
                 setActionTypes(combinedTypes)
-                setSubjects(s)
             } catch (error) {
                 console.error("Failed to load select data", error)
             }
@@ -142,7 +138,6 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                 number: initialData.number || "",
                 area: normalize(initialData.area, "AREA"),
                 actionType: initialData.actionType || "",
-                subject: initialData.subject || "",
                 folderName: initialData.folderName || "",
                 clientId: initialData.clientId || "",
                 status: normalize(initialData.status, "STATUS") || "ACTIVE",
@@ -561,17 +556,6 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                                 options={actionTypes.map(t => ({ value: t, label: t }))}
                                 placeholder="Selecione ou digite..."
                                 searchPlaceholder="Buscar ou criar tipo..."
-                            />
-                        </div>
-                        <div className="space-y-2 flex flex-col">
-                            <Label>Assunto</Label>
-                            <Combobox
-                                value={formData.subject}
-                                onValueChange={(v) => handleChange("subject", v)}
-                                options={subjects.map(s => ({ value: s, label: s }))}
-                                placeholder="Selecione ou digite..."
-                                searchPlaceholder="Buscar ou criar assunto..."
-                                showAddCustom={true}
                             />
                         </div>
                         <div className="space-y-2">

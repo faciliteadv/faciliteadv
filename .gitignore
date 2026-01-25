@@ -41,4 +41,6 @@ env_config_*.txt
 
 # typescript
 *.tsbuildinfo
-next-env.d.ts
+# backups
+/backups
+/scripts/backup-local.ps1

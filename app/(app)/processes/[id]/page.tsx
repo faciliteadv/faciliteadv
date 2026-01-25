@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation"
 import { db } from "@/lib/db"
 import { ProcessService } from "@/lib/services/process-service"
 import { Button } from "@/components/ui/button"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
@@ -15,9 +16,12 @@ import {
     MapPin,
     Building2,
     User2,
-    Folder,
     Calendar,
-    CalendarClock
+    CalendarClock,
+    DollarSign,
+    ListTodo,
+    Plus,
+    Folder
 } from "lucide-react"
 import Link from "next/link"
 import { CopyButton } from "@/components/ui/copy-button"
@@ -125,152 +129,226 @@ export default async function ProcessDetailPage({ params }: PageProps) {
                 </div>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-3">
-                {/* Main Info */}
-                <div className="md:col-span-2 space-y-6">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                                <Scale className="h-4 w-4" />
-                                Detalhes do Processo
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="grid gap-6">
-                            <div className="grid grid-cols-2 gap-4">
-                                <DetailRow label="Área de Atuação" value={areaLabels[process.area] || process.area} />
-                                <DetailRow label="Assunto / Tipo de ação" value={process.actionType || process.subject} />
-                            </div>
-                            <Separator />
-                            <div className="grid grid-cols-2 gap-4">
-                                <DetailRow label="Comarca" value={process.district} icon={<MapPin className="h-3 w-3" />} />
-                                <DetailRow label="Vara" value={process.court} icon={<Building2 className="h-3 w-3" />} />
-                            </div>
-                            <Separator />
-                            <div className="grid grid-cols-2 gap-4">
-                                <DetailRow
-                                    label="Valor da Causa"
-                                    value={process.claimValue ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(process.claimValue)) : "-"}
-                                />
-                            </div>
-                            {process.link && (
-                                <>
-                                    <Separator />
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-xs text-muted-foreground font-medium uppercase">Link do Processo</span>
-                                        <div className="flex items-center gap-2">
-                                            <a
-                                                href={process.link}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="text-primary hover:underline flex items-center gap-2 text-sm font-medium"
-                                            >
-                                                Acessar sistema do tribunal <ExternalLink className="h-4 w-4" />
-                                            </a>
-                                            <CopyButton value={process.link} label="Link" />
-                                        </div>
+            <Tabs defaultValue="info" className="w-full">
+                <TabsList className="w-full justify-start overflow-x-auto h-auto p-1 bg-transparent border-b rounded-none gap-2">
+                    <TabsTrigger value="info" className="data-[state=active]:bg-background data-[state=active]:shadow-sm border border-transparent data-[state=active]:border-border rounded-t-lg px-4 py-2">
+                        <FileText className="mr-2 h-4 w-4" />
+                        Informações
+                    </TabsTrigger>
+                    <TabsTrigger value="financial" className="data-[state=active]:bg-background data-[state=active]:shadow-sm border border-transparent data-[state=active]:border-border rounded-t-lg px-4 py-2">
+                        <DollarSign className="mr-2 h-4 w-4" />
+                        Financeiro
+                    </TabsTrigger>
+                    <TabsTrigger value="agenda" className="data-[state=active]:bg-background data-[state=active]:shadow-sm border border-transparent data-[state=active]:border-border rounded-t-lg px-4 py-2">
+                        <CalendarClock className="mr-2 h-4 w-4" />
+                        Agenda e Prazos
+                    </TabsTrigger>
+                </TabsList>
+
+                {/* TAB: INFO */}
+                <TabsContent value="info" className="pt-6">
+                    <div className="grid gap-6 md:grid-cols-3">
+                        {/* Main Info */}
+                        <div className="md:col-span-2 space-y-6">
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                                        <Scale className="h-4 w-4" />
+                                        Detalhes do Processo
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="grid gap-6">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <DetailRow label="Área de Atuação" value={areaLabels[process.area] || process.area} />
+                                        <DetailRow label="Tipo de ação" value={process.actionType} />
                                     </div>
-                                </>
-                            )}
-                        </CardContent>
-                    </Card>
+                                    <Separator />
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <DetailRow label="Comarca" value={process.district} icon={<MapPin className="h-3 w-3" />} />
+                                        <DetailRow label="Vara" value={process.court} icon={<Building2 className="h-3 w-3" />} />
+                                    </div>
+                                    <Separator />
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <DetailRow
+                                            label="Valor da Causa"
+                                            value={process.claimValue ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(process.claimValue)) : "-"}
+                                        />
+                                    </div>
+                                    {process.link && (
+                                        <>
+                                            <Separator />
+                                            <div className="flex flex-col gap-1">
+                                                <span className="text-xs text-muted-foreground font-medium uppercase">Link do Processo</span>
+                                                <div className="flex items-center gap-2">
+                                                    <a
+                                                        href={process.link}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-primary hover:underline flex items-center gap-2 text-sm font-medium"
+                                                    >
+                                                        Acessar sistema do tribunal <ExternalLink className="h-4 w-4" />
+                                                    </a>
+                                                    <CopyButton value={process.link} label="Link" />
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </CardContent>
+                            </Card>
 
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                                <User2 className="h-4 w-4" />
-                                Partes do Processo
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="grid gap-6">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <DetailRow label="Cliente (Nosso Cliente)" value={process.client.name} />
-                                    <div className="mt-1"><CopyButton value={process.client.name} label="Nome do Cliente" /></div>
-                                </div>
-                                <DetailRow label="Posição do Cliente" value={process.position} />
-                            </div>
-                            <Separator />
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <DetailRow label="Parte Contrária" value={(process as any).opponentName || process.opponent} />
-                                    {process.opponent && <div className="mt-1"><CopyButton value={(process as any).opponentName || process.opponent || ""} label="Nome da Parte Contrária" /></div>}
-                                </div>
-                                <DetailRow
-                                    label="Posição da Parte Contrária"
-                                    value={(() => {
-                                        const pos = process.position?.toUpperCase()
-                                        if (pos === "AUTOR") return "Réu"
-                                        if (pos === "REU") return "Autor"
-                                        if (pos === "RECLAMANTE") return "Reclamada"
-                                        if (pos === "RECLAMADA") return "Reclamante"
-                                        if (pos === "REQUERENTE") return "Requerido"
-                                        if (pos === "REQUERIDO") return "Requerente"
-                                        return "-"
-                                    })()}
-                                />
-                            </div>
-                        </CardContent>
-                    </Card>
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                                        <User2 className="h-4 w-4" />
+                                        Partes do Processo
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="grid gap-6">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <DetailRow label="Cliente (Nosso Cliente)" value={process.client.name} />
+                                            <div className="mt-1"><CopyButton value={process.client.name} label="Nome do Cliente" /></div>
+                                        </div>
+                                        <DetailRow label="Posição do Cliente" value={process.position} />
+                                    </div>
+                                    <Separator />
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <DetailRow label="Parte Contrária" value={(process as any).opponentName || process.opponent} />
+                                            {process.opponent && <div className="mt-1"><CopyButton value={(process as any).opponentName || process.opponent || ""} label="Nome da Parte Contrária" /></div>}
+                                        </div>
+                                        <DetailRow
+                                            label="Posição da Parte Contrária"
+                                            value={(() => {
+                                                const pos = process.position?.toUpperCase()
+                                                if (pos === "AUTOR") return "Réu"
+                                                if (pos === "REU") return "Autor"
+                                                if (pos === "RECLAMANTE") return "Reclamada"
+                                                if (pos === "RECLAMADA") return "Reclamante"
+                                                if (pos === "REQUERENTE") return "Requerido"
+                                                if (pos === "REQUERIDO") return "Requerente"
+                                                return "-"
+                                            })()}
+                                        />
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
 
-                    {/* Agenda Section */}
+                        {/* Sidebar Info */}
+                        <div className="space-y-6">
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                                        <Folder className="h-4 w-4" />
+                                        Arquivos e Controle
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <DetailRow label="Nome da Pasta" value={process.folderName} />
+                                    <DetailRow label="Data de Criação" value={new Date(process.createdAt).toLocaleDateString('pt-BR')} />
+                                    <DetailRow label="Última Atualização" value={new Date(process.updatedAt).toLocaleDateString('pt-BR')} />
+                                </CardContent>
+                            </Card>
+                        </div>
+                    </div>
+                </TabsContent>
+
+                {/* TAB: FINANCIAL */}
+                <TabsContent value="financial" className="pt-6">
                     <Card>
-                        <CardHeader>
+                        <CardHeader className="flex flex-row items-center justify-between">
                             <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                                <CalendarClock className="h-4 w-4" />
-                                Agenda do Processo
+                                <DollarSign className="h-4 w-4" />
+                                Financeiro do Processo
                             </CardTitle>
+                            <Button size="sm" variant="outline" className="gap-2">
+                                <Plus className="h-4 w-4" /> Novo Lançamento
+                            </Button>
                         </CardHeader>
                         <CardContent>
-                            {appointments.length > 0 ? (
-                                <div className="space-y-4">
-                                    {appointments.map(apt => (
-                                        <div key={apt.id} className="flex items-start justify-between border-b pb-4 last:border-0 last:pb-0">
-                                            <div>
-                                                <p className="font-medium text-sm">{apt.title}</p>
-                                                <p className="text-xs text-muted-foreground">{new Date(apt.startAt).toLocaleString('pt-BR')}</p>
-                                                {apt.description && <p className="text-xs text-slate-500 mt-1">{apt.description}</p>}
-                                            </div>
-                                            <Badge variant="secondary" className="text-[10px]">{apt.type}</Badge>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <p className="text-sm text-muted-foreground">Nenhum agendamento encontrado para este processo.</p>
-                            )}
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* Sidebar Info */}
-                <div className="space-y-6">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                                <Folder className="h-4 w-4" />
-                                Arquivos e Controle
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <DetailRow label="Nome da Pasta" value={process.folderName} />
-                            <DetailRow label="Data de Criação" value={new Date(process.createdAt).toLocaleDateString('pt-BR')} />
-                            <DetailRow label="Última Atualização" value={new Date(process.updatedAt).toLocaleDateString('pt-BR')} />
-                        </CardContent>
-                    </Card>
-
-                    <Card className="bg-muted/50 border-dashed">
-                        <CardContent className="pt-6">
-                            <div className="flex flex-col items-center text-center space-y-2">
-                                <Calendar className="h-8 w-8 text-muted-foreground" />
-                                <h3 className="font-semibold text-sm">Próximos Prazos</h3>
-                                <p className="text-xs text-muted-foreground">Gerencie prazos na aba Kanban ou Agenda.</p>
-                                <Button variant="outline" size="sm" className="mt-2" asChild>
-                                    <Link href={`/agenda`}>Ir para Agenda</Link>
-                                </Button>
+                            <div className="text-center py-12 text-muted-foreground text-sm border-2 border-dashed rounded-lg">
+                                <DollarSign className="h-10 w-10 mx-auto mb-4 opacity-20" />
+                                <p>Nenhum lançamento financeiro encontrado para este processo.</p>
+                                <p className="text-xs mt-1">Registre honorários, custas ou reembolsos.</p>
                             </div>
                         </CardContent>
                     </Card>
-                </div>
-            </div>
+                </TabsContent>
+
+                {/* TAB: AGENDA & PRAZOS */}
+                <TabsContent value="agenda" className="pt-6">
+                    <div className="grid gap-6 md:grid-cols-2">
+                        {/* Agenda Card */}
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between">
+                                <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                                    <CalendarClock className="h-4 w-4" />
+                                    Compromissos da Agenda
+                                </CardTitle>
+                                <Button size="sm" variant="outline" className="gap-2">
+                                    <Plus className="h-4 w-4" /> Novo Evento
+                                </Button>
+                            </CardHeader>
+                            <CardContent>
+                                {appointments.length > 0 ? (
+                                    <div className="space-y-4">
+                                        {appointments.map(apt => (
+                                            <div key={apt.id} className="flex items-start justify-between border-b pb-4 last:border-0 last:pb-0">
+                                                <div>
+                                                    <p className="font-medium text-sm">{apt.title}</p>
+                                                    <p className="text-xs text-muted-foreground">{new Date(apt.startAt).toLocaleString('pt-BR')}</p>
+                                                    {apt.description && <p className="text-xs text-slate-500 mt-1">{apt.description}</p>}
+                                                </div>
+                                                <Badge variant="secondary" className="text-[10px]">{apt.type}</Badge>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-8 text-muted-foreground text-sm border-2 border-dashed rounded-lg">
+                                        <p>Nenhum agendamento para este processo.</p>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        {/* Prazos/Tarefas Card */}
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between">
+                                <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                                    <ListTodo className="h-4 w-4" />
+                                    Prazos e Tarefas
+                                </CardTitle>
+                                <Button size="sm" variant="outline" className="gap-2">
+                                    <Plus className="h-4 w-4" /> Novo Prazo
+                                </Button>
+                            </CardHeader>
+                            <CardContent>
+                                {process.tasks && process.tasks.length > 0 ? (
+                                    <div className="space-y-4">
+                                        {process.tasks.map((task: any) => (
+                                            <div key={task.id} className="flex items-start justify-between border-b pb-4 last:border-0 last:pb-0">
+                                                <div>
+                                                    <p className="font-medium text-sm">{task.title}</p>
+                                                    {task.fatalDate && (
+                                                        <p className="text-xs text-red-600 font-medium">Prazo Fatal: {new Date(task.fatalDate).toLocaleDateString('pt-BR')}</p>
+                                                    )}
+                                                    <p className="text-[10px] text-muted-foreground">Status: {task.phase}</p>
+                                                </div>
+                                                <Badge variant="outline" className="text-[10px]">{task.type}</Badge>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-8 text-muted-foreground text-sm border-2 border-dashed rounded-lg">
+                                        <p>Nenhuma tarefa ou prazo vinculado.</p>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </div>
+                </TabsContent>
+            </Tabs>
         </div>
     )
 }

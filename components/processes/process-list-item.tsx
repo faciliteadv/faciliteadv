@@ -47,7 +47,7 @@ export function ProcessListItem({ process: proc, statusColors, statusLabels, are
                     <span className="text-muted-foreground/30">•</span>
                     <span>{areaLabels[proc.area] || proc.area}</span>
                     <span className="text-muted-foreground/30">•</span>
-                    <span className="truncate max-w-[200px]">{proc.actionType || proc.subject || "Sem assunto"}</span>
+                    <span className="truncate max-w-[200px]">{proc.actionType || "Sem tipo de ação"}</span>
                 </div>
 
                 {proc.opponent && (

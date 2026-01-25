@@ -14,7 +14,7 @@ export const ProcessService = {
                     OR: [
                         { number: { contains: search, mode: 'insensitive' } },
                         { folderName: { contains: search, mode: 'insensitive' } },
-                        { subject: { contains: search, mode: 'insensitive' } }
+                        { actionType: { contains: search, mode: 'insensitive' } }
                     ]
                 })
             },
