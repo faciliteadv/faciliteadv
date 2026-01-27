@@ -72,6 +72,30 @@ const areaLabels: Record<string, string> = {
     DIGITAL: "Direito Digital"
 }
 
+const positionLabels: Record<string, string> = {
+    AUTOR: "Autor",
+    REU: "Réu",
+    RECLAMANTE: "Reclamante",
+    RECLAMADA: "Reclamada",
+    REQUERENTE: "Requerente",
+    REQUERIDO: "Requerido",
+    REPRESENTANTE: "Representante Legal",
+    TERCEIRO: "Terceiro Interessado",
+    OUTRO: "Outro"
+}
+
+function getOppositePosition(position?: string) {
+    if (!position) return "-"
+    const pos = position.toUpperCase()
+    if (pos === "AUTOR") return "Réu"
+    if (pos === "REU") return "Autor"
+    if (pos === "RECLAMANTE") return "Reclamada"
+    if (pos === "RECLAMADA") return "Reclamante"
+    if (pos === "REQUERENTE") return "Requerido"
+    if (pos === "REQUERIDO") return "Requerente"
+    return positionLabels[pos] || position
+}
+
 export default async function ProcessDetailPage({ params }: PageProps) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -204,32 +228,53 @@ export default async function ProcessDetailPage({ params }: PageProps) {
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="grid gap-6">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <DetailRow label="Cliente (Nosso Cliente)" value={process.client.name} />
-                                            <div className="mt-1"><CopyButton value={process.client.name} label="Nome do Cliente" /></div>
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <DetailRow label="Cliente principal" value={process.client.name} />
+                                                <div className="mt-1"><CopyButton value={process.client.name} label="Nome do Cliente" /></div>
+                                            </div>
+                                            <DetailRow label="Posição" value={positionLabels[process.position?.toUpperCase() || ""] || process.position} />
                                         </div>
-                                        <DetailRow label="Posição do Cliente" value={process.position} />
+
+                                        {process.authors && process.authors.length > 0 && (
+                                            <div className="pl-4 border-l-2 border-blue-50 space-y-3">
+                                                <p className="text-[10px] font-bold uppercase text-blue-400">Outras partes autoras / representantes</p>
+                                                {process.authors.map((author: any) => (
+                                                    <div key={author.id} className="grid grid-cols-2 gap-4">
+                                                        <div className="mt-1"><CopyButton value={author.client?.name || ""} label="Nome" /></div>
+                                                        <p className="text-sm text-muted-foreground">{author.position ? (positionLabels[author.position.toUpperCase()] || author.position) : "-"}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
+
                                     <Separator />
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <DetailRow label="Parte Contrária" value={(process as any).opponentName || process.opponent} />
-                                            {process.opponent && <div className="mt-1"><CopyButton value={(process as any).opponentName || process.opponent || ""} label="Nome da Parte Contrária" /></div>}
+
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <DetailRow label="Parte Contrária principal" value={process.opponentName || process.opponent} />
+                                                {process.opponent && <div className="mt-1"><CopyButton value={process.opponentName || process.opponent || ""} label="Nome da Parte Contrária" /></div>}
+                                            </div>
+                                            <DetailRow
+                                                label="Posição"
+                                                value={getOppositePosition(process.position)}
+                                            />
                                         </div>
-                                        <DetailRow
-                                            label="Posição da Parte Contrária"
-                                            value={(() => {
-                                                const pos = process.position?.toUpperCase()
-                                                if (pos === "AUTOR") return "Réu"
-                                                if (pos === "REU") return "Autor"
-                                                if (pos === "RECLAMANTE") return "Reclamada"
-                                                if (pos === "RECLAMADA") return "Reclamante"
-                                                if (pos === "REQUERENTE") return "Requerido"
-                                                if (pos === "REQUERIDO") return "Requerente"
-                                                return "-"
-                                            })()}
-                                        />
+
+                                        {process.opponents && process.opponents.length > 0 && (
+                                            <div className="pl-4 border-l-2 border-red-50 space-y-3">
+                                                <p className="text-[10px] font-bold uppercase text-red-300">Outras partes contrárias / interessados</p>
+                                                {process.opponents.map((opp: any) => (
+                                                    <div key={opp.id} className="grid grid-cols-2 gap-4">
+                                                        <div className="mt-1"><CopyButton value={opp.name} label="Nome" /></div>
+                                                        <p className="text-sm text-muted-foreground">{opp.position ? (positionLabels[opp.position.toUpperCase()] || opp.position) : "-"}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 </CardContent>
                             </Card>

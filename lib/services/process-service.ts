@@ -85,7 +85,9 @@ export const ProcessService = {
             where: { id: processId, userId, deletedAt: null },
             include: {
                 tasks: { orderBy: { fatalDate: 'asc' } },
-                client: true
+                client: true,
+                authors: { include: { client: true } },
+                opponents: true
             }
         })
 
@@ -116,6 +118,22 @@ export const ProcessService = {
                 fatalDate: task.fatalDate?.toISOString() || null,
                 createdAt: task.createdAt.toISOString(),
                 updatedAt: task.updatedAt.toISOString(),
+            })),
+            // Serialize authors
+            authors: process.authors.map(author => ({
+                ...author,
+                createdAt: author.createdAt.toISOString(),
+                client: author.client ? {
+                    ...author.client,
+                    createdAt: author.client.createdAt.toISOString(),
+                    updatedAt: author.client.updatedAt.toISOString(),
+                    deletedAt: author.client.deletedAt?.toISOString() || null,
+                } : null
+            })),
+            // Serialize opponents
+            opponents: process.opponents.map(opp => ({
+                ...opp,
+                createdAt: opp.createdAt.toISOString(),
             }))
         }
 

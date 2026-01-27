@@ -134,6 +134,7 @@ export async function createProcess(data: any) {
                     const client = o.clientId ? clientMap.get(o.clientId) : null
                     return {
                         processId: process.id,
+                        clientId: o.clientId || null,
                         name: client?.name || o.name || 'Não informado',
                         cpfCnpj: client?.cpfCnpj || o.cpfCnpj || null,
                         position: o.position || 'REU'
@@ -242,6 +243,7 @@ export async function updateProcessAction(processId: string, data: any) {
                     const client = o.clientId ? clientMap.get(o.clientId) : null
                     return {
                         processId,
+                        clientId: o.clientId || null,
                         name: client?.name || o.name || 'Não informado',
                         cpfCnpj: client?.cpfCnpj || o.cpfCnpj || null,
                         position: o.position || 'REU'

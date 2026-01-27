@@ -97,6 +97,7 @@ model Client {
   financial              FinancialRecord[]
   processes              Process[]         @relation("ClientProcesses")
   processAuthors         ProcessAuthor[]
+  processOpponents       ProcessOpponent[]
   tasks                  TaskCard[]
 
   @@index([userId])
@@ -299,13 +300,16 @@ model ProcessAuthor {
 model ProcessOpponent {
   id        String   @id @default(uuid())
   processId String
+  clientId  String?
   name      String
   cpfCnpj   String?
   position  String
   createdAt DateTime @default(now())
   process   Process  @relation(fields: [processId], references: [id], onDelete: Cascade)
+  client    Client?  @relation(fields: [clientId], references: [id])
 
   @@index([processId])
+  @@index([clientId])
 }
 
 model ActionType {
