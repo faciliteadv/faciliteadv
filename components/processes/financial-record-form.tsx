@@ -25,7 +25,7 @@ export function FinancialRecordForm({ open, onOpenChange, processId, clientId, o
     const router = useRouter()
     const [loading, setLoading] = useState(false)
     const [formData, setFormData] = useState({
-        type: "INCOME",
+        type: "",
         amount: "",
         dueDate: new Date().toISOString().split('T')[0],
         paidAt: "",
@@ -38,6 +38,10 @@ export function FinancialRecordForm({ open, onOpenChange, processId, clientId, o
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
+        if (!formData.type) {
+            toast({ title: "Erro", description: "Selecione o tipo", type: "error" })
+            return
+        }
         if (!formData.amount || Number(formData.amount.replace(/\D/g, "")) === 0) {
             toast({ title: "Erro", description: "Valor é obrigatório", type: "error" })
             return
@@ -73,7 +77,7 @@ export function FinancialRecordForm({ open, onOpenChange, processId, clientId, o
                                 onValueChange={(v) => setFormData({ ...formData, type: v })}
                             >
                                 <SelectTrigger>
-                                    <SelectValue />
+                                    <SelectValue placeholder="Selecione" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="INCOME">Receita</SelectItem>
