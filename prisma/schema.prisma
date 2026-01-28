@@ -49,6 +49,8 @@ model User {
   subscription         Subscription?
   taskCards            TaskCard[]
   auditLogs            AuditLog[]
+  courts               Court[]
+  districts            District[]
 }
 
 model KanbanColumn {
@@ -255,13 +257,15 @@ model FinancialRecord {
   amount      Decimal
   dueDate     DateTime
   paidAt      DateTime?
-  description String?
-  clientId    String
-  processId   String?
-  userId      String
-  createdAt   DateTime  @default(now())
-  client      Client    @relation(fields: [clientId], references: [id])
-  process     Process?  @relation(fields: [processId], references: [id])
+  description   String?
+  paymentMethod String?
+  installment   String?
+  clientId      String
+  processId     String?
+  userId        String
+  createdAt     DateTime  @default(now())
+  client        Client    @relation(fields: [clientId], references: [id])
+  process       Process?  @relation(fields: [processId], references: [id])
 }
 
 model Appointment {
@@ -313,6 +317,28 @@ model ProcessOpponent {
 }
 
 model ActionType {
+  id        String   @id @default(uuid())
+  name      String
+  userId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([name, userId])
+  @@index([userId])
+}
+
+model Court {
+  id        String   @id @default(uuid())
+  name      String
+  userId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([name, userId])
+  @@index([userId])
+}
+
+model District {
   id        String   @id @default(uuid())
   name      String
   userId    String

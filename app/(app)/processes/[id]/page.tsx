@@ -2,6 +2,7 @@ import { createClient } from "@/utils/supabase/server"
 import { notFound, redirect } from "next/navigation"
 import { db } from "@/lib/db"
 import { ProcessService } from "@/lib/services/process-service"
+import { getFinancialRecordsByProcessId } from "@/lib/actions/process-actions"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -25,6 +26,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { CopyButton } from "@/components/ui/copy-button"
+import { ProcessFinancialTab } from "@/components/processes/process-financial-tab"
 
 interface PageProps {
     params: Promise<{ id: string }>
@@ -110,6 +112,8 @@ export default async function ProcessDetailPage({ params }: PageProps) {
     if (!process) {
         notFound()
     }
+
+    const financialRecords = await getFinancialRecordsByProcessId(id)
 
     // Fetch appointments (Agenda)
     const appointments = await db.appointment.findMany({
@@ -301,24 +305,11 @@ export default async function ProcessDetailPage({ params }: PageProps) {
 
                 {/* TAB: FINANCIAL */}
                 <TabsContent value="financial" className="pt-6">
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                                <DollarSign className="h-4 w-4" />
-                                Financeiro do Processo
-                            </CardTitle>
-                            <Button size="sm" variant="outline" className="gap-2">
-                                <Plus className="h-4 w-4" /> Novo Lançamento
-                            </Button>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-center py-12 text-muted-foreground text-sm border-2 border-dashed rounded-lg">
-                                <DollarSign className="h-10 w-10 mx-auto mb-4 opacity-20" />
-                                <p>Nenhum lançamento financeiro encontrado para este processo.</p>
-                                <p className="text-xs mt-1">Registre honorários, custas ou reembolsos.</p>
-                            </div>
-                        </CardContent>
-                    </Card>
+                    <ProcessFinancialTab
+                        processId={id}
+                        initialRecords={JSON.parse(JSON.stringify(financialRecords))}
+                        clientId={process.clientId}
+                    />
                 </TabsContent>
 
                 {/* TAB: AGENDA & PRAZOS */}

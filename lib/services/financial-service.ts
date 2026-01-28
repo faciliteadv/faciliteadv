@@ -3,7 +3,7 @@ import { db } from "@/lib/db"
 export const FinancialService = {
     // List all financial records for a user with related data
     listRecords: async (userId: string) => {
-        return await db.financialRecord.findMany({
+        const records = await db.financialRecord.findMany({
             where: {
                 client: { userId }
             },
@@ -13,6 +13,12 @@ export const FinancialService = {
             },
             orderBy: { dueDate: 'desc' }
         })
+
+        // Convert Decimal to number for Client Components compatibility
+        return records.map(record => ({
+            ...record,
+            amount: Number(record.amount)
+        }))
     },
 
     // Get summary: total pending, total received, total overdue
@@ -66,7 +72,7 @@ export const FinancialService = {
             throw new Error("Cliente não encontrado")
         }
 
-        return await db.financialRecord.create({
+        const record = await db.financialRecord.create({
             data: {
                 type: data.type,
                 amount: data.amount,
@@ -77,24 +83,34 @@ export const FinancialService = {
                 userId
             }
         })
+
+        return {
+            ...record,
+            amount: Number(record.amount)
+        }
     },
 
     // Mark as paid
     markAsPaid: async (userId: string, recordId: string) => {
         // Verify record belongs to user's client
-        const record = await db.financialRecord.findFirst({
+        const existingRecord = await db.financialRecord.findFirst({
             where: {
                 id: recordId,
                 client: { userId }
             }
         })
-        if (!record) {
+        if (!existingRecord) {
             throw new Error("Registro não encontrado")
         }
 
-        return await db.financialRecord.update({
+        const updated = await db.financialRecord.update({
             where: { id: recordId },
             data: { paidAt: new Date() }
         })
+
+        return {
+            ...updated,
+            amount: Number(updated.amount)
+        }
     }
 }

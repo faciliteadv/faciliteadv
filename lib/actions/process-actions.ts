@@ -60,6 +60,58 @@ export async function createActionType(name: string) {
     return name
 }
 
+export async function getCourts() {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return []
+
+    const courts = await db.court.findMany({
+        where: { userId: user.id },
+        select: { name: true },
+        orderBy: { name: 'asc' }
+    })
+    return courts.map(c => c.name)
+}
+
+export async function createCourt(name: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error("Não autorizado")
+
+    await db.court.upsert({
+        where: { name_userId: { name, userId: user.id } },
+        update: {},
+        create: { name, userId: user.id }
+    })
+    return name
+}
+
+export async function getDistricts() {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return []
+
+    const districts = await db.district.findMany({
+        where: { userId: user.id },
+        select: { name: true },
+        orderBy: { name: 'asc' }
+    })
+    return districts.map(d => d.name)
+}
+
+export async function createDistrict(name: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error("Não autorizado")
+
+    await db.district.upsert({
+        where: { name_userId: { name, userId: user.id } },
+        update: {},
+        create: { name, userId: user.id }
+    })
+    return name
+}
+
 // Create Process
 export async function createProcess(data: any) {
     const supabase = await createClient()
@@ -307,4 +359,59 @@ export async function deleteProcessAction(processId: string) {
     }
 
     redirect("/processes")
+}
+
+export async function getFinancialRecordsByProcessId(processId: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return []
+
+    const records = await db.financialRecord.findMany({
+        where: { processId, userId: user.id },
+        orderBy: { dueDate: 'desc' }
+    })
+
+    // Convert Decimal to number for Client Components compatibility
+    return records.map(record => ({
+        ...record,
+        amount: Number(record.amount)
+    }))
+}
+
+export async function createFinancialRecordAction(data: any) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error("Não autorizado")
+
+    try {
+        const sanitized = sanitizeFormData(data)
+        const amount = sanitizeNumeric(sanitized.amount)
+
+        const record = await db.financialRecord.create({
+            data: {
+                type: sanitized.type || 'INCOME',
+                amount: amount || 0,
+                dueDate: sanitized.dueDate ? new Date(sanitized.dueDate) : new Date(),
+                paidAt: sanitized.paidAt ? new Date(sanitized.paidAt) : null,
+                description: sanitized.description || null,
+                paymentMethod: sanitized.paymentMethod || null,
+                installment: sanitized.installment || null,
+                clientId: sanitized.clientId,
+                processId: sanitized.processId || null,
+                userId: user.id
+            }
+        })
+
+        revalidatePath(`/processes/${sanitized.processId}`)
+        return {
+            success: true,
+            record: {
+                ...record,
+                amount: Number(record.amount)
+            }
+        }
+    } catch (error: any) {
+        console.error("Error creating financial record:", error)
+        throw new Error(error.message || "Falha ao criar registro financeiro")
+    }
 }

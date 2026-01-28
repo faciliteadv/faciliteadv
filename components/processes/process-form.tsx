@@ -11,18 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Check, ChevronsUpDown, Loader2, Plus, Trash2, UserPlus } from "lucide-react"
-import { createProcess, updateProcessAction, getClientsForSelect, getActionTypes, createActionType, getUsersForResponsibleSelect } from "@/lib/actions/process-actions"
+import { createProcess, updateProcessAction, getClientsForSelect, getActionTypes, createActionType, getUsersForResponsibleSelect, getCourts, getDistricts, createCourt, createDistrict } from "@/lib/actions/process-actions"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { RegisterOpponentModal } from "./register-opponent-modal"
-
-const COURT_OPTIONS = [
-    "1ª Vara", "2ª Vara", "3ª Vara", "4ª Vara", "5ª Vara", "6ª Vara", "7ª Vara", "8ª Vara", "9ª Vara", "10ª Vara", "Juizado Especial"
-]
-
-const DISTRICT_OPTIONS = [
-    "Santos/SP", "São Vicente/SP", "Praia Grande/SP", "Guarujá/SP", "Cubatão/SP", "Bertioga/SP", "Mongaguá/SP", "Itanhaém/SP", "Peruíbe/SP", "São Paulo/SP"
-]
 
 const ACTION_TYPES_PRESETS = [
     "Reclamação trabalhista", "Mandado de segurança", "Consignação em pagamento", "Guarda", "Alimentos", "Regulamentação de visitas",
@@ -74,6 +66,8 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
     const [clients, setClients] = useState<{ id: string, name: string, cpfCnpj?: string | null }[]>([])
     const [users, setUsers] = useState<{ id: string, name: string | null, email: string }[]>([])
     const [actionTypes, setActionTypes] = useState<string[]>([])
+    const [courts, setCourts] = useState<string[]>([])
+    const [districts, setDistricts] = useState<string[]>([])
     const [customActionType, setCustomActionType] = useState("")
 
     // UI States
@@ -108,15 +102,19 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
     useEffect(() => {
         const loadData = async () => {
             try {
-                const [c, u, a] = await Promise.all([
+                const [c, u, a, ct, dt] = await Promise.all([
                     getClientsForSelect(),
                     getUsersForResponsibleSelect(),
-                    getActionTypes()
+                    getActionTypes(),
+                    getCourts(),
+                    getDistricts()
                 ])
                 setClients(c as any)
                 setUsers(u)
                 const combinedTypes = Array.from(new Set([...ACTION_TYPES_PRESETS, ...(a as string[])])).sort()
                 setActionTypes(combinedTypes)
+                setCourts(ct)
+                setDistricts(dt)
             } catch (error) {
                 console.error("Failed to load select data", error)
             }
@@ -269,6 +267,14 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
             } catch (err) {
                 console.warn("Could not save custom action type", err)
             }
+        }
+
+        // Handle Custom Court/District persistence
+        if (formData.court && !courts.includes(formData.court)) {
+            try { await createCourt(formData.court) } catch (err) { console.warn("Could not save custom court", err) }
+        }
+        if (formData.district && !districts.includes(formData.district)) {
+            try { await createDistrict(formData.district) } catch (err) { console.warn("Could not save custom district", err) }
         }
 
         try {
@@ -583,7 +589,7 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                             <Combobox
                                 value={formData.court}
                                 onValueChange={(v) => handleChange("court", v)}
-                                options={COURT_OPTIONS.map(c => ({ value: c, label: c }))}
+                                options={courts.map(c => ({ value: c, label: c }))}
                                 placeholder="Selecione..."
                                 showAddCustom={true}
                             />
@@ -593,7 +599,7 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                             <Combobox
                                 value={formData.district}
                                 onValueChange={(v) => handleChange("district", v)}
-                                options={DISTRICT_OPTIONS.map(d => ({ value: d, label: d }))}
+                                options={districts.map(d => ({ value: d, label: d }))}
                                 placeholder="Selecione..."
                                 showAddCustom={true}
                             />
