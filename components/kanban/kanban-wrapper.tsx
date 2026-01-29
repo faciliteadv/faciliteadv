@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { KanbanBoard } from "./board"
 import { WeeklyCalendar } from "./weekly-calendar"
 import { KanbanListView } from "./list-view"
@@ -48,6 +49,7 @@ type Props = {
 }
 
 export function KanbanWrapper({ initialTasks, processes, cases, inssCases, taskColumns, caseColumns, inssColumns }: Props) {
+    const router = useRouter()
     const [activeTab, setActiveTab] = useState<'deadlines' | 'cases'>('deadlines')
     const [casesSubTab, setCasesSubTab] = useState<'crm' | 'inss'>('crm')
     const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban')
@@ -56,12 +58,22 @@ export function KanbanWrapper({ initialTasks, processes, cases, inssCases, taskC
     const [isINSSModalOpen, setIsINSSModalOpen] = useState(false)
     const [isColumnModalOpen, setIsColumnModalOpen] = useState(false)
 
+    const handleTaskCreated = () => {
+        router.refresh()
+    }
+
     const deadlineTasks = initialTasks.filter(t => t.type === 'DEADLINE' || t.type === 'INTERNAL' || !t.type)
 
     return (
         <div className="flex flex-col h-[calc(100vh-4rem)]">
             {/* Modals */}
-            <TaskModal isOpen={isTaskModalOpen} onClose={() => setIsTaskModalOpen(false)} processes={processes} />
+            <TaskModal
+                isOpen={isTaskModalOpen}
+                onClose={() => setIsTaskModalOpen(false)}
+                processes={processes}
+                columns={taskColumns.map(col => ({ id: col.id, name: col.name }))}
+                onTaskCreated={handleTaskCreated}
+            />
             <CaseModal isOpen={isCaseModalOpen} onClose={() => setIsCaseModalOpen(false)} />
             <INSSModal isOpen={isINSSModalOpen} onClose={() => setIsINSSModalOpen(false)} />
             <ColumnModal

@@ -47,10 +47,14 @@ model User {
   responsibleProcesses Process[]      @relation("ResponsibleLawyer")
   processes            Process[]
   subscription         Subscription?
-  taskCards            TaskCard[]
+  taskCards            TaskCard[]     @relation("TaskCreator")
+  responsibleTasks     TaskCard[]     @relation("TaskResponsibleLawyer")
+  assignedTasks        TaskCard[]     @relation("TaskAssignedBy")
+  completedTasks       TaskCard[]     @relation("TaskCompletedBy")
   auditLogs            AuditLog[]
   courts               Court[]
   districts            District[]
+  points               UserPoints[]
 }
 
 model KanbanColumn {
@@ -141,29 +145,57 @@ model Process {
 }
 
 model TaskCard {
-  id          String          @id @default(uuid())
+  id          String   @id @default(uuid())
   title       String
   description String?
-  type        TaskType        @default(INTERNAL)
-  startDate   DateTime?
-  endDate     DateTime?
-  fatalDate   DateTime?
-  isArchived  Boolean         @default(false)
-  clientId    String?
-  processId   String?
-  userId      String
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  phase       String          @default("TODO")
-  checklist   ChecklistItem[]
-  client      Client?         @relation(fields: [clientId], references: [id])
-  process     Process?        @relation(fields: [processId], references: [id])
-  user        User            @relation(fields: [userId], references: [id])
-  tags        Tag[]           @relation("TagToTaskCard")
+  type        TaskType @default(INTERNAL)
+
+  // Datas
+  startDate       DateTime?
+  endDate         DateTime?
+  fatalDate       DateTime?
+  publicationDate DateTime?
+  protocolDate    DateTime?
+
+  // Calculadora de dias
+  daysCount Int?
+  daysType  DaysType?
+
+  // Status e organização
+  isArchived   Boolean       @default(false)
+  protocoled   Boolean       @default(false)
+  phase        String        @default("A Fazer")
+  practiceArea PracticeArea?
+
+  // Pontuação
+  points Int?
+
+  // Relações de usuários
+  clientId            String?
+  processId           String?
+  userId              String
+  responsibleLawyerId String?
+  assignedById        String?
+  completedById       String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+
+  // Relações
+  checklist         ChecklistItem[]
+  client            Client?         @relation(fields: [clientId], references: [id])
+  process           Process?        @relation(fields: [processId], references: [id])
+  user              User            @relation("TaskCreator", fields: [userId], references: [id])
+  responsibleLawyer User?           @relation("TaskResponsibleLawyer", fields: [responsibleLawyerId], references: [id])
+  assignedBy        User?           @relation("TaskAssignedBy", fields: [assignedById], references: [id])
+  completedBy       User?           @relation("TaskCompletedBy", fields: [completedById], references: [id])
+  tags              Tag[]           @relation("TagToTaskCard")
 
   @@index([userId])
   @@index([fatalDate])
   @@index([phase])
+  @@index([responsibleLawyerId])
 }
 
 model ChecklistItem {
@@ -252,11 +284,11 @@ model INSSChecklistItem {
 }
 
 model FinancialRecord {
-  id          String    @id @default(uuid())
-  type        String
-  amount      Decimal
-  dueDate     DateTime
-  paidAt      DateTime?
+  id            String    @id @default(uuid())
+  type          String
+  amount        Decimal
+  dueDate       DateTime
+  paidAt        DateTime?
   description   String?
   paymentMethod String?
   installment   String?
@@ -389,6 +421,23 @@ enum AppointmentType {
   DEADLINE
 }
 
+enum DaysType {
+  BUSINESS // Úteis
+  CALENDAR // Corridos
+}
+
+enum PracticeArea {
+  LABOR // Trabalhista
+  CIVIL // Cível
+  FAMILY // Família e Sucessões
+  CRIMINAL // Criminal
+  HEALTH // Saúde
+  CONSUMER // Consumidor
+  TAX // Tributário
+  SOCIAL_SECURITY // Previdenciário
+  OTHER // Outro
+}
+
 model AuditLog {
   id         String   @id @default(uuid())
   entityId   String
@@ -399,8 +448,23 @@ model AuditLog {
   userId     String
   createdAt  DateTime @default(now())
 
-  user       User     @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
   @@index([entityId])
   @@index([userId])
+}
+
+model UserPoints {
+  id        String   @id @default(uuid())
+  userId    String
+  month     Int // 1-12
+  year      Int
+  points    Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, month, year])
+  @@index([userId, year, month])
 }

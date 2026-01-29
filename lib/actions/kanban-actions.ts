@@ -10,9 +10,17 @@ export async function createTaskAction(data: {
     title: string
     description?: string
     type: TaskType
+    phase?: string
+    practiceArea?: string
     fatalDate?: Date
     endDate?: Date
+    publicationDate?: Date
+    protocolDate?: Date
+    daysCount?: number
+    daysType?: 'BUSINESS' | 'CALENDAR'
     processId?: string
+    responsibleLawyerId?: string
+    points?: number
     checklist?: string[]
 }) {
     const supabase = await createClient()

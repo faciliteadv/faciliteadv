@@ -47,10 +47,18 @@ export const KanbanService = {
         title: string
         description?: string
         type: TaskType
+        phase?: string
         fatalDate?: Date
         endDate?: Date
+        publicationDate?: Date
+        protocolDate?: Date
+        daysCount?: number
+        daysType?: 'BUSINESS' | 'CALENDAR'
+        practiceArea?: string
         processId?: string
         clientId?: string
+        responsibleLawyerId?: string
+        points?: number
         tags?: string[] // Tag IDs
         checklist?: string[] // Checklist Titles
     }) => {
@@ -60,7 +68,7 @@ export const KanbanService = {
             data: {
                 ...taskData,
                 userId,
-                phase: 'A Fazer', // Default phase - matches first default column
+                phase: data.phase || 'A Fazer',
                 tags: tags && tags.length > 0 ? {
                     connect: tags.map(id => ({ id }))
                 } : undefined,
