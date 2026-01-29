@@ -24,7 +24,11 @@ export default async function KanbanPage() {
         KanbanService.getBoard(user.id),
         db.process.findMany({
             where: { userId: user.id, deletedAt: null, status: 'ACTIVE' },
-            select: { id: true, number: true, folderName: true }
+            select: {
+                id: true,
+                number: true,
+                folderName: true
+            }
         }),
         CRMService.getCases(user.id),
         CRMService.getINSSCases(user.id),

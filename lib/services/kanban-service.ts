@@ -10,8 +10,19 @@ export const KanbanService = {
                 // Optional: Filter by Process status if needed
             },
             include: {
-                client: true,
-                process: true,
+                client: {
+                    select: {
+                        id: true,
+                        name: true
+                    }
+                },
+                process: {
+                    select: {
+                        id: true,
+                        number: true,
+                        folderName: true
+                    }
+                },
                 tags: true,
                 checklist: {
                     orderBy: { createdAt: 'asc' }
@@ -49,7 +60,7 @@ export const KanbanService = {
             data: {
                 ...taskData,
                 userId,
-                phase: 'TODO', // Default phase
+                phase: 'A Fazer', // Default phase - matches first default column
                 tags: tags && tags.length > 0 ? {
                     connect: tags.map(id => ({ id }))
                 } : undefined,

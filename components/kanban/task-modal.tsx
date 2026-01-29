@@ -23,7 +23,7 @@ export function TaskModal({ isOpen, onClose, processes }: Props) {
     const [loading, setLoading] = useState(false)
     const [checklist, setChecklist] = useState<string[]>([])
     const [newChecklistItem, setNewChecklistItem] = useState("")
-    const [taskType, setTaskType] = useState<'INTERNAL' | 'DEADLINE'>('INTERNAL')
+    const [taskType, setTaskType] = useState<string>('')
     const [processId, setProcessId] = useState<string>("")
 
     if (!isOpen) return null
@@ -33,11 +33,17 @@ export function TaskModal({ isOpen, onClose, processes }: Props) {
         setLoading(true)
         const formData = new FormData(e.currentTarget)
 
+        if (!taskType) {
+            alert("Por favor, selecione o tipo da tarefa")
+            setLoading(false)
+            return
+        }
+
         const payload = {
             title: formData.get('title') as string,
             description: formData.get('description') as string,
-            type: taskType,
-            processId: processId || undefined,
+            type: taskType as 'INTERNAL' | 'DEADLINE',
+            processId: (processId && processId !== 'NONE') ? processId : undefined,
             endDate: formData.get('endDate') ? new Date(formData.get('endDate') as string) : undefined,
             fatalDate: formData.get('fatalDate') ? new Date(formData.get('fatalDate') as string) : undefined,
             checklist: checklist.length > 0 ? checklist : undefined
@@ -83,7 +89,7 @@ export function TaskModal({ isOpen, onClose, processes }: Props) {
                             <Label className="block text-sm font-medium text-slate-700 mb-1">Tipo</Label>
                             <Select value={taskType} onValueChange={(v: any) => setTaskType(v)}>
                                 <SelectTrigger className="w-full bg-white border-slate-300">
-                                    <SelectValue />
+                                    <SelectValue placeholder="Selecione" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="INTERNAL">Atividade Interna</SelectItem>
@@ -95,7 +101,7 @@ export function TaskModal({ isOpen, onClose, processes }: Props) {
                             <Label className="block text-sm font-medium text-slate-700 mb-1">Processo Vinculado</Label>
                             <Select value={processId} onValueChange={setProcessId}>
                                 <SelectTrigger className="w-full bg-white border-slate-300">
-                                    <SelectValue placeholder="Sem vínculo" />
+                                    <SelectValue placeholder="Selecione" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="NONE">Sem vínculo</SelectItem>

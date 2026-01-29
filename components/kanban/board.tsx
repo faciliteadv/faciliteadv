@@ -6,26 +6,28 @@ import {
     DragEndEvent,
     DragOverlay,
     DragStartEvent,
-    useDraggable,
-    useDroppable,
     MouseSensor,
     TouchSensor,
     useSensor,
     useSensors,
     defaultDropAnimationSideEffects,
-    DropAnimation
+    DropAnimation,
+    DragOverEvent,
+    closestCorners,
+    PointerSensor
 } from "@dnd-kit/core"
-import { TaskCard, Tag } from "@prisma/client"
+import {
+    SortableContext,
+    horizontalListSortingStrategy,
+    arrayMove,
+    useSortable
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import { TaskCard, Tag, KanbanColumn } from "@prisma/client"
 import { moveCardAction, deleteTaskAction } from "@/lib/actions/kanban-actions"
-import { AlertCircle, FileText, MoreHorizontal, Trash2 } from "lucide-react"
+import { reorderColumnsAction } from "@/lib/actions/column-actions"
+import { AlertCircle, FileText, MoreHorizontal, Trash2, GripVertical } from "lucide-react"
 import { cn } from "@/lib/utils"
-
-// type ExtendedTask = TaskCard & { ... } is below
-type KanbanColumn = {
-    id: string
-    name: string
-    color: string
-}
 
 type ExtendedTask = Omit<TaskCard, 'phase'> & {
     phase: string
@@ -40,6 +42,12 @@ type BoardProps = {
     columns: KanbanColumn[]
 }
 
+type DragData = {
+    type: 'column' | 'card'
+    columnId?: string
+    cardId?: string
+}
+
 const dropAnimation: DropAnimation = {
     sideEffects: defaultDropAnimationSideEffects({
         styles: {
@@ -50,102 +58,227 @@ const dropAnimation: DropAnimation = {
     }),
 };
 
-export function KanbanBoard({ initialTasks, columns }: BoardProps) {
+export function KanbanBoard({ initialTasks, columns: initialColumns }: BoardProps) {
     const [tasks, setTasks] = useState(initialTasks)
+    const [columns, setColumns] = useState(initialColumns)
     const [activeId, setActiveId] = useState<string | null>(null)
+    const [activeType, setActiveType] = useState<'column' | 'card' | null>(null)
 
     const sensors = useSensors(
-        useSensor(MouseSensor, {
+        useSensor(PointerSensor, {
             activationConstraint: {
-                distance: 8, // Slightly higher to distinguish scroll vs drag
+                distance: 8,
             },
         }),
         useSensor(TouchSensor, {
             activationConstraint: {
-                delay: 150, // Reduced delay
+                delay: 150,
                 tolerance: 5,
             },
         })
     );
 
     function handleDragStart(event: DragStartEvent) {
-        setActiveId(event.active.id as string)
+        const { active } = event
+        setActiveId(active.id as string)
+
+        // Determine if dragging a column or a card
+        const isColumn = columns.some(col => col.id === active.id)
+        setActiveType(isColumn ? 'column' : 'card')
     }
 
     async function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event
         setActiveId(null)
+        setActiveType(null)
 
-        if (over && active.id !== over.id) {
+        if (!over) return
+
+        // Handle Column Reordering
+        if (activeType === 'column') {
+            if (active.id !== over.id) {
+                const oldIndex = columns.findIndex(col => col.id === active.id)
+                const newIndex = columns.findIndex(col => col.id === over.id)
+
+                const reorderedColumns = arrayMove(columns, oldIndex, newIndex)
+                setColumns(reorderedColumns)
+
+                // Persist to server
+                await reorderColumnsAction(reorderedColumns.map(col => col.id))
+            }
+            return
+        }
+
+        // Handle Card Movement
+        if (activeType === 'card') {
             const cardId = active.id as string
-            const newPhase = over.id as string // Now a string (Column Name or ID)
 
-            // Optimistic Update
-            setTasks((prev) =>
-                prev.map(t => t.id === cardId ? { ...t, phase: newPhase } : t)
-            )
+            // Find which column the card was dropped on
+            // over.id could be a column id or another card id
+            let targetColumnName: string | null = null
 
-            // Server Action
-            await moveCardAction(cardId, newPhase)
+            // Check if dropped directly on a column
+            const targetColumn = columns.find(col => col.id === over.id)
+            if (targetColumn) {
+                targetColumnName = targetColumn.name
+            } else {
+                // Dropped on another card - find that card's column
+                const targetCard = tasks.find(t => t.id === over.id)
+                if (targetCard) {
+                    targetColumnName = targetCard.phase
+                }
+            }
+
+            if (targetColumnName && targetColumnName !== tasks.find(t => t.id === cardId)?.phase) {
+                // Optimistic Update
+                setTasks((prev) =>
+                    prev.map(t => t.id === cardId ? { ...t, phase: targetColumnName } : t)
+                )
+
+                // Server Action
+                await moveCardAction(cardId, targetColumnName)
+            }
         }
     }
 
-    const activeTask = activeId ? tasks.find(t => t.id === activeId) : null
+    const activeColumn = activeType === 'column' && activeId
+        ? columns.find(col => col.id === activeId)
+        : null
+    const activeTask = activeType === 'card' && activeId
+        ? tasks.find(t => t.id === activeId)
+        : null
 
     return (
         <DndContext
+            id="kanban-dnd-context"
             sensors={sensors}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
+            collisionDetection={closestCorners}
         >
-            <div className="flex h-full gap-6 overflow-x-auto pb-6 px-1 items-start">
-                {columns.map((col) => (
-                    <Column
-                        key={col.id}
-                        id={col.name} // Using Name as phase link for now, or could use ID if we update tasks to use columnId
-                        title={col.name}
-                        color="bg-white" // Custom colors handled by circle in header or bg
-                        accent={col.color}
-                        tasks={tasks.filter(t => t.phase === col.name)}
-                    />
-                ))}
+            <div className="h-full bg-slate-50 overflow-hidden flex flex-col">
+                <div className="flex-1 overflow-x-auto overflow-y-hidden p-6 custom-scrollbar">
+                    <SortableContext
+                        items={columns.map(col => col.id)}
+                        strategy={horizontalListSortingStrategy}
+                    >
+                        <div className="flex gap-6 items-start min-w-max h-full">
+                            {columns.map((col) => (
+                                <SortableColumn
+                                    key={col.id}
+                                    column={col}
+                                    tasks={tasks.filter(t => t.phase === col.name)}
+                                />
+                            ))}
+                        </div>
+                    </SortableContext>
+                </div>
             </div>
 
             <DragOverlay dropAnimation={dropAnimation}>
-                {activeTask ? <CardOverlay task={activeTask} /> : null}
+                {activeColumn ? (
+                    <ColumnOverlay
+                        column={activeColumn}
+                        tasks={tasks.filter(t => t.phase === activeColumn.name)}
+                    />
+                ) : activeTask ? (
+                    <CardOverlay task={activeTask} />
+                ) : null}
             </DragOverlay>
         </DndContext>
     )
 }
 
-function Column({ id, title, color, accent, tasks }: { id: string, title: string, color: string, accent: string, tasks: ExtendedTask[] }) {
-    const { setNodeRef, isOver } = useDroppable({ id })
+function SortableColumn({ column, tasks }: { column: KanbanColumn, tasks: ExtendedTask[] }) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({
+        id: column.id,
+        data: { type: 'column' } as DragData
+    })
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+    }
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            className="flex-shrink-0 w-80 flex flex-col"
+        >
+            <Column
+                id={column.id}
+                title={column.name}
+                color="bg-white"
+                accent={column.color}
+                tasks={tasks}
+                dragHandleProps={{ ...attributes, ...listeners }}
+            />
+        </div>
+    )
+}
+
+function Column({
+    id,
+    title,
+    color,
+    accent,
+    tasks,
+    dragHandleProps
+}: {
+    id: string
+    title: string
+    color: string
+    accent: string
+    tasks: ExtendedTask[]
+    dragHandleProps?: any
+}) {
+    const { setNodeRef, isOver } = useSortable({
+        id,
+        data: { type: 'column' } as DragData
+    })
 
     return (
         <div
             ref={setNodeRef}
             className={cn(
-                "flex-shrink-0 w-80 rounded-xl border border-slate-200/60 flex flex-col max-h-full transition-colors duration-200",
-                color,
-                isOver ? 'ring-2 ring-blue-500/20 bg-blue-50/80' : ''
+                "rounded-xl border border-slate-200 flex flex-col h-[calc(100vh-160px)] transition-all duration-200 w-80 flex-shrink-0 bg-white shadow-md",
+                isOver ? 'ring-2 ring-blue-500/30 bg-blue-50/50 scale-[1.02]' : ''
             )}
         >
             {/* Column Header */}
-            <div className="p-4 flex items-center justify-between border-b border-white/50 sticky top-0 backdrop-blur-sm rounded-t-xl bg-inherit z-10">
-                <div className="flex items-center gap-3">
-                    <div className={cn("w-2 h-2 rounded-full", accent)} />
+            <div className="p-4 flex items-center justify-between border-b border-slate-100 bg-inherit rounded-t-xl">
+                <div className="flex items-center gap-3 flex-1">
+                    <div
+                        {...dragHandleProps}
+                        className="cursor-grab active:cursor-grabbing touch-none hover:bg-slate-100 rounded p-1 transition-colors"
+                        title="Arrastar coluna"
+                    >
+                        <GripVertical className="w-4 h-4 text-slate-400" />
+                    </div>
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: accent }} />
                     <h3 className="font-bold text-slate-800 text-sm">{title}</h3>
                 </div>
-                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-white/50 text-slate-500 border border-black/5">
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-black/5">
                     {tasks.length}
                 </span>
             </div>
 
             {/* Column Body */}
-            <div className="p-3 flex flex-col gap-3 overflow-y-auto custom-scrollbar min-h-[150px]">
-                {tasks.map((task) => (
-                    <DraggableCard key={task.id} task={task} />
-                ))}
+            <div className="p-3 flex flex-col gap-3 overflow-y-auto flex-1 min-h-[150px] custom-scrollbar">
+                <SortableContext items={tasks.map(t => t.id)} strategy={horizontalListSortingStrategy}>
+                    {tasks.map((task) => (
+                        <DraggableCard key={task.id} task={task} />
+                    ))}
+                </SortableContext>
                 {tasks.length === 0 && (
                     <div className="h-24 rounded-lg border-2 border-dashed border-slate-200 flex items-center justify-center text-slate-400 text-xs">
                         Arraste para cá
@@ -157,15 +290,32 @@ function Column({ id, title, color, accent, tasks }: { id: string, title: string
 }
 
 function DraggableCard({ task }: { task: ExtendedTask }) {
-    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: task.id })
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging
+    } = useSortable({
+        id: task.id,
+        data: { type: 'card' } as DragData
+    })
 
-    const style = transform ? {
-        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-        opacity: isDragging ? 0 : 1
-    } : undefined
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0 : 1,
+    }
 
     return (
-        <div ref={setNodeRef} style={style} {...listeners} {...attributes} className="touch-none select-none cursor-grab active:cursor-grabbing">
+        <div
+            ref={setNodeRef}
+            style={style}
+            {...listeners}
+            {...attributes}
+            className="touch-none cursor-grab active:cursor-grabbing"
+        >
             <TaskCardItem task={task} />
         </div>
     )
@@ -207,10 +357,10 @@ function TaskCardItem({ task, isOverlay, onDelete }: { task: ExtendedTask, isOve
 
     return (
         <div className={cn(
-            "group relative rounded-lg p-3 border border-slate-200 shadow-sm hover:shadow-md transition-all duration-200 cursor-grab active:cursor-grabbing border-l-[6px]",
+            "group relative rounded-lg p-3 border border-slate-200 shadow-sm hover:shadow-md transition-all duration-200 border-l-[6px]",
             borderColor,
             bgColor,
-            isOverlay && "shadow-xl rotate-2 scale-105",
+            isOverlay && "shadow-xl rotate-2 scale-105 cursor-grabbing",
             deleting && "opacity-50 pointer-events-none"
         )}>
 
@@ -255,31 +405,65 @@ function TaskCardItem({ task, isOverlay, onDelete }: { task: ExtendedTask, isOve
             </div>
 
             {/* Menu Button */}
-            <div className="absolute top-2 right-2">
-                <button
-                    onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen) }}
-                    className="p-1 rounded hover:bg-slate-100 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                    <MoreHorizontal className="w-4 h-4" />
-                </button>
+            {!isOverlay && (
+                <div className="absolute top-2 right-2">
+                    <button
+                        onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen) }}
+                        className="p-1 rounded hover:bg-slate-100 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                        <MoreHorizontal className="w-4 h-4" />
+                    </button>
 
-                {/* Dropdown Menu */}
-                {menuOpen && (
-                    <div className="absolute right-0 top-8 z-50 bg-white rounded-lg shadow-lg border border-slate-200 py-1 min-w-[140px]">
-                        <button
-                            onClick={handleDelete}
-                            className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                        >
-                            <Trash2 className="w-4 h-4" />
-                            Excluir
-                        </button>
-                    </div>
-                )}
-            </div>
+                    {/* Dropdown Menu */}
+                    {menuOpen && (
+                        <div className="absolute right-0 top-8 z-50 bg-white rounded-lg shadow-lg border border-slate-200 py-1 min-w-[140px]">
+                            <button
+                                onClick={handleDelete}
+                                className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                                Excluir
+                            </button>
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     )
 }
 
 function CardOverlay({ task }: { task: ExtendedTask }) {
     return <TaskCardItem task={task} isOverlay />
+}
+
+function ColumnOverlay({ column, tasks }: { column: KanbanColumn, tasks: ExtendedTask[] }) {
+    return (
+        <div className="w-80 rounded-xl border-2 border-blue-400 bg-white shadow-2xl opacity-90 flex flex-col max-h-[600px]">
+            {/* Column Header */}
+            <div className="p-4 flex items-center justify-between border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                    <GripVertical className="w-4 h-4 text-slate-400" />
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: column.color }} />
+                    <h3 className="font-bold text-slate-800 text-sm">{column.name}</h3>
+                </div>
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-50 text-slate-500">
+                    {tasks.length}
+                </span>
+            </div>
+
+            {/* Column Body Preview */}
+            <div className="p-3 flex flex-col gap-2 overflow-hidden">
+                {tasks.slice(0, 3).map((task) => (
+                    <div key={task.id} className="opacity-60">
+                        <TaskCardItem task={task} />
+                    </div>
+                ))}
+                {tasks.length > 3 && (
+                    <div className="text-xs text-slate-400 text-center">
+                        +{tasks.length - 3} mais
+                    </div>
+                )}
+            </div>
+        </div>
+    )
 }
