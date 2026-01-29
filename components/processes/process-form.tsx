@@ -22,6 +22,17 @@ const ACTION_TYPES_PRESETS = [
     "Divórcio c/c alimentos", "Divórcio c/c visitas", "Inventário", "Usucapião", "Imissão de posse", "Alvará judicial"
 ]
 
+const COURT_OPTIONS = [
+    "1ª Vara", "2ª Vara", "3ª Vara", "4ª Vara", "5ª Vara", "6ª Vara", "7ª Vara", "8ª Vara", "9ª Vara",
+    "10ª Vara", "Juizado Especial"
+]
+
+const DISTRICT_OPTIONS = [
+    "Santos/SP", "São Vicente/SP", "Praia Grande/SP", "Guarujá/SP", "Cubatão/SP", "Bertioga/SP", "Mongaguá/SP",
+    "Itanhaém/SP", "Peruíbe/SP", "São Paulo/SP"
+]
+
+
 const PROCESS_UI_CONFIG = {
     STATUS: {
         ACTIVE: { label: "Em andamento", color: "bg-blue-400" },
@@ -113,8 +124,9 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                 setUsers(u)
                 const combinedTypes = Array.from(new Set([...ACTION_TYPES_PRESETS, ...(a as string[])])).sort()
                 setActionTypes(combinedTypes)
-                setCourts(ct)
-                setDistricts(dt)
+                // Use fallback constants if database is empty
+                setCourts(ct.length > 0 ? ct : COURT_OPTIONS)
+                setDistricts(dt.length > 0 ? dt : DISTRICT_OPTIONS)
             } catch (error) {
                 console.error("Failed to load select data", error)
             }
