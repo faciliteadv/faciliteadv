@@ -62,13 +62,15 @@ export const KanbanService = {
         tags?: string[] // Tag IDs
         checklist?: string[] // Checklist Titles
     }) => {
-        const { checklist, tags, ...taskData } = data
+        const { checklist, tags, practiceArea, daysType, ...taskData } = data
 
         return await db.taskCard.create({
             data: {
                 ...taskData,
                 userId,
                 phase: data.phase || 'A Fazer',
+                practiceArea: practiceArea as any, // Cast to PracticeArea enum
+                daysType: daysType as any, // Cast to DaysType enum
                 tags: tags && tags.length > 0 ? {
                     connect: tags.map(id => ({ id }))
                 } : undefined,
