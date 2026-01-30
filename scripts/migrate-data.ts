@@ -20,7 +20,7 @@ async function main() {
                 userId: col.userId,
                 phase: col.name,
                 columnId: null // Only migrate unlinked tasks
-            }
+            } as any
         })
 
         if (tasks.length > 0) {
@@ -36,7 +36,7 @@ async function main() {
                 data: {
                     columnId: col.id
                 }
-            })
+            } as any)
             updatedCount += result.count
         }
     }

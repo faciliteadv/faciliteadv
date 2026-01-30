@@ -128,9 +128,7 @@ export async function moveCardAction(cardId: string, columnId: string) {
     }
 
     try {
-        console.log(`[moveCardAction] Moving card ${cardId} to column ${columnId} for user ${user.id}`)
-        const result = await KanbanService.moveCard(user.id, cardId, columnId)
-        console.log('[moveCardAction] Move successful', result.id)
+        await KanbanService.moveCard(user.id, cardId, columnId)
         revalidatePath('/kanban')
         revalidatePath('/')
         return { success: true }

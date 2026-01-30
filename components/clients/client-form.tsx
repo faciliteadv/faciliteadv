@@ -60,6 +60,29 @@ const toTitleCase = (str: string) => {
     );
 }
 
+// Document formatting functions
+const formatRG = (value: string) => {
+    const cleaned = value.replace(/\D/g, '')
+    if (cleaned.length <= 2) return cleaned
+    if (cleaned.length <= 5) return `${cleaned.slice(0, 2)}.${cleaned.slice(2)}`
+    if (cleaned.length <= 8) return `${cleaned.slice(0, 2)}.${cleaned.slice(2, 5)}.${cleaned.slice(5)}`
+    return `${cleaned.slice(0, 2)}.${cleaned.slice(2, 5)}.${cleaned.slice(5, 8)}-${cleaned.slice(8, 9)}`
+}
+
+const formatCTPS = (value: string) => {
+    const cleaned = value.replace(/\D/g, '')
+    if (cleaned.length <= 6) return cleaned
+    return `${cleaned.slice(0, 6)}/${cleaned.slice(6, 11)}`
+}
+
+const formatPIS = (value: string) => {
+    const cleaned = value.replace(/\D/g, '')
+    if (cleaned.length <= 3) return cleaned
+    if (cleaned.length <= 8) return `${cleaned.slice(0, 3)}.${cleaned.slice(3)}`
+    if (cleaned.length <= 10) return `${cleaned.slice(0, 3)}.${cleaned.slice(3, 8)}.${cleaned.slice(8)}`
+    return `${cleaned.slice(0, 3)}.${cleaned.slice(3, 8)}.${cleaned.slice(8, 10)}-${cleaned.slice(10, 11)}`
+}
+
 export function ClientForm({ initialData, isEditing = false }: ClientFormProps) {
     const router = useRouter()
     const { toast } = useToast()
@@ -72,6 +95,7 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
     const [clientType, setClientType] = useState<"PF" | "PJ">(initialData?.type || "PF")
     const [phoneCountry, setPhoneCountry] = useState("+55")
     const [whatsappCountry, setWhatsappCountry] = useState("+55")
+    const [customBankName, setCustomBankName] = useState("")
 
     // Additional Contacts State
     const [additionalContacts, setAdditionalContacts] = useState<{ name: string, relation: string, phone: string }[]>([])
@@ -163,6 +187,15 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
                 contacts.push({ name: "", relation: "", phone: "" })
             }
             setAdditionalContacts(contacts)
+
+            // Load custom bank name if bank is not in standard list
+            if ((initialData.bankDetails as any)?.bank) {
+                const bankName = (initialData.bankDetails as any).bank
+                const isStandardBank = BANKS.some(b => b.label === bankName)
+                if (!isStandardBank) {
+                    setCustomBankName(bankName)
+                }
+            }
         } else {
             setAdditionalContacts([{ name: "", relation: "", phone: "" }])
         }
@@ -194,6 +227,9 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
         if (name === "cpfCnpj") value = clientType === 'PF' ? formatCPF(value) : formatCNPJ(value)
         if (name === "whatsapp") value = formatPhoneUtil(value)
         if (name === "address.zip") value = value.replace(/\D/g, '').replace(/(\d{5})(\d)/, '$1-$2').replace(/(-\d{3})\d+?$/, '$1')
+        if (name === "rg") value = formatRG(value)
+        if (name === "ctps") value = formatCTPS(value)
+        if (name === "pis") value = formatPIS(value)
 
         validateField(name, value)
 
@@ -382,6 +418,10 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
             contacts: {
                 phone: primaryMsgContact.phone || null,
                 list: otherContacts
+            },
+            bankDetails: {
+                ...cleanFormData.bankDetails,
+                bank: formData.bankDetails.bank === "Outro" && customBankName ? customBankName : formData.bankDetails.bank
             }
         }
 
@@ -551,14 +591,18 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
                                                         <CommandItem
                                                             value={bank.label}
                                                             key={bank.value}
+                                                            onPointerDown={(e) => e.preventDefault()}
                                                             onSelect={(currentValue) => {
                                                                 setFormData(p => ({
                                                                     ...p,
                                                                     bankDetails: {
                                                                         ...p.bankDetails,
-                                                                        bank: currentValue
+                                                                        bank: currentValue === "outro" ? "Outro" : currentValue
                                                                     }
                                                                 }))
+                                                                if (bank.value !== "other") {
+                                                                    setCustomBankName("")
+                                                                }
                                                             }}
                                                         >
                                                             <Check
@@ -575,6 +619,14 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
                                         </Command>
                                     </PopoverContent>
                                 </Popover>
+                                {formData.bankDetails.bank === "Outro" && (
+                                    <Input
+                                        className="mt-2"
+                                        placeholder="Digite o nome do banco"
+                                        value={customBankName}
+                                        onChange={(e) => setCustomBankName(e.target.value)}
+                                    />
+                                )}
                             </div>
                             <div className="space-y-2"><Label>Agência</Label><Input value={formData.bankDetails.agency} onChange={e => setFormData(p => ({ ...p, bankDetails: { ...p.bankDetails, agency: e.target.value.replace(/\D/g, '') } }))} placeholder="0000" maxLength={6} /></div>
                             <div className="space-y-2"><Label>Conta</Label><Input value={formData.bankDetails.account} onChange={e => setFormData(p => ({ ...p, bankDetails: { ...p.bankDetails, account: e.target.value.replace(/[^0-9-]/g, '') } }))} placeholder="00000-0" maxLength={15} /></div>
@@ -650,7 +702,7 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
                             <Button type="button" variant="outline" size="sm" onClick={addContact}><Plus className="h-3 w-3 mr-1" /> Adicionar</Button>
                         </div>
                         <div className="space-y-3">
-                            {additionalContacts.map((contact, idx) => (
+                            {[...additionalContacts].sort((a, b) => a.name.localeCompare(b.name)).map((contact, idx) => (
                                 <div key={idx} className="flex gap-2 items-end">
                                     <div className="flex-1 space-y-1">
                                         <Label className="text-xs">Nome</Label>
