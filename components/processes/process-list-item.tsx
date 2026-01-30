@@ -50,9 +50,9 @@ export function ProcessListItem({ process: proc, statusColors, statusLabels, are
                     <span className="truncate max-w-[200px]">{proc.actionType || "Sem tipo de ação"}</span>
                 </div>
 
-                {proc.opponent && (
+                {proc.opponentName && (
                     <p className="text-xs text-muted-foreground mt-1.5">
-                        <span className="font-medium">Parte Contrária:</span> {proc.opponentName || proc.opponent} ({
+                        <span className="font-medium">Parte Contrária:</span> {proc.opponentName} ({
                             (() => {
                                 const pos = proc.position?.toUpperCase()
                                 if (pos === "AUTOR") return "Réu"

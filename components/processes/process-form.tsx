@@ -684,7 +684,7 @@ function Combobox({
                         {selectedOption ? (
                             renderItem ? renderItem(selectedOption) : <span>{selectedOption.label}</span>
                         ) : (
-                            value ? <span>{fallbackLabel || value}</span> : <span className="text-muted-foreground">{placeholder || "Selecione..."}</span>
+                            value ? <span>{fallbackLabel || (value.length === 36 ? "Item não encontrado" : value)}</span> : <span className="text-muted-foreground">{placeholder || "Selecione..."}</span>
                         )}
                     </div>
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />

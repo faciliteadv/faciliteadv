@@ -50,7 +50,7 @@ export const ProcessService = {
                 distributionDate: p.distributionDate?.toISOString() || null,
                 opponentName: p.opponent && opponentMap.has(p.opponent)
                     ? opponentMap.get(p.opponent)
-                    : p.opponent
+                    : (p.opponent && p.opponent.length === 36 ? null : p.opponent)
             })) as any
         }
 
@@ -144,10 +144,10 @@ export const ProcessService = {
             })
             return {
                 ...serialized,
-                opponentName: opponentClient?.name || process.opponent
+                opponentName: opponentClient?.name || null
             }
         }
 
-        return { ...serialized, opponentName: process.opponent }
+        return { ...serialized, opponentName: (process.opponent && process.opponent.length === 36 ? null : process.opponent) }
     }
 }

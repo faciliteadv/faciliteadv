@@ -264,8 +264,8 @@ export default async function ProcessDetailPage({ params }: PageProps) {
                                     <div className="space-y-4">
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <DetailRow label="Parte Contrária principal" value={process.opponentName || process.opponent} />
-                                                {process.opponent && <div className="mt-1"><CopyButton value={process.opponentName || process.opponent || ""} label="Nome da Parte Contrária" /></div>}
+                                                <DetailRow label="Parte Contrária principal" value={process.opponentName || "Não informada"} />
+                                                {process.opponentName && <div className="mt-1"><CopyButton value={process.opponentName} label="Nome da Parte Contrária" /></div>}
                                             </div>
                                             <DetailRow
                                                 label="Posição"
