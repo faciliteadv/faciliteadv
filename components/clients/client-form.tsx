@@ -420,7 +420,7 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
                 list: otherContacts
             },
             bankDetails: {
-                ...cleanFormData.bankDetails,
+                ...formData.bankDetails,
                 bank: formData.bankDetails.bank === "Outro" && customBankName ? customBankName : formData.bankDetails.bank
             }
         }
