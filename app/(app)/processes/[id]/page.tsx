@@ -27,6 +27,8 @@ import {
 import Link from "next/link"
 import { CopyButton } from "@/components/ui/copy-button"
 import { ProcessFinancialTab } from "@/components/processes/process-financial-tab"
+import { ProcessDeadlineTab } from "@/components/processes/process-deadline-tab"
+import { getKanbanColumns } from "@/lib/actions/column-actions"
 
 interface PageProps {
     params: Promise<{ id: string }>
@@ -120,6 +122,9 @@ export default async function ProcessDetailPage({ params }: PageProps) {
         where: { processId: id, userId: user.id },
         orderBy: { startAt: 'asc' }
     })
+
+    // Fetch kanban columns for task creation
+    const kanbanColumns = await getKanbanColumns('tasks')
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500 pb-10">
@@ -349,39 +354,19 @@ export default async function ProcessDetailPage({ params }: PageProps) {
                         </Card>
 
                         {/* Prazos/Tarefas Card */}
-                        <Card>
-                            <CardHeader className="flex flex-row items-center justify-between">
-                                <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                                    <ListTodo className="h-4 w-4" />
-                                    Prazos e Tarefas
-                                </CardTitle>
-                                <Button size="sm" variant="outline" className="gap-2">
-                                    <Plus className="h-4 w-4" /> Novo Prazo
-                                </Button>
-                            </CardHeader>
-                            <CardContent>
-                                {process.tasks && process.tasks.length > 0 ? (
-                                    <div className="space-y-4">
-                                        {process.tasks.map((task: any) => (
-                                            <div key={task.id} className="flex items-start justify-between border-b pb-4 last:border-0 last:pb-0">
-                                                <div>
-                                                    <p className="font-medium text-sm">{task.title}</p>
-                                                    {task.fatalDate && (
-                                                        <p className="text-xs text-red-600 font-medium">Prazo Fatal: {new Date(task.fatalDate).toLocaleDateString('pt-BR')}</p>
-                                                    )}
-                                                    <p className="text-[10px] text-muted-foreground">Status: {task.phase}</p>
-                                                </div>
-                                                <Badge variant="outline" className="text-[10px]">{task.type}</Badge>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-8 text-muted-foreground text-sm border-2 border-dashed rounded-lg">
-                                        <p>Nenhuma tarefa ou prazo vinculado.</p>
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
+                        <ProcessDeadlineTab
+                            processId={id}
+                            processNumber={process.number}
+                            processFolderName={process.folderName}
+                            tasks={(process.tasks || []).map((t: any) => ({
+                                id: t.id,
+                                title: t.title,
+                                fatalDate: t.fatalDate,
+                                phase: t.phase,
+                                type: t.type
+                            }))}
+                            columns={kanbanColumns.map(c => ({ id: c.id, name: c.name }))}
+                        />
                     </div>
                 </TabsContent>
             </Tabs>

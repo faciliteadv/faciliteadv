@@ -31,6 +31,8 @@ type Props = {
     processes: ProcessOption[]
     columns: ColumnOption[]
     onTaskCreated?: () => void
+    defaultProcessId?: string
+    defaultPhase?: string
 }
 
 const PRACTICE_AREAS = [
@@ -45,24 +47,98 @@ const PRACTICE_AREAS = [
     { value: 'OTHER', label: 'Outro' }
 ]
 
-export function TaskModal({ isOpen, onClose, processes, columns, onTaskCreated }: Props) {
+export function TaskModal({ isOpen, onClose, processes, columns, onTaskCreated, defaultProcessId, defaultPhase }: Props) {
     const [loading, setLoading] = useState(false)
     const [users, setUsers] = useState<UserOption[]>([])
     const [checklist, setChecklist] = useState<string[]>([])
     const [newChecklistItem, setNewChecklistItem] = useState("")
-    const [taskType, setTaskType] = useState<string>('')
+
     const [processId, setProcessId] = useState<string>("")
     const [phase, setPhase] = useState<string>(columns.length > 0 ? columns[0].name : "A Fazer")
     const [practiceArea, setPracticeArea] = useState<string>("")
     const [responsibleLawyerId, setResponsibleLawyerId] = useState<string>("")
-    const [daysType, setDaysType] = useState<string>("BUSINESS")
+    const [daysType, setDaysType] = useState<string>("")  // Default empty for "Selecione"
     const [points, setPoints] = useState<number>(0)
 
+    // Controlled date states for automatic calculation
+    const [publicationDate, setPublicationDate] = useState<string>("")
+    const [daysCount, setDaysCount] = useState<string>("")
+    const [fatalDate, setFatalDate] = useState<string>("")
+    const [endDate, setEndDate] = useState<string>("")
+    const [protocolDate, setProtocolDate] = useState<string>("")
+
+    // Function to add business days (skip weekends)
+    const addBusinessDays = (startDate: Date, days: number): Date => {
+        const result = new Date(startDate)
+        let added = 0
+        while (added < days) {
+            result.setDate(result.getDate() + 1)
+            const dayOfWeek = result.getDay()
+            if (dayOfWeek !== 0 && dayOfWeek !== 6) { // Skip Sunday (0) and Saturday (6)
+                added++
+            }
+        }
+        return result
+    }
+
+    // Function to add calendar days
+    const addCalendarDays = (startDate: Date, days: number): Date => {
+        const result = new Date(startDate)
+        result.setDate(result.getDate() + days)
+        return result
+    }
+
+    // Function to subtract calendar days (for end date = fatal - 2)
+    const subtractCalendarDays = (startDate: Date, days: number): Date => {
+        const result = new Date(startDate)
+        result.setDate(result.getDate() - days)
+        return result
+    }
+
+    // Auto-calculate fatalDate and endDate when publicationDate, daysCount, daysType change
+    useEffect(() => {
+        if (publicationDate && daysCount && daysType && parseInt(daysCount) > 0) {
+            const pubDate = new Date(publicationDate + 'T12:00:00') // Avoid timezone issues
+            const days = parseInt(daysCount)
+
+            // Calculate fatal date based on days type
+            let calculatedFatalDate: Date
+            if (daysType === 'BUSINESS') {
+                calculatedFatalDate = addBusinessDays(pubDate, days)
+            } else {
+                calculatedFatalDate = addCalendarDays(pubDate, days)
+            }
+
+            // End date is always 2 calendar days before fatal date
+            const calculatedEndDate = subtractCalendarDays(calculatedFatalDate, 2)
+
+            // Format as YYYY-MM-DD for input[type="date"]
+            setFatalDate(calculatedFatalDate.toISOString().split('T')[0])
+            setEndDate(calculatedEndDate.toISOString().split('T')[0])
+        }
+    }, [publicationDate, daysCount, daysType])
+
+    // Reset form state when modal opens
     useEffect(() => {
         if (isOpen) {
             getUsersForResponsibleSelect().then(setUsers)
+            // Reset to defaults
+            setProcessId("")
+            setPhase(defaultPhase || (columns.length > 0 ? columns[0].name : "A Fazer"))
+            setPracticeArea("")
+            setResponsibleLawyerId("")
+            setDaysType("") // Empty = "Selecione"
+            setPoints(0)
+            setChecklist([])
+            setNewChecklistItem("")
+            // Reset date fields
+            setPublicationDate("")
+            setDaysCount("")
+            setFatalDate("")
+            setEndDate("")
+            setProtocolDate("")
         }
-    }, [isOpen])
+    }, [isOpen, defaultPhase, columns])
 
     if (!isOpen) return null
 
@@ -71,25 +147,21 @@ export function TaskModal({ isOpen, onClose, processes, columns, onTaskCreated }
         setLoading(true)
         const formData = new FormData(e.currentTarget)
 
-        if (!taskType) {
-            alert("Por favor, selecione o tipo da tarefa")
-            setLoading(false)
-            return
-        }
+
 
         const payload = {
             title: formData.get('title') as string,
             description: formData.get('description') as string || undefined,
-            type: taskType as 'INTERNAL' | 'DEADLINE',
+            type: 'INTERNAL' as const,
             phase: phase,
             practiceArea: practiceArea || undefined,
             processId: (processId && processId !== 'NONE') ? processId : undefined,
-            publicationDate: formData.get('publicationDate') ? new Date(formData.get('publicationDate') as string) : undefined,
-            daysCount: formData.get('daysCount') ? parseInt(formData.get('daysCount') as string) : undefined,
-            daysType: (formData.get('daysCount') && daysType) ? daysType as 'BUSINESS' | 'CALENDAR' : undefined,
-            endDate: formData.get('endDate') ? new Date(formData.get('endDate') as string) : undefined,
-            fatalDate: formData.get('fatalDate') ? new Date(formData.get('fatalDate') as string) : undefined,
-            protocolDate: formData.get('protocolDate') ? new Date(formData.get('protocolDate') as string) : undefined,
+            publicationDate: publicationDate ? new Date(publicationDate) : undefined,
+            daysCount: daysCount ? parseInt(daysCount) : undefined,
+            daysType: (daysCount && daysType) ? daysType as 'BUSINESS' | 'CALENDAR' : undefined,
+            endDate: endDate ? new Date(endDate) : undefined,
+            fatalDate: fatalDate ? new Date(fatalDate) : undefined,
+            protocolDate: protocolDate ? new Date(protocolDate) : undefined,
             responsibleLawyerId: responsibleLawyerId || undefined,
             points: points > 0 ? points : undefined,
             checklist: checklist.length > 0 ? checklist : undefined
@@ -99,7 +171,7 @@ export function TaskModal({ isOpen, onClose, processes, columns, onTaskCreated }
             await createTaskAction(payload)
             // Reset form
             setChecklist([])
-            setTaskType('')
+
             setProcessId('')
             setPracticeArea('')
             setResponsibleLawyerId('')
@@ -182,21 +254,7 @@ export function TaskModal({ isOpen, onClose, processes, columns, onTaskCreated }
                         </div>
                     </div>
 
-                    {/* Tipo */}
-                    <div>
-                        <Label className="block text-sm font-medium text-slate-700 mb-1.5">
-                            Tipo <span className="text-red-500">*</span>
-                        </Label>
-                        <Select value={taskType} onValueChange={setTaskType}>
-                            <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Selecione" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="INTERNAL">Atividade Interna</SelectItem>
-                                <SelectItem value="DEADLINE">Prazo Processual</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
+
 
                     {/* Processo e Advogado Responsável */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -249,17 +307,29 @@ export function TaskModal({ isOpen, onClose, processes, columns, onTaskCreated }
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                             <Label className="block text-sm font-medium text-slate-700 mb-1.5">Data de Publicação</Label>
-                            <Input type="date" name="publicationDate" className="w-full" />
+                            <Input
+                                type="date"
+                                value={publicationDate || ''}
+                                onChange={(e) => setPublicationDate(e.target.value)}
+                                className="w-full"
+                            />
                         </div>
                         <div>
                             <Label className="block text-sm font-medium text-slate-700 mb-1.5">Dias</Label>
-                            <Input type="number" name="daysCount" placeholder="Ex: 15" min="0" className="w-full" />
+                            <Input
+                                type="number"
+                                value={daysCount || ''}
+                                onChange={(e) => setDaysCount(e.target.value)}
+                                placeholder="Ex: 15"
+                                min="0"
+                                className="w-full"
+                            />
                         </div>
                         <div>
                             <Label className="block text-sm font-medium text-slate-700 mb-1.5">Tipo de Dias</Label>
                             <Select value={daysType} onValueChange={setDaysType}>
                                 <SelectTrigger className="w-full">
-                                    <SelectValue />
+                                    <SelectValue placeholder="Selecione" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="BUSINESS">Úteis</SelectItem>
@@ -269,19 +339,31 @@ export function TaskModal({ isOpen, onClose, processes, columns, onTaskCreated }
                         </div>
                     </div>
 
-                    {/* Datas: Final, Fatal, Protocolo */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Datas: Final, Fatal */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <Label className="block text-sm font-medium text-slate-700 mb-1.5">Data Final</Label>
-                            <Input type="date" name="endDate" className="w-full" />
+                            <Label className="block text-sm font-medium text-slate-700 mb-1.5">
+                                Data Final
+                                {endDate && <span className="ml-2 text-xs text-emerald-600">(calculado)</span>}
+                            </Label>
+                            <Input
+                                type="date"
+                                value={endDate || ''}
+                                onChange={(e) => setEndDate(e.target.value)}
+                                className="w-full border-emerald-200 bg-emerald-50/30"
+                            />
                         </div>
                         <div>
-                            <Label className="block text-sm font-medium text-red-600 mb-1.5 font-bold">Prazo Fatal</Label>
-                            <Input type="date" name="fatalDate" className="w-full border-red-200 focus:ring-red-500" />
-                        </div>
-                        <div>
-                            <Label className="block text-sm font-medium text-slate-700 mb-1.5">Data de Protocolo</Label>
-                            <Input type="date" name="protocolDate" className="w-full" />
+                            <Label className="block text-sm font-medium text-red-600 mb-1.5 font-bold">
+                                Prazo Fatal
+                                {fatalDate && publicationDate && daysCount && <span className="ml-2 text-xs font-normal">(calculado)</span>}
+                            </Label>
+                            <Input
+                                type="date"
+                                value={fatalDate || ''}
+                                onChange={(e) => setFatalDate(e.target.value)}
+                                className="w-full border-red-200 focus:ring-red-500 bg-red-50/30"
+                            />
                         </div>
                     </div>
 

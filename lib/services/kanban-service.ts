@@ -23,6 +23,12 @@ export const KanbanService = {
                         folderName: true
                     }
                 },
+                responsibleLawyer: {
+                    select: {
+                        id: true,
+                        name: true
+                    }
+                },
                 tags: true,
                 checklist: {
                     orderBy: { createdAt: 'asc' }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
     DndContext,
     DragEndEvent,
@@ -25,14 +25,16 @@ import {
 import { CSS } from "@dnd-kit/utilities"
 import { TaskCard, Tag, KanbanColumn } from "@prisma/client"
 import { moveCardAction, deleteTaskAction } from "@/lib/actions/kanban-actions"
-import { reorderColumnsAction } from "@/lib/actions/column-actions"
-import { AlertCircle, FileText, MoreHorizontal, Trash2, GripVertical } from "lucide-react"
+import { reorderColumnsAction, updateColumnAction } from "@/lib/actions/column-actions"
+import { AlertCircle, FileText, MoreHorizontal, Trash2, GripVertical, Calendar, Plus, Pencil, Check, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { TaskDetailModal } from "./task-detail-modal"
 
 type ExtendedTask = Omit<TaskCard, 'phase'> & {
     phase: string
     client?: { id: string; name: string } | null
     process?: { id: string; number: string; folderName: string | null } | null
+    responsibleLawyer?: { id: string; name: string | null } | null
     tags?: Tag[]
     checklist?: { id: string; title: string; isCompleted: boolean }[]
 }
@@ -40,6 +42,7 @@ type ExtendedTask = Omit<TaskCard, 'phase'> & {
 type BoardProps = {
     initialTasks: ExtendedTask[]
     columns: KanbanColumn[]
+    onOpenAddTask?: (phase: string) => void
 }
 
 type DragData = {
@@ -58,11 +61,17 @@ const dropAnimation: DropAnimation = {
     }),
 };
 
-export function KanbanBoard({ initialTasks, columns: initialColumns }: BoardProps) {
+export function KanbanBoard({ initialTasks, columns: initialColumns, onOpenAddTask }: BoardProps) {
     const [tasks, setTasks] = useState(initialTasks)
     const [columns, setColumns] = useState(initialColumns)
     const [activeId, setActiveId] = useState<string | null>(null)
     const [activeType, setActiveType] = useState<'column' | 'card' | null>(null)
+    const [selectedTask, setSelectedTask] = useState<ExtendedTask | null>(null)
+
+    // Sync tasks with initialTasks when it changes (e.g., from calendar filter)
+    useEffect(() => {
+        setTasks(initialTasks)
+    }, [initialTasks])
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -168,6 +177,10 @@ export function KanbanBoard({ initialTasks, columns: initialColumns }: BoardProp
                                     key={col.id}
                                     column={col}
                                     tasks={tasks.filter(t => t.phase === col.name)}
+                                    onCardClick={setSelectedTask}
+                                    onTaskCreated={(task) => setTasks(prev => [task, ...prev])}
+                                    onOpenAddTask={onOpenAddTask}
+                                    onColumnRenamed={(id: string, name: string) => setColumns(prev => prev.map(c => c.id === id ? { ...c, name } : c))}
                                 />
                             ))}
                         </div>
@@ -185,11 +198,31 @@ export function KanbanBoard({ initialTasks, columns: initialColumns }: BoardProp
                     <CardOverlay task={activeTask} />
                 ) : null}
             </DragOverlay>
+
+            <TaskDetailModal
+                task={selectedTask}
+                isOpen={selectedTask !== null}
+                onClose={() => setSelectedTask(null)}
+            />
         </DndContext>
     )
 }
 
-function SortableColumn({ column, tasks }: { column: KanbanColumn, tasks: ExtendedTask[] }) {
+function SortableColumn({
+    column,
+    tasks,
+    onCardClick,
+    onTaskCreated,
+    onOpenAddTask,
+    onColumnRenamed
+}: {
+    column: KanbanColumn
+    tasks: ExtendedTask[]
+    onCardClick: (task: ExtendedTask) => void
+    onTaskCreated: (task: ExtendedTask) => void
+    onOpenAddTask?: (phase: string) => void
+    onColumnRenamed?: (columnId: string, newName: string) => void
+}) {
     const {
         attributes,
         listeners,
@@ -221,6 +254,9 @@ function SortableColumn({ column, tasks }: { column: KanbanColumn, tasks: Extend
                 accent={column.color}
                 tasks={tasks}
                 dragHandleProps={{ ...attributes, ...listeners }}
+                onCardClick={onCardClick}
+                onOpenAddTask={onOpenAddTask}
+                onColumnRenamed={onColumnRenamed}
             />
         </div>
     )
@@ -232,7 +268,10 @@ function Column({
     color,
     accent,
     tasks,
-    dragHandleProps
+    dragHandleProps,
+    onCardClick,
+    onOpenAddTask,
+    onColumnRenamed
 }: {
     id: string
     title: string
@@ -240,11 +279,55 @@ function Column({
     accent: string
     tasks: ExtendedTask[]
     dragHandleProps?: any
+    onCardClick?: (task: ExtendedTask) => void
+    onOpenAddTask?: (phase: string) => void
+    onColumnRenamed?: (columnId: string, newName: string) => void
 }) {
     const { setNodeRef, isOver } = useSortable({
         id,
         data: { type: 'column' } as DragData
     })
+    const [isEditing, setIsEditing] = useState(false)
+    const [editName, setEditName] = useState(title)
+    const [isSaving, setIsSaving] = useState(false)
+
+    const handleRename = async () => {
+        if (!editName.trim() || editName === title) {
+            setIsEditing(false)
+            setEditName(title)
+            return
+        }
+
+        setIsSaving(true)
+        try {
+            await updateColumnAction(id, editName.trim(), accent)
+            if (onColumnRenamed) {
+                onColumnRenamed(id, editName.trim())
+            }
+            setIsEditing(false)
+        } catch (error) {
+            console.error('Erro ao renomear coluna:', error)
+            setEditName(title)
+        } finally {
+            setIsSaving(false)
+        }
+    }
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            e.preventDefault()
+            handleRename()
+        } else if (e.key === 'Escape') {
+            setEditName(title)
+            setIsEditing(false)
+        }
+    }
+
+    const handleAddClick = () => {
+        if (onOpenAddTask) {
+            onOpenAddTask(title)
+        }
+    }
 
     return (
         <div
@@ -265,23 +348,57 @@ function Column({
                         <GripVertical className="w-4 h-4 text-slate-400" />
                     </div>
                     <div className="w-2 h-2 rounded-full" style={{ backgroundColor: accent }} />
-                    <h3 className="font-bold text-slate-800 text-sm">{title}</h3>
+
+                    {isEditing ? (
+                        <div className="flex items-center gap-1 flex-1">
+                            <input
+                                type="text"
+                                value={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                onBlur={handleRename}
+                                autoFocus
+                                disabled={isSaving}
+                                className="flex-1 text-sm font-bold px-2 py-1 rounded border border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                            />
+                        </div>
+                    ) : (
+                        <h3
+                            className="font-bold text-slate-800 text-sm cursor-pointer hover:text-blue-600 transition-colors"
+                            onClick={() => setIsEditing(true)}
+                            title="Clique para editar"
+                        >
+                            {title}
+                        </h3>
+                    )}
                 </div>
-                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-black/5">
-                    {tasks.length}
-                </span>
+                <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-black/5">
+                        {tasks.length}
+                    </span>
+                    <button
+                        onClick={handleAddClick}
+                        className="p-1 hover:bg-blue-50 rounded-md text-slate-400 hover:text-blue-600 transition-colors"
+                        title="Adicionar tarefa"
+                    >
+                        <Plus className="w-4 h-4" />
+                    </button>
+                </div>
             </div>
 
             {/* Column Body */}
             <div className="p-3 flex flex-col gap-3 overflow-y-auto flex-1 min-h-[150px] custom-scrollbar">
                 <SortableContext items={tasks.map(t => t.id)} strategy={horizontalListSortingStrategy}>
                     {tasks.map((task) => (
-                        <DraggableCard key={task.id} task={task} />
+                        <DraggableCard key={task.id} task={task} onCardClick={onCardClick} />
                     ))}
                 </SortableContext>
                 {tasks.length === 0 && (
-                    <div className="h-24 rounded-lg border-2 border-dashed border-slate-200 flex items-center justify-center text-slate-400 text-xs">
-                        Arraste para cá
+                    <div
+                        onClick={handleAddClick}
+                        className="h-24 rounded-lg border-2 border-dashed border-slate-200 flex items-center justify-center text-slate-400 text-xs hover:border-blue-300 hover:text-blue-500 hover:bg-blue-50/50 cursor-pointer transition-colors"
+                    >
+                        <Plus className="w-4 h-4 mr-1" /> Adicionar tarefa
                     </div>
                 )}
             </div>
@@ -289,7 +406,7 @@ function Column({
     )
 }
 
-function DraggableCard({ task }: { task: ExtendedTask }) {
+function DraggableCard({ task, onCardClick }: { task: ExtendedTask, onCardClick?: (task: ExtendedTask) => void }) {
     const {
         attributes,
         listeners,
@@ -316,12 +433,12 @@ function DraggableCard({ task }: { task: ExtendedTask }) {
             {...attributes}
             className="touch-none cursor-grab active:cursor-grabbing"
         >
-            <TaskCardItem task={task} />
+            <TaskCardItem task={task} onCardClick={onCardClick} />
         </div>
     )
 }
 
-function TaskCardItem({ task, isOverlay, onDelete }: { task: ExtendedTask, isOverlay?: boolean, onDelete?: (id: string) => void }) {
+function TaskCardItem({ task, isOverlay, onDelete, onCardClick }: { task: ExtendedTask, isOverlay?: boolean, onDelete?: (id: string) => void, onCardClick?: (task: ExtendedTask) => void }) {
     const [menuOpen, setMenuOpen] = useState(false)
     const [deleting, setDeleting] = useState(false)
 
@@ -355,53 +472,70 @@ function TaskCardItem({ task, isOverlay, onDelete }: { task: ExtendedTask, isOve
         }
     }
 
+    const handleCardClick = (e: React.MouseEvent) => {
+        // Don't trigger if clicking on menu button or menu items
+        if ((e.target as HTMLElement).closest('button')) return
+        onCardClick?.(task)
+    }
+
     return (
-        <div className={cn(
-            "group relative rounded-lg p-3 border border-slate-200 shadow-sm hover:shadow-md transition-all duration-200 border-l-[6px]",
-            borderColor,
-            bgColor,
-            isOverlay && "shadow-xl rotate-2 scale-105 cursor-grabbing",
-            deleting && "opacity-50 pointer-events-none"
-        )}>
+        <div
+            className={cn(
+                "group relative rounded-xl p-4 border shadow-sm hover:shadow-lg transition-all duration-200 border-l-4",
+                borderColor,
+                bgColor,
+                isOverlay && "shadow-2xl rotate-2 scale-105 cursor-grabbing",
+                deleting && "opacity-50 pointer-events-none",
+                !isOverlay && onCardClick && "cursor-pointer hover:scale-[1.01] hover:border-slate-300"
+            )}
+            onClick={!isOverlay ? handleCardClick : undefined}
+        >
+            {/* Title */}
+            <h4 className="text-sm font-semibold text-slate-800 leading-snug line-clamp-2 pr-6 mb-3">
+                {task.title}
+            </h4>
 
-            <div className="flex justify-between items-start mb-2">
-                <h4 className="text-sm font-semibold text-slate-800 leading-snug line-clamp-2 pr-6">
-                    {task.title}
-                </h4>
-            </div>
+            {/* Process Badge - Improved */}
+            {task.process && (
+                <div className="mb-3">
+                    <div className="inline-flex items-center gap-2 px-2.5 py-1.5 bg-gradient-to-r from-blue-50 to-slate-50 border border-blue-100 rounded-lg">
+                        <FileText className="w-3.5 h-3.5 text-blue-500" />
+                        <span className="text-xs font-medium text-slate-700 truncate max-w-[160px]">
+                            {task.process.folderName || task.process.number}
+                        </span>
+                    </div>
+                </div>
+            )}
 
-            {/* Compact Info: Process */}
-            <div className="space-y-1 mb-3">
-                {task.process && (
-                    <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                        <FileText className="w-3 h-3 text-slate-400" />
-                        <span className="font-mono bg-slate-50 px-1 rounded text-[10px] truncate max-w-[150px]">{task.process.folderName || task.process.number}</span>
+            {/* Footer: Date & Responsible */}
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                <div className="flex items-center gap-1.5">
+                    {task.endDate ? (
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500 bg-slate-50 px-2 py-1 rounded-md">
+                            <Calendar className="w-3 h-3 text-slate-400" />
+                            <span className="font-medium">
+                                {new Date(task.endDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                            </span>
+                        </div>
+                    ) : (
+                        <span className="text-xs text-slate-400 italic">Sem prazo</span>
+                    )}
+                </div>
+                {task.responsibleLawyer?.name ? (
+                    <div
+                        className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-[11px] text-white flex items-center justify-center font-bold shadow-sm cursor-default"
+                        title={task.responsibleLawyer.name}
+                    >
+                        {task.responsibleLawyer.name.charAt(0).toUpperCase()}
+                    </div>
+                ) : (
+                    <div
+                        className="w-7 h-7 rounded-full bg-slate-100 text-[11px] text-slate-400 flex items-center justify-center font-medium cursor-default border border-dashed border-slate-300"
+                        title="Sem responsável"
+                    >
+                        ?
                     </div>
                 )}
-            </div>
-
-            {/* Footer: Dates & Responsible */}
-            <div className="flex items-center justify-between pt-2 border-t border-slate-50 mt-1">
-                <div className="flex flex-col gap-1">
-                    {task.endDate && (
-                        <div className="flex items-center gap-1 text-[10px] text-slate-400">
-                            <span>Fim:</span>
-                            {new Date(task.endDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
-                        </div>
-                    )}
-                    {task.fatalDate && (
-                        <div className={cn(
-                            "flex items-center gap-1 text-xs font-bold",
-                            isLate ? "text-red-600" : isDueSoon ? "text-yellow-600" : "text-sky-600"
-                        )}>
-                            <AlertCircle className="w-3 h-3" />
-                            {new Date(task.fatalDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
-                        </div>
-                    )}
-                </div>
-                <div className="w-6 h-6 rounded-full bg-slate-200 text-[10px] text-slate-600 flex items-center justify-center font-bold ring-2 ring-white" title="Responsável">
-                    U
-                </div>
             </div>
 
             {/* Menu Button */}
@@ -431,6 +565,7 @@ function TaskCardItem({ task, isOverlay, onDelete }: { task: ExtendedTask, isOve
         </div>
     )
 }
+
 
 function CardOverlay({ task }: { task: ExtendedTask }) {
     return <TaskCardItem task={task} isOverlay />

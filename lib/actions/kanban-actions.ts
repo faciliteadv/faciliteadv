@@ -31,13 +31,78 @@ export async function createTaskAction(data: {
     }
 
     try {
-        await KanbanService.createTask(user.id, data)
+        // Create the task
+        const task = await db.taskCard.create({
+            data: {
+                title: data.title,
+                description: data.description,
+                type: data.type,
+                phase: data.phase || 'A Fazer',
+                practiceArea: data.practiceArea as any,
+                fatalDate: data.fatalDate,
+                endDate: data.endDate,
+                publicationDate: data.publicationDate,
+                protocolDate: data.protocolDate,
+                daysCount: data.daysCount,
+                daysType: data.daysType as any,
+                processId: data.processId,
+                responsibleLawyerId: data.responsibleLawyerId,
+                points: data.points,
+                userId: user.id,
+                checklist: data.checklist && data.checklist.length > 0 ? {
+                    create: data.checklist.map(title => ({ title }))
+                } : undefined
+            },
+            include: {
+                client: { select: { id: true, name: true } },
+                process: { select: { id: true, number: true, folderName: true } },
+                responsibleLawyer: { select: { id: true, name: true } },
+                tags: true,
+                checklist: { orderBy: { createdAt: 'asc' } }
+            }
+        })
+
         revalidatePath('/kanban')
         revalidatePath('/')
-        return { success: true }
+        return { success: true, task }
     } catch (error) {
         console.error('Erro ao criar tarefa:', error)
         throw new Error('Erro ao criar tarefa. Verifique os dados e tente novamente.')
+    }
+}
+
+// Quick create task - for inline creation with just title and phase
+export async function quickCreateTaskAction(title: string, phase: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+        throw new Error('Não autorizado. Faça login novamente.')
+    }
+
+    try {
+        const task = await db.taskCard.create({
+            data: {
+                title,
+                type: 'INTERNAL',
+                phase,
+                userId: user.id
+            },
+            include: {
+                client: { select: { id: true, name: true } },
+                process: { select: { id: true, number: true, folderName: true } },
+                responsibleLawyer: { select: { id: true, name: true } },
+                tags: true,
+                checklist: { orderBy: { createdAt: 'asc' } }
+            }
+        })
+
+        revalidatePath('/kanban')
+        revalidatePath('/')
+        return { success: true, task }
+    } catch (error) {
+        console.error('Erro ao criar tarefa rápida:', error)
+        throw new Error('Erro ao criar tarefa.')
     }
 }
 
@@ -107,5 +172,37 @@ export async function archiveTaskAction(taskId: string) {
     } catch (error) {
         console.error('Erro ao arquivar tarefa:', error)
         throw new Error('Erro ao arquivar tarefa.')
+    }
+}
+
+export async function toggleChecklistItemAction(checklistItemId: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+        throw new Error('Não autorizado')
+    }
+
+    try {
+        // Get current state
+        const item = await db.checklistItem.findUnique({
+            where: { id: checklistItemId }
+        })
+
+        if (!item) {
+            throw new Error('Item não encontrado')
+        }
+
+        // Toggle the completion status
+        const updated = await db.checklistItem.update({
+            where: { id: checklistItemId },
+            data: { isCompleted: !item.isCompleted }
+        })
+
+        revalidatePath('/kanban')
+        return { success: true, isCompleted: updated.isCompleted }
+    } catch (error) {
+        console.error('Erro ao atualizar checklist:', error)
+        throw new Error('Erro ao atualizar checklist.')
     }
 }

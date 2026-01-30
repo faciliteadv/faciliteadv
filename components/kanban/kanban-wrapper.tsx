@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { isSameDay } from "date-fns"
 import { KanbanBoard } from "./board"
 import { WeeklyCalendar } from "./weekly-calendar"
 import { KanbanListView } from "./list-view"
@@ -50,6 +51,7 @@ type Props = {
 
 export function KanbanWrapper({ initialTasks, processes, cases, inssCases, taskColumns, caseColumns, inssColumns }: Props) {
     const router = useRouter()
+    const [tasks, setTasks] = useState(initialTasks)
     const [activeTab, setActiveTab] = useState<'deadlines' | 'cases'>('deadlines')
     const [casesSubTab, setCasesSubTab] = useState<'crm' | 'inss'>('crm')
     const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban')
@@ -57,22 +59,39 @@ export function KanbanWrapper({ initialTasks, processes, cases, inssCases, taskC
     const [isCaseModalOpen, setIsCaseModalOpen] = useState(false)
     const [isINSSModalOpen, setIsINSSModalOpen] = useState(false)
     const [isColumnModalOpen, setIsColumnModalOpen] = useState(false)
+    const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+    const [selectedPhase, setSelectedPhase] = useState<string | undefined>(undefined)
 
-    const handleTaskCreated = () => {
+    const handleTaskCreated = (newTask?: ExtendedTask) => {
+        if (newTask) {
+            // Real-time update: add the new task to the local state
+            setTasks(prev => [newTask, ...prev])
+        }
+        // Also refresh for any server-side changes
         router.refresh()
     }
 
-    const deadlineTasks = initialTasks.filter(t => t.type === 'DEADLINE' || t.type === 'INTERNAL' || !t.type)
+    const handleOpenAddTask = (phase: string) => {
+        setSelectedPhase(phase)
+        setIsTaskModalOpen(true)
+    }
+
+    // Filter tasks by type and optionally by date
+    const allDeadlineTasks = tasks.filter(t => t.type === 'DEADLINE' || t.type === 'INTERNAL' || !t.type)
+    const deadlineTasks = selectedDate
+        ? allDeadlineTasks.filter(t => t.fatalDate && isSameDay(new Date(t.fatalDate), selectedDate))
+        : allDeadlineTasks
 
     return (
         <div className="flex flex-col h-[calc(100vh-4rem)]">
             {/* Modals */}
             <TaskModal
                 isOpen={isTaskModalOpen}
-                onClose={() => setIsTaskModalOpen(false)}
+                onClose={() => { setIsTaskModalOpen(false); setSelectedPhase(undefined) }}
                 processes={processes}
                 columns={taskColumns.map(col => ({ id: col.id, name: col.name }))}
                 onTaskCreated={handleTaskCreated}
+                defaultPhase={selectedPhase}
             />
             <CaseModal isOpen={isCaseModalOpen} onClose={() => setIsCaseModalOpen(false)} />
             <INSSModal isOpen={isINSSModalOpen} onClose={() => setIsINSSModalOpen(false)} />
@@ -126,13 +145,6 @@ export function KanbanWrapper({ initialTasks, processes, cases, inssCases, taskC
                                 <LayoutGrid className="w-4 h-4" />
                             </button>
                         </div>
-                        <button
-                            onClick={() => setIsColumnModalOpen(true)}
-                            className="flex items-center gap-2 text-slate-500 hover:text-slate-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
-                        >
-                            <Settings className="w-4 h-4" />
-                            Personalizar
-                        </button>
                         <button
                             onClick={() => setIsTaskModalOpen(true)}
                             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm shadow-blue-200"
@@ -196,10 +208,14 @@ export function KanbanWrapper({ initialTasks, processes, cases, inssCases, taskC
             <div className="flex-1 overflow-hidden bg-slate-50/50">
                 {activeTab === 'deadlines' ? (
                     <div className="h-full flex flex-col">
-                        <WeeklyCalendar tasks={deadlineTasks} />
+                        <WeeklyCalendar
+                            tasks={allDeadlineTasks}
+                            selectedDate={selectedDate}
+                            onDayClick={setSelectedDate}
+                        />
                         <div className="flex-1 overflow-hidden p-6">
                             {viewMode === 'kanban' ? (
-                                <KanbanBoard initialTasks={deadlineTasks} columns={taskColumns} />
+                                <KanbanBoard initialTasks={deadlineTasks} columns={taskColumns} onOpenAddTask={handleOpenAddTask} />
                             ) : (
                                 <KanbanListView tasks={deadlineTasks} />
                             )}
