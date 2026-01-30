@@ -19,6 +19,7 @@ import {
 import {
     SortableContext,
     horizontalListSortingStrategy,
+    verticalListSortingStrategy,
     arrayMove,
     useSortable
 } from "@dnd-kit/sortable"
@@ -32,6 +33,7 @@ import { TaskDetailModal } from "./task-detail-modal"
 
 type ExtendedTask = Omit<TaskCard, 'phase'> & {
     phase: string
+    columnId?: string | null // Manually added to satisfy TS if Prisma types are stale
     client?: { id: string; name: string } | null
     process?: { id: string; number: string; folderName: string | null } | null
     responsibleLawyer?: { id: string; name: string | null } | null
@@ -123,29 +125,53 @@ export function KanbanBoard({ initialTasks, columns: initialColumns, onOpenAddTa
             const cardId = active.id as string
 
             // Find which column the card was dropped on
-            // over.id could be a column id or another card id
+            let targetColumnId: string | null = null
             let targetColumnName: string | null = null
 
             // Check if dropped directly on a column
             const targetColumn = columns.find(col => col.id === over.id)
             if (targetColumn) {
+                targetColumnId = targetColumn.id
                 targetColumnName = targetColumn.name
             } else {
                 // Dropped on another card - find that card's column
                 const targetCard = tasks.find(t => t.id === over.id)
                 if (targetCard) {
-                    targetColumnName = targetCard.phase
+                    targetColumnId = targetCard.columnId || null
+                    // Fallback to phase matching if columnId is missing (should not happen after migration)
+                    if (!targetColumnId) {
+                        const col = columns.find(c => c.name === targetCard.phase)
+                        if (col) targetColumnId = col.id
+                    }
+                    targetColumnName = targetCard.phase // Approximate, or fetch from column
                 }
             }
 
-            if (targetColumnName && targetColumnName !== tasks.find(t => t.id === cardId)?.phase) {
-                // Optimistic Update
+            const activeCard = tasks.find(t => t.id === cardId)
+
+            if (targetColumnId && activeCard && targetColumnId !== activeCard.columnId) {
+                // Move to different column
                 setTasks((prev) =>
-                    prev.map(t => t.id === cardId ? { ...t, phase: targetColumnName } : t)
+                    prev.map(t => t.id === cardId ? {
+                        ...t,
+                        columnId: targetColumnId!,
+                        phase: targetColumnName || t.phase // Optimistic update of phase too
+                    } : t)
                 )
 
                 // Server Action
-                await moveCardAction(cardId, targetColumnName)
+                // Note: moveCardAction now expects columnId
+                await moveCardAction(cardId, targetColumnId)
+            } else if (targetColumnId && activeCard && targetColumnId === activeCard.columnId) {
+                // Reorder within same column
+                if (over.id !== active.id && !targetColumn) {
+                    const oldIndex = tasks.findIndex(t => t.id === active.id)
+                    const newIndex = tasks.findIndex(t => t.id === over.id)
+
+                    if (oldIndex !== -1 && newIndex !== -1) {
+                        setTasks((prev) => arrayMove(prev, oldIndex, newIndex))
+                    }
+                }
             }
         }
     }
@@ -176,11 +202,16 @@ export function KanbanBoard({ initialTasks, columns: initialColumns, onOpenAddTa
                                 <SortableColumn
                                     key={col.id}
                                     column={col}
-                                    tasks={tasks.filter(t => t.phase === col.name)}
+                                    tasks={tasks.filter(t => t.columnId === col.id)}
                                     onCardClick={setSelectedTask}
                                     onTaskCreated={(task) => setTasks(prev => [task, ...prev])}
                                     onOpenAddTask={onOpenAddTask}
-                                    onColumnRenamed={(id: string, name: string) => setColumns(prev => prev.map(c => c.id === id ? { ...c, name } : c))}
+                                    onColumnRenamed={(id: string, name: string) => {
+                                        // Update columns
+                                        setColumns(prev => prev.map(c => c.id === id ? { ...c, name } : c))
+
+                                        // No need to update tasks anymore, they are linked by ID!
+                                    }}
                                 />
                             ))}
                         </div>
@@ -192,7 +223,7 @@ export function KanbanBoard({ initialTasks, columns: initialColumns, onOpenAddTa
                 {activeColumn ? (
                     <ColumnOverlay
                         column={activeColumn}
-                        tasks={tasks.filter(t => t.phase === activeColumn.name)}
+                        tasks={tasks.filter(t => t.columnId === activeColumn.id)}
                     />
                 ) : activeTask ? (
                     <CardOverlay task={activeTask} />
@@ -388,7 +419,7 @@ function Column({
 
             {/* Column Body */}
             <div className="p-3 flex flex-col gap-3 overflow-y-auto flex-1 min-h-[150px] custom-scrollbar">
-                <SortableContext items={tasks.map(t => t.id)} strategy={horizontalListSortingStrategy}>
+                <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
                     {tasks.map((task) => (
                         <DraggableCard key={task.id} task={task} onCardClick={onCardClick} />
                     ))}

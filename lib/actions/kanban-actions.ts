@@ -31,13 +31,20 @@ export async function createTaskAction(data: {
     }
 
     try {
+        // Resolve columnId based on phase name
+        const phaseName = data.phase || 'A Fazer'
+        const column = await db.kanbanColumn.findFirst({
+            where: { name: phaseName, userId: user.id }
+        })
+
         // Create the task
         const task = await db.taskCard.create({
             data: {
                 title: data.title,
                 description: data.description,
                 type: data.type,
-                phase: data.phase || 'A Fazer',
+                phase: phaseName,
+                columnId: column?.id, // Link by ID
                 practiceArea: data.practiceArea as any,
                 fatalDate: data.fatalDate,
                 endDate: data.endDate,
@@ -52,7 +59,7 @@ export async function createTaskAction(data: {
                 checklist: data.checklist && data.checklist.length > 0 ? {
                     create: data.checklist.map(title => ({ title }))
                 } : undefined
-            },
+            } as any,
             include: {
                 client: { select: { id: true, name: true } },
                 process: { select: { id: true, number: true, folderName: true } },
@@ -81,13 +88,19 @@ export async function quickCreateTaskAction(title: string, phase: string) {
     }
 
     try {
+        // Resolve columnId
+        const column = await db.kanbanColumn.findFirst({
+            where: { name: phase, userId: user.id }
+        })
+
         const task = await db.taskCard.create({
             data: {
                 title,
                 type: 'INTERNAL',
                 phase,
+                columnId: column?.id,
                 userId: user.id
-            },
+            } as any,
             include: {
                 client: { select: { id: true, name: true } },
                 process: { select: { id: true, number: true, folderName: true } },
@@ -106,21 +119,23 @@ export async function quickCreateTaskAction(title: string, phase: string) {
     }
 }
 
-export async function moveCardAction(cardId: string, newPhase: string) {
+export async function moveCardAction(cardId: string, columnId: string) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
-        throw new Error('Não autorizado')
+        throw new Error('Não autorizado. Faça login novamente.')
     }
 
     try {
-        await KanbanService.moveCard(user.id, cardId, newPhase)
+        console.log(`[moveCardAction] Moving card ${cardId} to column ${columnId} for user ${user.id}`)
+        const result = await KanbanService.moveCard(user.id, cardId, columnId)
+        console.log('[moveCardAction] Move successful', result.id)
         revalidatePath('/kanban')
         revalidatePath('/')
         return { success: true }
     } catch (error) {
-        console.error('Erro ao mover card:', error)
+        console.error('Erro ao mover tarefa:', error)
         throw new Error('Erro ao mover tarefa.')
     }
 }

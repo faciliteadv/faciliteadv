@@ -37,15 +37,31 @@ export const KanbanService = {
             orderBy: { fatalDate: 'asc' }
         })
 
+        if (tasks.length > 0) {
+            console.log(`[getBoard] Fetched ${tasks.length} tasks. Sample task 0: ID=${tasks[0].id}, ColumnID=${(tasks[0] as any).columnId}, Phase=${tasks[0].phase}`)
+        } else {
+            console.log('[getBoard] No tasks found')
+        }
+
         // Grouping by Phase is done in UI or here?
         // Let's return flat list to be flexible
         return tasks
     },
 
-    moveCard: async (userId: string, cardId: string, newPhase: string) => {
+    moveCard: async (userId: string, cardId: string, columnId: string) => {
+        // Fetch the target column to get its name (for legacy support)
+        const column = await db.kanbanColumn.findUnique({
+            where: { id: columnId }
+        })
+
+        if (!column) throw new Error('Coluna não encontrada')
+
         return await db.taskCard.update({
             where: { id: cardId, userId },
-            data: { phase: newPhase }
+            data: {
+                columnId: columnId,
+                phase: column.name
+            } as any
         })
     },
 

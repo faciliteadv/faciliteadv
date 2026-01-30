@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { isSameDay } from "date-fns"
 import { KanbanBoard } from "./board"
@@ -61,6 +61,11 @@ export function KanbanWrapper({ initialTasks, processes, cases, inssCases, taskC
     const [isColumnModalOpen, setIsColumnModalOpen] = useState(false)
     const [selectedDate, setSelectedDate] = useState<Date | null>(null)
     const [selectedPhase, setSelectedPhase] = useState<string | undefined>(undefined)
+
+    // Sync state with server data on revalidation
+    useEffect(() => {
+        setTasks(initialTasks)
+    }, [initialTasks])
 
     const handleTaskCreated = (newTask?: ExtendedTask) => {
         if (newTask) {

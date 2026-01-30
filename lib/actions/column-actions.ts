@@ -110,10 +110,31 @@ export async function updateColumnAction(columnId: string, name: string, color: 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error('Não autorizado')
 
+    // Find the current column to check if name changed
+    const currentColumn = await db.kanbanColumn.findUnique({
+        where: { id: columnId, userId: user.id }
+    })
+
+    if (!currentColumn) throw new Error('Coluna não encontrada')
+
+    const oldName = currentColumn.name
+
+    // Update the column
     await db.kanbanColumn.update({
         where: { id: columnId, userId: user.id },
         data: { name, color }
     })
+
+    // If name changed, update all tasks that were in this phase
+    if (oldName !== name) {
+        await db.taskCard.updateMany({
+            where: {
+                phase: oldName,
+                userId: user.id
+            },
+            data: { phase: name }
+        })
+    }
 
     revalidatePath('/kanban')
     return { success: true }
