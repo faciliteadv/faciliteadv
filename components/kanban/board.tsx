@@ -25,8 +25,8 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { TaskCard, Tag, KanbanColumn } from "@prisma/client"
-import { moveCardAction, deleteTaskAction } from "@/lib/actions/kanban-actions"
-import { reorderColumnsAction, updateColumnAction } from "@/lib/actions/column-actions"
+import { moveCardAction, deleteTaskAction, quickCreateTaskAction } from "@/lib/actions/kanban-actions"
+import { reorderColumnsAction, updateColumnAction, createColumnAction } from "@/lib/actions/column-actions"
 import { AlertCircle, FileText, MoreHorizontal, Trash2, GripVertical, Calendar, Plus, Pencil, Check, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { TaskDetailModal } from "./task-detail-modal"
@@ -191,13 +191,13 @@ export function KanbanBoard({ initialTasks, columns: initialColumns, onOpenAddTa
             onDragEnd={handleDragEnd}
             collisionDetection={closestCorners}
         >
-            <div className="h-full bg-slate-50 overflow-hidden flex flex-col">
-                <div className="flex-1 overflow-x-auto overflow-y-hidden p-6 custom-scrollbar">
-                    <SortableContext
-                        items={columns.map(col => col.id)}
-                        strategy={horizontalListSortingStrategy}
-                    >
-                        <div className="flex gap-6 items-start min-w-max h-full">
+            <div className="flex-1 flex flex-col h-full bg-slate-100 overflow-hidden">
+                <div className="flex-1 overflow-x-auto overflow-y-hidden px-4 pb-4">
+                    <div className="flex h-full gap-4 pt-4">
+                        <SortableContext
+                            items={columns.map(col => col.id)}
+                            strategy={horizontalListSortingStrategy}
+                        >
                             {columns.map((col) => (
                                 <SortableColumn
                                     key={col.id}
@@ -207,15 +207,20 @@ export function KanbanBoard({ initialTasks, columns: initialColumns, onOpenAddTa
                                     onTaskCreated={(task) => setTasks(prev => [task, ...prev])}
                                     onOpenAddTask={onOpenAddTask}
                                     onColumnRenamed={(id: string, name: string) => {
-                                        // Update columns
                                         setColumns(prev => prev.map(c => c.id === id ? { ...c, name } : c))
-
-                                        // No need to update tasks anymore, they are linked by ID!
                                     }}
                                 />
                             ))}
-                        </div>
-                    </SortableContext>
+                        </SortableContext>
+                        <AddListButton onAddList={async (name) => {
+                            await createColumnAction('tasks', name, '#64748b')
+                            // Ideally, we re-fetch columns here or rely on Optimistic UI, 
+                            // but revalidatePath in action handles the refresh on next route visit. 
+                            // For instant feedback, we might rely on router.refresh() if available or prop.
+                            // Since we don't have router here, we rely on parent re-render or just the action.
+                            // The server action calls revalidatePath, so Next.js should handle it.
+                        }} />
+                    </div>
                 </div>
             </div>
 
@@ -286,6 +291,7 @@ function SortableColumn({
                 tasks={tasks}
                 dragHandleProps={{ ...attributes, ...listeners }}
                 onCardClick={onCardClick}
+                onTaskCreated={onTaskCreated}
                 onOpenAddTask={onOpenAddTask}
                 onColumnRenamed={onColumnRenamed}
             />
@@ -301,6 +307,7 @@ function Column({
     tasks,
     dragHandleProps,
     onCardClick,
+    onTaskCreated,
     onOpenAddTask,
     onColumnRenamed
 }: {
@@ -311,6 +318,7 @@ function Column({
     tasks: ExtendedTask[]
     dragHandleProps?: any
     onCardClick?: (task: ExtendedTask) => void
+    onTaskCreated?: (task: ExtendedTask) => void
     onOpenAddTask?: (phase: string) => void
     onColumnRenamed?: (columnId: string, newName: string) => void
 }) {
@@ -354,9 +362,9 @@ function Column({
         }
     }
 
-    const handleAddClick = () => {
-        if (onOpenAddTask) {
-            onOpenAddTask(title)
+    const handleTaskCreated = (newTask: ExtendedTask) => {
+        if (onTaskCreated) {
+            onTaskCreated(newTask)
         }
     }
 
@@ -364,78 +372,127 @@ function Column({
         <div
             ref={setNodeRef}
             className={cn(
-                "rounded-xl border border-slate-200 flex flex-col h-[calc(100vh-160px)] transition-all duration-200 w-80 flex-shrink-0 bg-white shadow-md",
-                isOver ? 'ring-2 ring-blue-500/30 bg-blue-50/50 scale-[1.02]' : ''
+                "rounded-xl border border-slate-200/60 bg-[#ebecf0] flex flex-col max-h-full w-[280px] flex-shrink-0 shadow-sm transition-all",
+                isOver ? 'ring-2 ring-blue-500/30' : ''
             )}
         >
             {/* Column Header */}
-            <div className="p-4 flex items-center justify-between border-b border-slate-100 bg-inherit rounded-t-xl">
-                <div className="flex items-center gap-3 flex-1">
-                    <div
-                        {...dragHandleProps}
-                        className="cursor-grab active:cursor-grabbing touch-none hover:bg-slate-100 rounded p-1 transition-colors"
-                        title="Arrastar coluna"
-                    >
-                        <GripVertical className="w-4 h-4 text-slate-400" />
-                    </div>
-                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: accent }} />
-
+            <div className="p-3 pl-4 flex items-center justify-between group/header cursor-grab active:cursor-grabbing" {...dragHandleProps}>
+                <div className="flex items-center gap-2 flex-1 min-w-0">
                     {isEditing ? (
-                        <div className="flex items-center gap-1 flex-1">
-                            <input
-                                type="text"
-                                value={editName}
-                                onChange={(e) => setEditName(e.target.value)}
-                                onKeyDown={handleKeyDown}
-                                onBlur={handleRename}
-                                autoFocus
-                                disabled={isSaving}
-                                className="flex-1 text-sm font-bold px-2 py-1 rounded border border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                            />
-                        </div>
+                        <input
+                            type="text"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            onKeyDown={handleKeyDown}
+                            onBlur={handleRename}
+                            autoFocus
+                            disabled={isSaving}
+                            className="w-full text-sm font-semibold px-2 py-1 rounded border-2 border-blue-500 focus:outline-none"
+                        />
                     ) : (
                         <h3
-                            className="font-bold text-slate-800 text-sm cursor-pointer hover:text-blue-600 transition-colors"
+                            className="font-semibold text-slate-700 text-sm truncate"
                             onClick={() => setIsEditing(true)}
-                            title="Clique para editar"
                         >
                             {title}
                         </h3>
                     )}
                 </div>
-                <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-black/5">
+                <div className="flex items-center">
+                    <span className="text-xs font-semibold text-slate-500 mr-2 bg-slate-200/50 px-2 py-0.5 rounded-full">
                         {tasks.length}
                     </span>
-                    <button
-                        onClick={handleAddClick}
-                        className="p-1 hover:bg-blue-50 rounded-md text-slate-400 hover:text-blue-600 transition-colors"
-                        title="Adicionar tarefa"
-                    >
-                        <Plus className="w-4 h-4" />
+                    <button className="p-1 hover:bg-slate-300/50 rounded text-slate-500 opacity-0 group-hover/header:opacity-100 transition-opacity">
+                        <MoreHorizontal className="w-4 h-4" />
                     </button>
                 </div>
             </div>
 
             {/* Column Body */}
-            <div className="p-3 flex flex-col gap-3 overflow-y-auto flex-1 min-h-[150px] custom-scrollbar">
-                <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-                    {tasks.map((task) => (
-                        <DraggableCard key={task.id} task={task} onCardClick={onCardClick} />
-                    ))}
-                </SortableContext>
-                {tasks.length === 0 && (
-                    <div
-                        onClick={handleAddClick}
-                        className="h-24 rounded-lg border-2 border-dashed border-slate-200 flex items-center justify-center text-slate-400 text-xs hover:border-blue-300 hover:text-blue-500 hover:bg-blue-50/50 cursor-pointer transition-colors"
-                    >
-                        <Plus className="w-4 h-4 mr-1" /> Adicionar tarefa
-                    </div>
-                )}
+            <div className="flex-1 overflow-y-auto px-2 pb-2 custom-scrollbar min-h-0">
+                <div className="flex flex-col gap-2">
+                    <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                        {tasks.map((task) => (
+                            <DraggableCard key={task.id} task={task} onCardClick={onCardClick} />
+                        ))}
+                    </SortableContext>
+                </div>
+            </div>
+
+            {/* Column Footer - Add Card */}
+            <div className="p-2 pt-0">
+                <button
+                    onClick={() => onOpenAddTask && onOpenAddTask(title)}
+                    className="flex items-center gap-2 text-slate-500 hover:text-slate-800 hover:bg-slate-200/50 w-full px-2 py-1.5 rounded-lg text-sm text-left transition-colors"
+                >
+                    <Plus className="w-4 h-4" /> Adicionar cartão
+                </button>
             </div>
         </div>
     )
 }
+
+function AddListButton({ onAddList }: { onAddList: (name: string) => Promise<void> }) {
+    const [isEditing, setIsEditing] = useState(false)
+    const [name, setName] = useState("")
+
+    const handleSubmit = async (e?: React.FormEvent) => {
+        e?.preventDefault()
+        if (!name.trim()) {
+            setIsEditing(false)
+            return
+        }
+        await onAddList(name)
+        setName("")
+        setIsEditing(false)
+    }
+
+    if (isEditing) {
+        return (
+            <div className="w-[280px] flex-shrink-0 bg-white rounded-xl p-3 border border-slate-200 shadow-lg h-fit animate-in fade-in zoom-in-95 duration-200">
+                <form onSubmit={handleSubmit}>
+                    <input
+                        autoFocus
+                        placeholder="Título da lista..."
+                        className="w-full px-3 py-2 text-sm border-2 border-blue-500 rounded-md mb-2 focus:outline-none"
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        onKeyDown={e => {
+                            if (e.key === 'Escape') setIsEditing(false)
+                        }}
+                    />
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="submit"
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded text-sm font-semibold transition-colors"
+                        >
+                            Adicionar lista
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setIsEditing(false)}
+                            className="text-slate-500 hover:text-slate-700 p-1.5"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+                </form>
+            </div>
+        )
+    }
+
+    return (
+        <div
+            className="w-[280px] flex-shrink-0 h-12 bg-white/50 hover:bg-white/80 rounded-xl transition-colors cursor-pointer flex items-center px-4 font-medium text-slate-700 hover:text-slate-900 border border-transparent hover:border-slate-200 backdrop-blur-sm"
+            onClick={() => setIsEditing(true)}
+        >
+            <Plus className="w-4 h-4 mr-2" /> Adicionar outra lista
+        </div>
+    )
+}
+
+
 
 function DraggableCard({ task, onCardClick }: { task: ExtendedTask, onCardClick?: (task: ExtendedTask) => void }) {
     const {
