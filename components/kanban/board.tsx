@@ -193,7 +193,7 @@ export function KanbanBoard({ initialTasks, columns: initialColumns, onOpenAddTa
         >
             <div className="flex-1 flex flex-col h-full bg-slate-100 overflow-hidden">
                 <div className="flex-1 overflow-x-auto overflow-y-hidden px-4 pb-4">
-                    <div className="flex h-full gap-4 pt-4">
+                    <div className="flex h-full gap-1.5 pt-4">
                         <SortableContext
                             items={columns.map(col => col.id)}
                             strategy={horizontalListSortingStrategy}
@@ -213,12 +213,10 @@ export function KanbanBoard({ initialTasks, columns: initialColumns, onOpenAddTa
                             ))}
                         </SortableContext>
                         <AddListButton onAddList={async (name) => {
-                            await createColumnAction('tasks', name, '#64748b')
-                            // Ideally, we re-fetch columns here or rely on Optimistic UI, 
-                            // but revalidatePath in action handles the refresh on next route visit. 
-                            // For instant feedback, we might rely on router.refresh() if available or prop.
-                            // Since we don't have router here, we rely on parent re-render or just the action.
-                            // The server action calls revalidatePath, so Next.js should handle it.
+                            const result = await createColumnAction('tasks', name, '#64748b')
+                            if (result.success && result.column) {
+                                setColumns(prev => [...prev, result.column])
+                            }
                         }} />
                     </div>
                 </div>
@@ -281,7 +279,7 @@ function SortableColumn({
         <div
             ref={setNodeRef}
             style={style}
-            className="flex-shrink-0 w-80 flex flex-col"
+            className="flex-shrink-0 w-[280px] flex flex-col"
         >
             <Column
                 id={column.id}

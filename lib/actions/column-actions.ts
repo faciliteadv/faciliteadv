@@ -91,7 +91,7 @@ export async function createColumnAction(boardType: string, name: string, color:
         _max: { order: true }
     })
 
-    await db.kanbanColumn.create({
+    const column = await db.kanbanColumn.create({
         data: {
             name,
             color,
@@ -102,7 +102,7 @@ export async function createColumnAction(boardType: string, name: string, color:
     })
 
     revalidatePath('/kanban')
-    return { success: true }
+    return { success: true, column }
 }
 
 export async function updateColumnAction(columnId: string, name: string, color: string) {

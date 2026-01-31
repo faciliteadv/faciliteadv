@@ -60,17 +60,34 @@ export async function createActionType(name: string) {
     return name
 }
 
+const DEFAULT_VARAS = [
+    "1ª Vara", "2ª Vara", "3ª Vara", "4ª Vara", "5ª Vara",
+    "6ª Vara", "7ª Vara", "8ª Vara", "9ª Vara", "10ª Vara",
+    "Juizado Especial"
+]
+
+const DEFAULT_COMARCAS = [
+    "Santos/SP", "São Vicente/SP", "Praia Grande/SP", "Guarujá/SP",
+    "Cubatão/SP", "Bertioga/SP", "Mongaguá/SP", "Itanhaém/SP",
+    "Peruíbe/SP", "São Paulo/SP"
+]
+
 export async function getCourts() {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return []
 
     const courts = await db.court.findMany({
-        where: { userId: user.id },
         select: { name: true },
+        distinct: ['name'],
         orderBy: { name: 'asc' }
     })
-    return courts.map(c => c.name)
+
+    // Merge defaults with DB results, remove duplicates, and sort
+    const dbCourts = courts.map(c => c.name)
+    const allCourts = Array.from(new Set([...DEFAULT_VARAS, ...dbCourts])).sort()
+
+    return allCourts
 }
 
 export async function createCourt(name: string) {
@@ -78,6 +95,7 @@ export async function createCourt(name: string) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error("Não autorizado")
 
+    // We still save per user to respect the schema unique constraint
     await db.court.upsert({
         where: { name_userId: { name, userId: user.id } },
         update: {},
@@ -92,11 +110,16 @@ export async function getDistricts() {
     if (!user) return []
 
     const districts = await db.district.findMany({
-        where: { userId: user.id },
         select: { name: true },
+        distinct: ['name'],
         orderBy: { name: 'asc' }
     })
-    return districts.map(d => d.name)
+
+    // Merge defaults with DB results, remove duplicates, and sort
+    const dbDistricts = districts.map(d => d.name)
+    const allDistricts = Array.from(new Set([...DEFAULT_COMARCAS, ...dbDistricts])).sort()
+
+    return allDistricts
 }
 
 export async function createDistrict(name: string) {
