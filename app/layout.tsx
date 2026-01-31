@@ -11,6 +11,8 @@ export const metadata: Metadata = {
   description: "Tecnologia jurídica para advogados que exigem excelência.",
 };
 
+import { SpeedInsights } from "@vercel/speed-insights/next"
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -20,6 +22,7 @@ export default function RootLayout({
     <html lang="pt-BR" className="!scroll-smooth">
       <body className={`${inter.variable} ${playfair.variable} font-sans bg-background text-foreground antialiased`}>
         {children}
+        <SpeedInsights />
         <Toaster />
       </body>
     </html>
