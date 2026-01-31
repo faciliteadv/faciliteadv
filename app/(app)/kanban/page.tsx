@@ -23,7 +23,7 @@ export default async function KanbanPage() {
     const [tasks, processes, cases, inssCases, taskColumns, caseColumns, inssColumns] = await Promise.all([
         KanbanService.getBoard(user.id),
         db.process.findMany({
-            where: { userId: user.id, deletedAt: null, status: 'ACTIVE' },
+            where: { userId: user.id, deletedAt: null },
             select: {
                 id: true,
                 number: true,
