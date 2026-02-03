@@ -44,7 +44,10 @@ const PRACTICE_AREA_LABELS: Record<string, string> = {
     OTHER: 'Outro',
 }
 
-type ExtendedCase = CaseCard & {
+type ExtendedCase = Omit<CaseCard, 'createdAt' | 'updatedAt' | 'deadline'> & {
+    createdAt: string
+    updatedAt: string
+    deadline: string | null
     checklist?: { id: string; title: string; isCompleted: boolean }[]
 }
 

@@ -36,7 +36,10 @@ const ACTION_TYPE_LABELS: Record<string, string> = {
     OTHER: 'Outro',
 }
 
-type ExtendedINSS = INSSCase & {
+type ExtendedINSS = Omit<INSSCase, 'createdAt' | 'updatedAt' | 'deadline'> & {
+    createdAt: string
+    updatedAt: string
+    deadline: string | null
     checklist?: { id: string; title: string; isCompleted: boolean }[]
 }
 

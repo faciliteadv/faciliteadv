@@ -17,18 +17,30 @@ import { TaskCard, CaseCard, INSSCase, KanbanColumn, Tag, Client } from "@prisma
 import { cn } from "@/lib/utils"
 
 // Define proper extended types for data with relations
-type ExtendedTask = TaskCard & {
+type ExtendedTask = Omit<TaskCard, 'createdAt' | 'updatedAt' | 'fatalDate' | 'endDate' | 'publicationDate' | 'protocolDate'> & {
+    createdAt: string
+    updatedAt: string
+    fatalDate: string | null
+    endDate: string | null
+    publicationDate: string | null
+    protocolDate: string | null
     client?: Pick<Client, 'id' | 'name'> | null
     process?: { id: string; number: string; folderName: string | null } | null
     tags?: Tag[]
     checklist?: { id: string; title: string; isCompleted: boolean }[]
 }
 
-type ExtendedCase = CaseCard & {
+type ExtendedCase = Omit<CaseCard, 'createdAt' | 'updatedAt' | 'deadline'> & {
+    createdAt: string
+    updatedAt: string
+    deadline: string | null
     checklist?: { id: string; title: string; isCompleted: boolean }[]
 }
 
-type ExtendedINSS = INSSCase & {
+type ExtendedINSS = Omit<INSSCase, 'createdAt' | 'updatedAt' | 'deadline'> & {
+    createdAt: string
+    updatedAt: string
+    deadline: string | null
     checklist?: { id: string; title: string; isCompleted: boolean }[]
 }
 

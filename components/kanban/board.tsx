@@ -67,8 +67,14 @@ function getUserColor(name: string): string {
     return colors[index]
 }
 
-type ExtendedTask = Omit<TaskCard, 'phase'> & {
+type ExtendedTask = Omit<TaskCard, 'phase' | 'createdAt' | 'updatedAt' | 'fatalDate' | 'endDate' | 'publicationDate' | 'protocolDate'> & {
     phase: string
+    createdAt: string
+    updatedAt: string
+    fatalDate: string | null
+    endDate: string | null
+    publicationDate: string | null
+    protocolDate: string | null
     columnId?: string | null
     client?: { id: string; name: string } | null
     process?: { id: string; number: string; folderName: string | null } | null

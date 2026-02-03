@@ -9,8 +9,14 @@ import { useState } from "react"
 
 const WEEK_DAYS = 7
 
+type TaskWithDateStrings = {
+    id: string
+    fatalDate: string | null
+    [key: string]: any
+}
+
 type WeeklyCalendarProps = {
-    tasks: TaskCard[]
+    tasks: TaskWithDateStrings[]
     selectedDate?: Date | null
     onDayClick?: (date: Date | null) => void
 }

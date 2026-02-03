@@ -6,7 +6,13 @@ import { AlertCircle, FileText, Calendar, Clock, ChevronDown, ChevronUp } from "
 import { cn } from "@/lib/utils"
 import { TaskDetailModal } from "./task-detail-modal"
 
-type ExtendedTask = TaskCard & {
+type ExtendedTask = Omit<TaskCard, 'createdAt' | 'updatedAt' | 'fatalDate' | 'endDate' | 'publicationDate' | 'protocolDate'> & {
+    createdAt: string
+    updatedAt: string
+    fatalDate: string | null
+    endDate: string | null
+    publicationDate: string | null
+    protocolDate: string | null
     client?: { id: string; name: string } | null
     process?: { id: string; number: string; folderName: string | null } | null
     responsibleLawyer?: { id: string; name: string | null } | null

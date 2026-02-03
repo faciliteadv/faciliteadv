@@ -3,7 +3,7 @@ import { db } from "@/lib/db"
 export const CRMService = {
     // ============ CASE CARD METHODS ============
     getCases: async (userId: string) => {
-        return await db.caseCard.findMany({
+        const cases = await db.caseCard.findMany({
             where: {
                 userId,
                 isArchived: false
@@ -15,6 +15,13 @@ export const CRMService = {
             },
             orderBy: { deadline: 'asc' }
         })
+
+        return cases.map(c => ({
+            ...c,
+            createdAt: c.createdAt.toISOString(),
+            updatedAt: c.updatedAt.toISOString(),
+            deadline: c.deadline ? c.deadline.toISOString() : null
+        }))
     },
 
     createCase: async (userId: string, data: {
@@ -48,7 +55,7 @@ export const CRMService = {
 
     // ============ INSS CASE METHODS ============
     getINSSCases: async (userId: string) => {
-        return await db.iNSSCase.findMany({
+        const cases = await db.iNSSCase.findMany({
             where: {
                 userId,
                 isArchived: false
@@ -60,6 +67,13 @@ export const CRMService = {
             },
             orderBy: { deadline: 'asc' }
         })
+
+        return cases.map(c => ({
+            ...c,
+            createdAt: c.createdAt.toISOString(),
+            updatedAt: c.updatedAt.toISOString(),
+            deadline: c.deadline ? c.deadline.toISOString() : null
+        }))
     },
 
     createINSSCase: async (userId: string, data: {

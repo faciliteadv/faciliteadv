@@ -10,6 +10,7 @@ export const KanbanService = {
                 // Optional: Filter by Process status if needed
             },
             include: {
+                // position: true, // Excluded due to missing DB column
                 client: {
                     select: {
                         id: true,
@@ -37,9 +38,16 @@ export const KanbanService = {
             orderBy: { fatalDate: 'asc' }
         })
 
-        // Grouping by Phase is done in UI or here?
-        // Let's return flat list to be flexible
-        return tasks
+        // Serialize dates to avoid Next.js server component errors
+        return tasks.map(task => ({
+            ...task,
+            createdAt: task.createdAt.toISOString(),
+            updatedAt: task.updatedAt.toISOString(),
+            fatalDate: task.fatalDate ? task.fatalDate.toISOString() : null,
+            endDate: task.endDate ? task.endDate.toISOString() : null,
+            publicationDate: task.publicationDate ? task.publicationDate.toISOString() : null,
+            protocolDate: task.protocolDate ? task.protocolDate.toISOString() : null,
+        }))
     },
 
     moveCard: async (userId: string, cardId: string, columnId: string) => {
