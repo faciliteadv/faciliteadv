@@ -20,7 +20,7 @@ export default async function KanbanPage() {
     // Ensure user exists in our database (auto-create if needed)
     await ensureUserExists()
 
-    const [tasks, processes, cases, inssCases, taskColumns, caseColumns, inssColumns] = await Promise.all([
+    const [tasks, processes, cases, inssCases, taskColumns, caseColumns, inssColumns, users, clients] = await Promise.all([
         KanbanService.getBoard(user.id),
         db.process.findMany({
             where: { userId: user.id, deletedAt: null },
@@ -34,7 +34,9 @@ export default async function KanbanPage() {
         CRMService.getINSSCases(user.id),
         getKanbanColumns('tasks'),
         getKanbanColumns('cases'),
-        getKanbanColumns('inss')
+        getKanbanColumns('inss'),
+        db.user.findMany({ select: { id: true, name: true, email: true } }),
+        db.client.findMany({ where: { userId: user.id }, select: { id: true, name: true } })
     ])
 
     return (
@@ -46,6 +48,8 @@ export default async function KanbanPage() {
             taskColumns={taskColumns}
             caseColumns={caseColumns}
             inssColumns={inssColumns}
+            users={users}
+            clients={clients}
         />
     )
 }

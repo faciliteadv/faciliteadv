@@ -105,6 +105,39 @@ export const KanbanService = {
         })
     },
 
+    updateTask: async (userId: string, taskId: string, data: Partial<{
+        title: string
+        description: string
+        type: TaskType
+        fatalDate: Date | null
+        endDate: Date | null
+        publicationDate: Date | null
+        protocolDate: Date | null
+        daysCount: number
+        daysType: 'BUSINESS' | 'CALENDAR'
+        practiceArea: string
+        processId: string | null
+        clientId: string | null
+        responsibleLawyerId: string | null
+        points: number
+        tags: string[]
+    }>) => {
+        const { tags, practiceArea, daysType, ...taskData } = data
+
+        return await db.taskCard.update({
+            where: { id: taskId, userId },
+            data: {
+                ...taskData,
+                practiceArea: practiceArea as any,
+                daysType: daysType as any,
+                tags: tags ? {
+                    set: [], // Clear existing tags
+                    connect: tags.map(id => ({ id })) // Connect new ones
+                } : undefined
+            }
+        })
+    },
+
     // Cron-like function to be called periodically (e.g., via Vercel Cron or on Page Load optimized)
     checkAutoArchive: async (userId: string) => {
         // Archive Protocolled tasks > 30 days

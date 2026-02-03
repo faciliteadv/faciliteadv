@@ -219,3 +219,31 @@ export async function toggleChecklistItemAction(checklistItemId: string) {
         throw new Error('Erro ao atualizar checklist.')
     }
 }
+
+export async function updateTaskAction(taskId: string, data: any) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+        throw new Error('Não autorizado')
+    }
+
+    // Sanitize dates (convert ISO strings from client to Date objects for Prisma)
+    const sanitizedData = {
+        ...data,
+        fatalDate: data.fatalDate ? new Date(data.fatalDate) : null,
+        endDate: data.endDate ? new Date(data.endDate) : null,
+        publicationDate: data.publicationDate ? new Date(data.publicationDate) : null,
+        protocolDate: data.protocolDate ? new Date(data.protocolDate) : null,
+    }
+
+    try {
+        await KanbanService.updateTask(user.id, taskId, sanitizedData)
+        revalidatePath('/kanban')
+        revalidatePath('/')
+        return { success: true }
+    } catch (error) {
+        console.error('Erro detalhado ao atualizar tarefa:', error)
+        throw new Error(`Erro ao atualizar tarefa: ${(error as Error).message}`)
+    }
+}

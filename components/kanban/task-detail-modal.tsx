@@ -6,8 +6,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import {
     FileText,
-    Calendar,
+    Calendar as CalendarIcon,
     AlertCircle,
     CheckSquare,
     Square,
@@ -17,7 +26,9 @@ import {
     Clock,
     Star,
     Briefcase,
-    Hash
+    Hash,
+    Save,
+    Pencil
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { TaskCard, Tag as TagType } from "@prisma/client"
@@ -42,6 +53,9 @@ interface TaskDetailModalProps {
     task: ExtendedTask | null
     isOpen: boolean
     onClose: () => void
+    users?: { id: string; name: string | null; email: string | null }[]
+    clients?: { id: string; name: string }[]
+    processes?: { id: string; number: string; folderName: string | null }[]
 }
 
 const PRACTICE_AREA_LABELS: Record<string, string> = {
@@ -60,20 +74,77 @@ const DAYS_TYPE_LABELS: Record<string, string> = {
     'CALENDAR': 'Dias Corridos'
 }
 
-export function TaskDetailModal({ task, isOpen, onClose }: TaskDetailModalProps) {
+const TASK_TYPE_LABELS: Record<string, string> = {
+    'INTERNAL': 'Interna',
+    'DEADLINE': 'Prazo',
+    'HEARING': 'Audiência',
+    'MEETING': 'Reunião'
+}
+
+export function TaskDetailModal({ task, isOpen, onClose, users, clients, processes }: TaskDetailModalProps) {
     const router = useRouter()
 
-    // Local checklist state for optimistic updates
     const [checklistItems, setChecklistItems] = useState<{ id: string; title: string; isCompleted: boolean }[]>([])
+
+    const [isEditing, setIsEditing] = useState(false)
+    const [editForm, setEditForm] = useState({
+        title: '',
+        description: '',
+        fatalDate: null as string | null,
+        endDate: null as string | null,
+        protocolDate: null as string | null,
+        publicationDate: null as string | null,
+        responsibleLawyerId: null as string | null,
+        clientId: null as string | null,
+        processId: null as string | null,
+        type: 'INTERNAL',
+        daysCount: 0,
+        daysType: 'BUSINESS',
+        practiceArea: 'CIVIL',
+        tags: [] as string[]
+    })
+
 
     // Sync local state with task prop
     useEffect(() => {
-        if (task?.checklist) {
-            setChecklistItems(task.checklist)
+        if (task) {
+            setChecklistItems(task.checklist || [])
+            setEditForm({
+                title: task.title,
+                description: task.description || '',
+                fatalDate: task.fatalDate,
+                endDate: task.endDate,
+                protocolDate: task.protocolDate,
+                publicationDate: task.publicationDate,
+                responsibleLawyerId: task.responsibleLawyer?.id || null,
+                clientId: task.client?.id || null,
+                processId: task.process?.id || null,
+                type: task.type || 'INTERNAL',
+                daysCount: task.daysCount || 0,
+                daysType: task.daysType || 'BUSINESS',
+                practiceArea: task.practiceArea || 'CIVIL',
+                tags: task.tags?.map(t => t.id) || []
+            })
         }
-    }, [task?.checklist])
+    }, [task])
 
     if (!task) return null
+
+    const handleSave = async () => {
+        try {
+            await import('@/lib/actions/kanban-actions').then(mod => mod.updateTaskAction(task.id, {
+                ...editForm,
+                fatalDate: editForm.fatalDate ? new Date(editForm.fatalDate).toISOString() : null,
+                endDate: editForm.endDate ? new Date(editForm.endDate).toISOString() : null,
+                protocolDate: editForm.protocolDate ? new Date(editForm.protocolDate).toISOString() : null,
+                publicationDate: editForm.publicationDate ? new Date(editForm.publicationDate).toISOString() : null,
+            }))
+            setIsEditing(false)
+            onClose()
+        } catch (error) {
+            console.error('Failed to update task', error)
+        }
+    }
 
     const isLate = task.fatalDate && new Date(task.fatalDate) < new Date() && (task.phase !== 'Concluído' && task.phase !== 'PROTOCOLLED')
     const isDueSoon = task.fatalDate && new Date(task.fatalDate).getTime() - new Date().getTime() < 86400000 * 2
@@ -119,200 +190,413 @@ export function TaskDetailModal({ task, isOpen, onClose }: TaskDetailModalProps)
                 <div className="px-6 py-5 bg-gradient-to-r from-slate-50 via-blue-50/50 to-slate-50 border-b border-slate-100">
                     <DialogHeader className="space-y-3">
                         <div className="flex items-start justify-between gap-4">
-                            <DialogTitle className="text-xl font-bold text-slate-800 leading-tight pr-8">
+
+                            {/* Accessible Title Always Rendered */}
+                            <DialogTitle className={cn("text-xl font-bold text-slate-800 leading-tight pr-8", isEditing && "sr-only")}>
                                 {task.title}
                             </DialogTitle>
+
+                            {isEditing && (
+                                <Input
+                                    value={editForm.title}
+                                    onChange={e => setEditForm(prev => ({ ...prev, title: e.target.value }))}
+                                    className="text-lg font-bold h-10 w-full"
+                                    placeholder="Título da Tarefa"
+                                    autoFocus
+                                />
+                            )}
+
+                            {!isEditing && (
+                                <Button size="sm" variant="ghost" onClick={() => setIsEditing(true)}>
+                                    <Pencil className="w-4 h-4" />
+                                </Button>
+                            )}
                         </div>
 
-                        {/* Status Badges Row */}
+                        {/* Status Badges or Type Selectors */}
                         <div className="flex flex-wrap items-center gap-2">
-                            <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 font-medium">
-                                {task.phase}
-                            </Badge>
-                            {task.type && (
-                                <Badge variant={task.type === 'DEADLINE' ? 'destructive' : 'secondary'}>
-                                    {task.type === 'DEADLINE' ? '⚡ Prazo' : '📋 Interna'}
-                                </Badge>
-                            )}
-                            {task.practiceArea && (
-                                <Badge variant="outline" className="bg-white">
-                                    {PRACTICE_AREA_LABELS[task.practiceArea] || task.practiceArea}
-                                </Badge>
-                            )}
-                            {task.points && task.points > 0 && (
-                                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-                                    <Star className="w-3 h-3 mr-1" />
-                                    {task.points} pts
-                                </Badge>
+                            {isEditing ? (
+                                <div className="flex gap-2">
+                                    <Select
+                                        value={editForm.type}
+                                        onValueChange={(val) => setEditForm(prev => ({ ...prev, type: val }))}
+                                    >
+                                        <SelectTrigger className="h-7 w-[130px] text-xs">
+                                            <span>{TASK_TYPE_LABELS[editForm.type] || 'Tipo'}</span>
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {Object.entries(TASK_TYPE_LABELS).map(([key, label]) => (
+                                                <SelectItem key={key} value={key}>{label}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+
+                                    <Select
+                                        value={editForm.practiceArea}
+                                        onValueChange={(val) => setEditForm(prev => ({ ...prev, practiceArea: val }))}
+                                    >
+                                        <SelectTrigger className="h-7 w-[130px] text-xs">
+                                            <span>{PRACTICE_AREA_LABELS[editForm.practiceArea] || 'Área'}</span>
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {Object.entries(PRACTICE_AREA_LABELS).map(([key, label]) => (
+                                                <SelectItem key={key} value={key}>{label}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            ) : (
+                                <>
+                                    <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 font-medium">
+                                        {task.phase}
+                                    </Badge>
+                                    {task.type && (
+                                        <Badge variant={task.type === 'DEADLINE' ? 'destructive' : 'secondary'}>
+                                            {task.type === 'DEADLINE' ? '⚡ ' : '📋 '}
+                                            {TASK_TYPE_LABELS[task.type] || task.type}
+                                        </Badge>
+                                    )}
+                                    {task.practiceArea && (
+                                        <Badge variant="outline" className="bg-white">
+                                            {PRACTICE_AREA_LABELS[task.practiceArea] || task.practiceArea}
+                                        </Badge>
+                                    )}
+                                    {task.points && task.points > 0 && (
+                                        <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                                            <Star className="w-3 h-3 mr-1" />
+                                            {task.points} pts
+                                        </Badge>
+                                    )}
+                                </>
                             )}
                         </div>
                     </DialogHeader>
                 </div>
 
                 <div className="p-6 space-y-6">
-                    {/* Fatal Date Alert - Prominent if exists */}
-                    {task.fatalDate && (
-                        <div className={cn(
-                            "flex items-center gap-4 p-4 rounded-xl border-2",
-                            isLate
-                                ? "bg-red-50 border-red-200"
-                                : isDueSoon
-                                    ? "bg-yellow-50 border-yellow-200"
-                                    : "bg-blue-50 border-blue-200"
-                        )}>
-                            <div className={cn(
-                                "w-12 h-12 rounded-xl flex items-center justify-center",
-                                isLate
-                                    ? "bg-red-100"
-                                    : isDueSoon
-                                        ? "bg-yellow-100"
-                                        : "bg-blue-100"
-                            )}>
-                                <AlertCircle className={cn(
-                                    "w-6 h-6",
-                                    isLate ? "text-red-600" : isDueSoon ? "text-yellow-600" : "text-blue-600"
-                                )} />
+                    {/* EDIT MODE FORM */}
+                    {isEditing ? (
+                        <div className="space-y-4">
+                            {/* Dates Grid */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-semibold text-slate-500">Prazo Fatal</label>
+                                    <Input
+                                        type="datetime-local"
+                                        value={editForm.fatalDate ? new Date(editForm.fatalDate).toISOString().slice(0, 16) : ''}
+                                        onChange={e => setEditForm(prev => ({ ...prev, fatalDate: e.target.value || null }))}
+                                        className="h-9 text-sm"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-semibold text-slate-500">Data Final</label>
+                                    <Input
+                                        type="datetime-local"
+                                        value={editForm.endDate ? new Date(editForm.endDate).toISOString().slice(0, 16) : ''}
+                                        onChange={e => setEditForm(prev => ({ ...prev, endDate: e.target.value || null }))}
+                                        className="h-9 text-sm"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-semibold text-slate-500">Data Publicação</label>
+                                    <Input
+                                        type="datetime-local"
+                                        value={editForm.publicationDate ? new Date(editForm.publicationDate).toISOString().slice(0, 16) : ''}
+                                        onChange={e => setEditForm(prev => ({ ...prev, publicationDate: e.target.value || null }))}
+                                        className="h-9 text-sm"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-semibold text-slate-500">Data Protocolo</label>
+                                    <Input
+                                        type="datetime-local"
+                                        value={editForm.protocolDate ? new Date(editForm.protocolDate).toISOString().slice(0, 16) : ''}
+                                        onChange={e => setEditForm(prev => ({ ...prev, protocolDate: e.target.value || null }))}
+                                        className="h-9 text-sm"
+                                    />
+                                </div>
                             </div>
-                            <div>
-                                <p className="text-sm text-slate-600 font-medium">Prazo Fatal</p>
-                                <p className={cn(
-                                    "text-lg font-bold",
-                                    isLate ? "text-red-700" : isDueSoon ? "text-yellow-700" : "text-blue-700"
+
+                            {/* Dropdowns Grid */}
+                            <div className="grid grid-cols-2 gap-4">
+                                {/* Responsible */}
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-semibold text-slate-500">Responsável</label>
+                                    <Select
+                                        value={editForm.responsibleLawyerId || undefined}
+                                        onValueChange={(val) => setEditForm(prev => ({ ...prev, responsibleLawyerId: val }))}
+                                    >
+                                        <SelectTrigger className="h-9 text-sm">
+                                            <span className="truncate">
+                                                {users?.find(u => u.id === editForm.responsibleLawyerId)?.name ||
+                                                    users?.find(u => u.id === editForm.responsibleLawyerId)?.email ||
+                                                    'Selecionar...'}
+                                            </span>
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {users && users.map(u => (
+                                                <SelectItem key={u.id} value={u.id}>
+                                                    {u.name || u.email || 'Usuário sem nome'}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* Client */}
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-semibold text-slate-500">Cliente</label>
+                                    <Select
+                                        value={editForm.clientId || undefined}
+                                        onValueChange={(val) => setEditForm(prev => ({ ...prev, clientId: val }))}
+                                    >
+                                        <SelectTrigger className="h-9 text-sm">
+                                            <span className="truncate">
+                                                {clients?.find(c => c.id === editForm.clientId)?.name || 'Selecionar...'}
+                                            </span>
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {clients && clients.map(c => (
+                                                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* Process */}
+                                <div className="col-span-2 space-y-1.5">
+                                    <label className="text-xs font-semibold text-slate-500">Processo</label>
+                                    <Select
+                                        value={editForm.processId || undefined}
+                                        onValueChange={(val) => setEditForm(prev => ({ ...prev, processId: val }))}
+                                    >
+                                        <SelectTrigger className="h-9 text-sm">
+                                            <span className="truncate">
+                                                {(() => {
+                                                    const p = processes?.find(p => p.id === editForm.processId)
+                                                    if (!p) return 'Vincular processo...'
+                                                    return p.folderName ? `${p.folderName} (${p.number})` : `Processo: ${p.number}`
+                                                })()}
+                                            </span>
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {processes && processes.map(p => (
+                                                <SelectItem key={p.id} value={p.id}>
+                                                    {p.folderName ? `${p.folderName} (${p.number})` : `Processo: ${p.number}`}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+
+                            {/* Days Count & Type */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-semibold text-slate-500">Contagem</label>
+                                    <Input
+                                        type="number"
+                                        value={editForm.daysCount}
+                                        onChange={e => setEditForm(prev => ({ ...prev, daysCount: parseInt(e.target.value) || 0 }))}
+                                        className="h-9 text-sm"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-semibold text-slate-500">Tipo Dias</label>
+                                    <Select
+                                        value={editForm.daysType}
+                                        onValueChange={(val) => setEditForm(prev => ({ ...prev, daysType: val }))}
+                                    >
+                                        <SelectTrigger className="h-9 text-sm">
+                                            <span>{DAYS_TYPE_LABELS[editForm.daysType] || 'Tipo'}</span>
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {Object.entries(DAYS_TYPE_LABELS).map(([key, label]) => (
+                                                <SelectItem key={key} value={key}>{label}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+
+                            {/* Description */}
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-semibold text-slate-500">Descrição</label>
+                                <Textarea
+                                    value={editForm.description}
+                                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEditForm(prev => ({ ...prev, description: e.target.value }))}
+                                    className="w-full min-h-[120px] p-3 text-sm border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                        </div>
+                    ) : (
+                        // VIEW MODE (Existing Layout)
+                        <>
+                            {/* Fatal Date Alert - Prominent if exists */}
+                            {task.fatalDate && (
+                                <div className={cn(
+                                    "flex items-center gap-4 p-4 rounded-xl border-2",
+                                    isLate
+                                        ? "bg-red-50 border-red-200"
+                                        : isDueSoon
+                                            ? "bg-yellow-50 border-yellow-200"
+                                            : "bg-blue-50 border-blue-200"
                                 )}>
-                                    {new Date(task.fatalDate).toLocaleDateString('pt-BR', {
-                                        weekday: 'long',
-                                        day: '2-digit',
-                                        month: 'long',
-                                        year: 'numeric'
-                                    })}
-                                </p>
-                                {isLate && <span className="text-xs font-medium text-red-600">⚠️ Prazo atrasado!</span>}
-                                {isDueSoon && !isLate && <span className="text-xs font-medium text-yellow-600">⏰ Prazo próximo</span>}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Descrição */}
-                    {task.description && (
-                        <div className="space-y-2">
-                            <label className="text-sm font-semibold text-slate-700">Descrição</label>
-                            <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                                <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">
-                                    {task.description}
-                                </p>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Info Cards Grid */}
-                    <div className="grid grid-cols-2 gap-3">
-                        {/* Responsável */}
-                        {task.responsibleLawyer && (
-                            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <User className="w-4 h-4 text-slate-400" />
-                                    <span className="text-xs font-medium text-slate-500">Responsável</span>
-                                </div>
-                                <p className="text-sm font-semibold text-slate-700">
-                                    {task.responsibleLawyer.name || 'Não definido'}
-                                </p>
-                            </div>
-                        )}
-
-                        {/* Cliente */}
-                        {task.client && (
-                            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <Briefcase className="w-4 h-4 text-slate-400" />
-                                    <span className="text-xs font-medium text-slate-500">Cliente</span>
-                                </div>
-                                <p className="text-sm font-semibold text-slate-700">
-                                    {task.client.name}
-                                </p>
-                            </div>
-                        )}
-
-                        {/* Dias/Contagem */}
-                        {task.daysCount && task.daysCount > 0 && (
-                            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <Hash className="w-4 h-4 text-slate-400" />
-                                    <span className="text-xs font-medium text-slate-500">Contagem de Dias</span>
-                                </div>
-                                <p className="text-sm font-semibold text-slate-700">
-                                    {task.daysCount} {DAYS_TYPE_LABELS[task.daysType || 'BUSINESS'] || 'dias'}
-                                </p>
-                            </div>
-                        )}
-
-                        {/* End Date */}
-                        {task.endDate && (
-                            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <Calendar className="w-4 h-4 text-slate-400" />
-                                    <span className="text-xs font-medium text-slate-500">Data Final</span>
-                                </div>
-                                <p className="text-sm font-semibold text-slate-700">
-                                    {new Date(task.endDate).toLocaleDateString('pt-BR')}
-                                </p>
-                            </div>
-                        )}
-
-                        {/* Publication Date */}
-                        {task.publicationDate && (
-                            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <Calendar className="w-4 h-4 text-slate-400" />
-                                    <span className="text-xs font-medium text-slate-500">Data Publicação</span>
-                                </div>
-                                <p className="text-sm font-semibold text-slate-700">
-                                    {new Date(task.publicationDate).toLocaleDateString('pt-BR')}
-                                </p>
-                            </div>
-                        )}
-
-                        {/* Protocol Date */}
-                        {task.protocolDate && (
-                            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <Calendar className="w-4 h-4 text-slate-400" />
-                                    <span className="text-xs font-medium text-slate-500">Data Protocolo</span>
-                                </div>
-                                <p className="text-sm font-semibold text-slate-700">
-                                    {new Date(task.protocolDate).toLocaleDateString('pt-BR')}
-                                </p>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Processo Vinculado */}
-                    {task.process && (
-                        <div className="space-y-2">
-                            <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                                <FileText className="w-4 h-4 text-blue-600" />
-                                Processo Vinculado
-                            </label>
-                            <Button
-                                onClick={handleProcessClick}
-                                variant="outline"
-                                className="w-full justify-between gap-3 p-4 h-auto hover:bg-gradient-to-r hover:from-blue-50 hover:to-transparent hover:border-blue-300 transition-all group rounded-xl"
-                            >
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-sm">
-                                        <FileText className="w-5 h-5 text-white" />
+                                    <div className={cn(
+                                        "w-12 h-12 rounded-xl flex items-center justify-center",
+                                        isLate
+                                            ? "bg-red-100"
+                                            : isDueSoon
+                                                ? "bg-yellow-100"
+                                                : "bg-blue-100"
+                                    )}>
+                                        <AlertCircle className={cn(
+                                            "w-6 h-6",
+                                            isLate ? "text-red-600" : isDueSoon ? "text-yellow-600" : "text-blue-600"
+                                        )} />
                                     </div>
-                                    <div className="text-left">
-                                        <p className="text-sm font-semibold text-slate-800">
-                                            {task.process.folderName || 'Processo'}
+                                    <div>
+                                        <p className="text-sm text-slate-600 font-medium">Prazo Fatal</p>
+                                        <p className={cn(
+                                            "text-lg font-bold",
+                                            isLate ? "text-red-700" : isDueSoon ? "text-yellow-700" : "text-blue-700"
+                                        )}>
+                                            {new Date(task.fatalDate).toLocaleDateString('pt-BR', {
+                                                weekday: 'long',
+                                                day: '2-digit',
+                                                month: 'long',
+                                                year: 'numeric'
+                                            })}
                                         </p>
-                                        <p className="text-xs font-mono text-slate-500">
-                                            {task.process.number}
+                                        {isLate && <span className="text-xs font-medium text-red-600">⚠️ Prazo atrasado!</span>}
+                                        {isDueSoon && !isLate && <span className="text-xs font-medium text-yellow-600">⏰ Prazo próximo</span>}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Descrição Preview */}
+                            {task.description && (
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-slate-700">Descrição</label>
+                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                        <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">
+                                            {task.description}
                                         </p>
                                     </div>
                                 </div>
-                                <ExternalLink className="w-4 h-4 text-slate-400 group-hover:text-blue-500 transition-colors" />
-                            </Button>
-                        </div>
+                            )}
+
+                            {/* Info Cards Grid */}
+                            <div className="grid grid-cols-2 gap-3">
+                                {/* Responsável */}
+                                {task.responsibleLawyer && (
+                                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <User className="w-4 h-4 text-slate-400" />
+                                            <span className="text-xs font-medium text-slate-500">Responsável</span>
+                                        </div>
+                                        <p className="text-sm font-semibold text-slate-700">
+                                            {task.responsibleLawyer.name || 'Não definido'}
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* Cliente */}
+                                {task.client && (
+                                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <Briefcase className="w-4 h-4 text-slate-400" />
+                                            <span className="text-xs font-medium text-slate-500">Cliente</span>
+                                        </div>
+                                        <p className="text-sm font-semibold text-slate-700">
+                                            {task.client.name}
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* Dias/Contagem */}
+                                {task.daysCount && task.daysCount > 0 && (
+                                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <Hash className="w-4 h-4 text-slate-400" />
+                                            <span className="text-xs font-medium text-slate-500">Contagem de Dias</span>
+                                        </div>
+                                        <p className="text-sm font-semibold text-slate-700">
+                                            {task.daysCount} {DAYS_TYPE_LABELS[task.daysType || 'BUSINESS'] || 'dias'}
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* End Date */}
+                                {task.endDate && (
+                                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <CalendarIcon className="w-4 h-4 text-slate-400" />
+                                            <span className="text-xs font-medium text-slate-500">Data Final</span>
+                                        </div>
+                                        <p className="text-sm font-semibold text-slate-700">
+                                            {new Date(task.endDate).toLocaleDateString('pt-BR')}
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* Publication Date */}
+                                {task.publicationDate && (
+                                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <CalendarIcon className="w-4 h-4 text-slate-400" />
+                                            <span className="text-xs font-medium text-slate-500">Data Publicação</span>
+                                        </div>
+                                        <p className="text-sm font-semibold text-slate-700">
+                                            {new Date(task.publicationDate).toLocaleDateString('pt-BR')}
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* Protocol Date */}
+                                {task.protocolDate && (
+                                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <CalendarIcon className="w-4 h-4 text-slate-400" />
+                                            <span className="text-xs font-medium text-slate-500">Data Protocolo</span>
+                                        </div>
+                                        <p className="text-sm font-semibold text-slate-700">
+                                            {new Date(task.protocolDate).toLocaleDateString('pt-BR')}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Processo Vinculado */}
+                            {task.process && (
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                                        <FileText className="w-4 h-4 text-blue-600" />
+                                        Processo Vinculado
+                                    </label>
+                                    <Button
+                                        onClick={handleProcessClick}
+                                        variant="outline"
+                                        className="w-full justify-between gap-3 p-4 h-auto hover:bg-gradient-to-r hover:from-blue-50 hover:to-transparent hover:border-blue-300 transition-all group rounded-xl"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-sm">
+                                                <FileText className="w-5 h-5 text-white" />
+                                            </div>
+                                            <div className="text-left">
+                                                <p className="text-sm font-semibold text-slate-800">
+                                                    {task.process.folderName || 'Processo'}
+                                                </p>
+                                                <p className="text-xs font-mono text-slate-500">
+                                                    {task.process.number}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <ExternalLink className="w-4 h-4 text-slate-400 group-hover:text-blue-500 transition-colors" />
+                                    </Button>
+                                </div>
+                            )}
+                        </>
                     )}
 
                     {/* Checklist */}
@@ -388,9 +672,21 @@ export function TaskDetailModal({ task, isOpen, onClose }: TaskDetailModalProps)
 
                 {/* Footer */}
                 <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50">
-                    <Button onClick={onClose} variant="outline" className="rounded-lg">
-                        Fechar
-                    </Button>
+                    {isEditing ? (
+                        <>
+                            <Button onClick={() => setIsEditing(false)} variant="outline" className="rounded-lg">
+                                Cancelar
+                            </Button>
+                            <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2">
+                                <Save className="w-4 h-4" />
+                                Salvar Alterações
+                            </Button>
+                        </>
+                    ) : (
+                        <Button onClick={onClose} variant="outline" className="rounded-lg">
+                            Fechar
+                        </Button>
+                    )}
                 </div>
             </DialogContent>
         </Dialog>

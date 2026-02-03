@@ -59,9 +59,12 @@ type Props = {
     taskColumns: KanbanColumn[]
     caseColumns: KanbanColumn[]
     inssColumns: KanbanColumn[]
+    // New props for editing
+    users: { id: string; name: string | null; email: string | null }[]
+    clients: { id: string; name: string }[]
 }
 
-export function KanbanWrapper({ initialTasks, processes, cases, inssCases, taskColumns, caseColumns, inssColumns }: Props) {
+export function KanbanWrapper({ initialTasks, processes, cases, inssCases, taskColumns, caseColumns, inssColumns, users, clients }: Props) {
     const router = useRouter()
     const [tasks, setTasks] = useState(initialTasks)
     const [activeTab, setActiveTab] = useState<'deadlines' | 'cases'>('deadlines')
@@ -232,7 +235,14 @@ export function KanbanWrapper({ initialTasks, processes, cases, inssCases, taskC
                         />
                         <div className="flex-1 overflow-hidden p-6">
                             {viewMode === 'kanban' ? (
-                                <KanbanBoard initialTasks={deadlineTasks} columns={taskColumns} onOpenAddTask={handleOpenAddTask} />
+                                <KanbanBoard
+                                    initialTasks={deadlineTasks}
+                                    columns={taskColumns}
+                                    onOpenAddTask={handleOpenAddTask}
+                                    users={users}
+                                    clients={clients}
+                                    processes={processes}
+                                />
                             ) : (
                                 <KanbanListView tasks={deadlineTasks} />
                             )}

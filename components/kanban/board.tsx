@@ -87,6 +87,9 @@ type BoardProps = {
     initialTasks: ExtendedTask[]
     columns: KanbanColumn[]
     onOpenAddTask?: (phase: string) => void
+    users: { id: string; name: string | null; email: string | null }[]
+    clients: { id: string; name: string }[]
+    processes: { id: string; number: string; folderName: string | null }[]
 }
 
 type DragData = {
@@ -105,7 +108,7 @@ const dropAnimation: DropAnimation = {
     }),
 };
 
-export function KanbanBoard({ initialTasks, columns: initialColumns, onOpenAddTask }: BoardProps) {
+export function KanbanBoard({ initialTasks, columns: initialColumns, onOpenAddTask, users, clients, processes }: BoardProps) {
     const [tasks, setTasks] = useState(initialTasks)
     const [columns, setColumns] = useState(initialColumns)
     const [activeId, setActiveId] = useState<string | null>(null)
@@ -355,6 +358,9 @@ export function KanbanBoard({ initialTasks, columns: initialColumns, onOpenAddTa
                     task={selectedTask}
                     isOpen={selectedTask !== null}
                     onClose={() => setSelectedTask(null)}
+                    users={users}
+                    clients={clients}
+                    processes={processes}
                 />
             </DndContext>
 
