@@ -77,7 +77,7 @@ const AlertDialogTitle = React.forwardRef<
     React.ElementRef<typeof AlertDialogPrimitive.Title>,
     React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Title>
 >(({ className, ...props }, ref) => (
-    <AlertDialogTitle
+    <AlertDialogPrimitive.Title
         ref={ref}
         className={cn("text-lg font-semibold", className)}
         {...props}
@@ -89,7 +89,7 @@ const AlertDialogDescription = React.forwardRef<
     React.ElementRef<typeof AlertDialogPrimitive.Description>,
     React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Description>
 >(({ className, ...props }, ref) => (
-    <AlertDialogDescription
+    <AlertDialogPrimitive.Description
         ref={ref}
         className={cn("text-sm text-muted-foreground", className)}
         {...props}
@@ -101,7 +101,7 @@ const AlertDialogAction = React.forwardRef<
     React.ElementRef<typeof AlertDialogPrimitive.Action>,
     React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Action>
 >(({ className, ...props }, ref) => (
-    <AlertDialogAction
+    <AlertDialogPrimitive.Action
         ref={ref}
         className={cn(buttonVariants(), className)}
         {...props}
@@ -113,7 +113,7 @@ const AlertDialogCancel = React.forwardRef<
     React.ElementRef<typeof AlertDialogPrimitive.Cancel>,
     React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Cancel>
 >(({ className, ...props }, ref) => (
-    <AlertDialogCancel
+    <AlertDialogPrimitive.Cancel
         ref={ref}
         className={cn(buttonVariants({ variant: "outline" }), className)}
         {...props}
