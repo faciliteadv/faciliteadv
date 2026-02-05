@@ -15,6 +15,8 @@ import { ColumnModal } from "./column-modal"
 import { LayoutGrid, List, Plus, Settings } from "lucide-react"
 import { TaskCard, CaseCard, INSSCase, KanbanColumn, Tag, Client } from "@prisma/client"
 import { cn } from "@/lib/utils"
+import { useKanbanTasks } from "./hooks/use-kanban-tasks"
+import { useKanbanFilters } from "./hooks/use-kanban-filters"
 
 // Define proper extended types for data with relations
 type ExtendedTask = Omit<TaskCard, 'createdAt' | 'updatedAt' | 'fatalDate' | 'endDate' | 'publicationDate' | 'protocolDate'> & {
@@ -66,29 +68,40 @@ type Props = {
 
 export function KanbanWrapper({ initialTasks, processes, cases, inssCases, taskColumns, caseColumns, inssColumns, users, clients }: Props) {
     const router = useRouter()
-    const [tasks, setTasks] = useState(initialTasks)
-    const [activeTab, setActiveTab] = useState<'deadlines' | 'cases'>('deadlines')
-    const [casesSubTab, setCasesSubTab] = useState<'crm' | 'inss'>('crm')
-    const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban')
+
+    // 1. Hooks (Logic & State)
+    const {
+        tasks,
+        moveTask,
+        addTask,
+        deleteTask,
+        syncServerTasks
+    } = useKanbanTasks(initialTasks)
+
+    const {
+        activeTab, setActiveTab,
+        casesSubTab, setCasesSubTab,
+        viewMode, setViewMode,
+        selectedDate, setSelectedDate,
+        // searchQuery
+    } = useKanbanFilters()
+
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false)
     const [isCaseModalOpen, setIsCaseModalOpen] = useState(false)
     const [isINSSModalOpen, setIsINSSModalOpen] = useState(false)
     const [isColumnModalOpen, setIsColumnModalOpen] = useState(false)
-    const [selectedDate, setSelectedDate] = useState<Date | null>(null)
     const [selectedPhase, setSelectedPhase] = useState<string | undefined>(undefined)
 
-    // Sync state with server data on revalidation
+    // Sync state with server data on revalidation (Phase 1.5 requirement)
     useEffect(() => {
-        setTasks(initialTasks)
-    }, [initialTasks])
+        syncServerTasks(initialTasks)
+    }, [initialTasks, syncServerTasks])
 
     const handleTaskCreated = (newTask?: ExtendedTask) => {
         if (newTask) {
-            // Real-time update: add the new task to the local state
-            setTasks(prev => [newTask, ...prev])
+            addTask(newTask)
         }
-        // Also refresh for any server-side changes
-        router.refresh()
+        // router.refresh() // addTask already handles this via hook
     }
 
     const handleOpenAddTask = (phase: string) => {
@@ -97,13 +110,14 @@ export function KanbanWrapper({ initialTasks, processes, cases, inssCases, taskC
     }
 
     // Filter tasks by type and optionally by date
+    // Note: This logic could move to a `useKanbanSelectors` hook in Phase 2
     const allDeadlineTasks = tasks.filter(t => t.type === 'DEADLINE' || t.type === 'INTERNAL' || !t.type)
     const deadlineTasks = selectedDate
         ? allDeadlineTasks.filter(t => t.fatalDate && isSameDay(new Date(t.fatalDate), selectedDate))
         : allDeadlineTasks
 
     return (
-        <div className="flex flex-col h-[calc(100vh-4rem)]">
+        <div className="flex flex-col h-full">
             {/* Modals */}
             <TaskModal
                 isOpen={isTaskModalOpen}
@@ -233,15 +247,17 @@ export function KanbanWrapper({ initialTasks, processes, cases, inssCases, taskC
                             selectedDate={selectedDate}
                             onDayClick={setSelectedDate}
                         />
-                        <div className="flex-1 overflow-hidden p-6">
+                        <div className="flex-1 overflow-hidden">
                             {viewMode === 'kanban' ? (
                                 <KanbanBoard
-                                    initialTasks={deadlineTasks}
+                                    tasks={deadlineTasks} // Renamed prop
                                     columns={taskColumns}
                                     onOpenAddTask={handleOpenAddTask}
                                     users={users}
                                     clients={clients}
                                     processes={processes}
+                                    onMoveTask={moveTask} // New prop
+                                    onDeleteTask={deleteTask} // New prop
                                 />
                             ) : (
                                 <KanbanListView tasks={deadlineTasks} />
@@ -249,7 +265,7 @@ export function KanbanWrapper({ initialTasks, processes, cases, inssCases, taskC
                         </div>
                     </div>
                 ) : (
-                    <div className="h-full p-6 overflow-hidden">
+                    <div className="h-full overflow-hidden">
                         {casesSubTab === 'crm' ? (
                             <CasesBoard initialCases={cases} columns={caseColumns} />
                         ) : (

@@ -6,6 +6,17 @@ import { TaskType } from "@prisma/client"
 import { revalidatePath } from "next/cache"
 import { db } from "@/lib/db"
 
+export async function fetchBoardAction() {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+        throw new Error('Não autorizado')
+    }
+
+    return await KanbanService.getBoard(user.id)
+}
+
 export async function createTaskAction(data: {
     title: string
     description?: string

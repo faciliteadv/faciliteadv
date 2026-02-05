@@ -2,6 +2,8 @@ import { Sidebar } from "@/components/layout/sidebar"
 import { Header } from "@/components/layout/header"
 import { ensureUserExists } from "@/lib/auth/ensure-user"
 
+import { QueryProvider } from "@/components/providers/query-provider"
+
 export default async function AppLayout({
     children,
 }: {
@@ -10,16 +12,16 @@ export default async function AppLayout({
     const user = await ensureUserExists()
 
     return (
-        <div className="flex h-screen overflow-hidden bg-background">
-            <Sidebar />
-            <div className="flex-1 flex flex-col h-full overflow-hidden">
-                <Header />
-                <main className="flex-1 overflow-y-auto p-8 transition-all duration-300">
-                    <div className="max-w-7xl mx-auto">
+        <QueryProvider>
+            <div className="flex h-screen overflow-hidden bg-background">
+                <Sidebar />
+                <div className="flex-1 flex flex-col h-full overflow-hidden">
+                    <Header />
+                    <main className="flex-1 overflow-y-auto transition-all duration-300">
                         {children}
-                    </div>
-                </main>
+                    </main>
+                </div>
             </div>
-        </div>
+        </QueryProvider>
     );
 }

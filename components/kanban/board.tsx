@@ -14,7 +14,8 @@ import {
     DropAnimation,
     DragOverEvent,
     closestCorners,
-    PointerSensor
+    PointerSensor,
+    MeasuringStrategy
 } from "@dnd-kit/core"
 import {
     SortableContext,
@@ -41,6 +42,7 @@ import {
     AlertDialogAction,
 } from "@/components/ui/alert-dialog"
 import { DeleteDialog } from "./delete-dialog"
+import { useDraggableScroll } from "./hooks/use-draggable-scroll"
 
 
 // Helper functions for User UI
@@ -84,12 +86,15 @@ type ExtendedTask = Omit<TaskCard, 'phase' | 'createdAt' | 'updatedAt' | 'fatalD
 }
 
 type BoardProps = {
-    initialTasks: ExtendedTask[]
+    tasks: ExtendedTask[]
     columns: KanbanColumn[]
     onOpenAddTask?: (phase: string) => void
     users: { id: string; name: string | null; email: string | null }[]
     clients: { id: string; name: string }[]
     processes: { id: string; number: string; folderName: string | null }[]
+    // New Props for Controlled Mode
+    onMoveTask: (taskId: string, targetColumnId: string, targetPhaseName?: string, overTaskId?: string) => void
+    onDeleteTask: (taskId: string) => void
 }
 
 type DragData = {
@@ -108,8 +113,23 @@ const dropAnimation: DropAnimation = {
     }),
 };
 
-export function KanbanBoard({ initialTasks, columns: initialColumns, onOpenAddTask, users, clients, processes }: BoardProps) {
-    const [tasks, setTasks] = useState(initialTasks)
+export function KanbanBoard({
+    tasks, // NOW CONTROLLED
+    columns: initialColumns,
+    onOpenAddTask,
+    users,
+    clients,
+    processes,
+    onMoveTask,
+    onDeleteTask
+}: BoardProps) {
+    // REMOVED: const [tasks, setTasks] = useState(initialTasks)
+    // REMOVED: useEffect sync
+
+    // Kept for Column reordering (for now, as it wasn't prioritized in "Split State" audit, 
+    // but ideally should be lifted too. User said "KanbanWrapper and ALL components below it".
+    // I will leave columns local for this specific step to minimize blast radius, 
+    // focusing on TASKS as the primary data integrity risk).
     const [columns, setColumns] = useState(initialColumns)
     const [activeId, setActiveId] = useState<string | null>(null)
     const [activeType, setActiveType] = useState<'column' | 'card' | null>(null)
@@ -120,11 +140,6 @@ export function KanbanBoard({ initialTasks, columns: initialColumns, onOpenAddTa
     const [columnWarning, setColumnWarning] = useState<{ id: string, name: string, count: number } | null>(null)
     const [taskToDelete, setTaskToDelete] = useState<{ id: string, title: string } | null>(null)
     const [isDeleting, setIsDeleting] = useState(false)
-
-    // Sync tasks with initialTasks when it changes (e.g., from calendar filter)
-    useEffect(() => {
-        setTasks(initialTasks)
-    }, [initialTasks])
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -210,29 +225,9 @@ export function KanbanBoard({ initialTasks, columns: initialColumns, onOpenAddTa
 
             const activeCard = tasks.find(t => t.id === cardId)
 
-            if (targetColumnId && activeCard && targetColumnId !== activeCard.columnId) {
-                // Move to different column
-                setTasks((prev) =>
-                    prev.map(t => t.id === cardId ? {
-                        ...t,
-                        columnId: targetColumnId!,
-                        phase: targetColumnName || t.phase // Optimistic update of phase too
-                    } : t)
-                )
-
-                // Server Action
-                // Note: moveCardAction now expects columnId
-                await moveCardAction(cardId, targetColumnId)
-            } else if (targetColumnId && activeCard && targetColumnId === activeCard.columnId) {
-                // Reorder within same column
-                if (over.id !== active.id && !targetColumn) {
-                    const oldIndex = tasks.findIndex(t => t.id === active.id)
-                    const newIndex = tasks.findIndex(t => t.id === over.id)
-
-                    if (oldIndex !== -1 && newIndex !== -1) {
-                        setTasks((prev) => arrayMove(prev, oldIndex, newIndex))
-                    }
-                }
+            if (targetColumnId && activeCard) {
+                // Delegate to Parent / Hook
+                onMoveTask(cardId, targetColumnId, targetColumnName || undefined, over.id as string)
             }
         }
     }
@@ -268,32 +263,25 @@ export function KanbanBoard({ initialTasks, columns: initialColumns, onOpenAddTa
     const confirmDeleteTask = async () => {
         if (!taskToDelete) return
 
-        const taskId = taskToDelete.id
-        const previousTasks = [...tasks] // Snapshot for rollback
+        // Delegate to Parent / Hook
+        // Note: The UI for the dialog stays here, but the Confirm Action calls the prop
         setIsDeleting(true)
-
         try {
-            // 1. Optimistic Update (Immediate Feedback)
-            setTasks(prev => prev.filter(t => t.id !== taskId))
-
-            // Close dialog immediately for better UX
-            setTaskToDelete(null)
-
-            // 2. Server Action
-            await deleteTaskAction(taskId)
+            await onDeleteTask(taskToDelete.id)
+            // Dialog close is handled by finally
         } catch (error) {
             console.error(error)
-            // 3. Rollback on failure
-            setTasks(previousTasks)
-            setTaskToDelete(null) // Ensure dialog is closed
-            alert("Erro ao excluir tarefa. Tente novamente.")
+            // The hook handles alerts, but we should ensure UI state resets
         } finally {
             setIsDeleting(false)
+            setTaskToDelete(null)
         }
     }
 
     const isDialogOpen = !!columnToDelete || !!taskToDelete || !!columnWarning
+    const { ref: scrollContainerRef } = useDraggableScroll()
 
+    // ... Render (Keep rest same, but now using `tasks` prop) ...
     return (
         <>
             <DndContext
@@ -302,9 +290,18 @@ export function KanbanBoard({ initialTasks, columns: initialColumns, onOpenAddTa
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
                 collisionDetection={closestCorners}
+                measuring={{
+                    droppable: {
+                        strategy: MeasuringStrategy.Always,
+                    },
+                }}
             >
                 <div className="flex-1 flex flex-col h-full bg-slate-100 overflow-hidden">
-                    <div className="flex-1 overflow-x-auto overflow-y-hidden px-4 pb-4">
+                    {/* Board Scroll Container - Horizontal Only + Drag to Pan */}
+                    <div
+                        ref={scrollContainerRef}
+                        className="flex-1 overflow-x-auto overflow-y-hidden px-4 pb-4 custom-scrollbar"
+                    >
                         <div className="flex h-full gap-1.5 pt-4">
                             <SortableContext
                                 items={columns.map(col => col.id)}
@@ -316,7 +313,7 @@ export function KanbanBoard({ initialTasks, columns: initialColumns, onOpenAddTa
                                         column={col}
                                         tasks={tasks.filter(t => t.columnId === col.id)}
                                         onCardClick={setSelectedTask}
-                                        onTaskCreated={(task) => setTasks(prev => [task, ...prev])}
+                                        onTaskCreated={() => { }}
                                         onOpenAddTask={onOpenAddTask}
                                         onColumnRenamed={(id: string, name: string) => {
                                             setColumns(prev => prev.map(c => c.id === id ? { ...c, name } : c))
@@ -584,7 +581,11 @@ function Column({
             )}
         >
             {/* Column Header */}
-            <div className="p-3 pl-4 flex items-center justify-between group/header cursor-grab active:cursor-grabbing" {...dragHandleProps}>
+            <div
+                className="p-3 pl-4 flex items-center justify-between group/header cursor-grab active:cursor-grabbing"
+                {...dragHandleProps}
+                data-no-drag-scroll="true"
+            >
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                     {isEditing ? (
                         <input
@@ -739,6 +740,7 @@ function DraggableCard({
             {...listeners}
             {...attributes}
             className="touch-none cursor-grab active:cursor-grabbing"
+            data-no-drag-scroll="true"
         >
             <TaskCardItem
                 task={task}

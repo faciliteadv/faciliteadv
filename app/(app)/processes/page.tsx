@@ -8,6 +8,7 @@ import { Folder, Plus, ExternalLink, Briefcase, FileText, ChevronRight, Edit2 } 
 import Link from "next/link"
 import { Card } from "@/components/ui/card"
 import { ProcessListItem } from "@/components/processes/process-list-item"
+import { PageContainer } from "@/components/layout/page-container"
 
 export const dynamic = 'force-dynamic'
 
@@ -71,44 +72,47 @@ export default async function ProcessesPage({ searchParams }: PageProps) {
     const processes = await ProcessService.listProcesses(userId, search)
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500 pb-10">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-3xl font-bold tracking-tight text-foreground">Processos</h2>
-                    <p className="text-muted-foreground mt-1">Gerencie seus processos judiciais e extrajudiciais.</p>
-                </div>
-                <Link href="/processes/new">
-                    <Button className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm">
-                        <Plus className="mr-2 h-4 w-4" /> Novo Processo
-                    </Button>
-                </Link>
-            </div>
-
-            <div className="flex items-center gap-4">
-                <SearchInput placeholder="Buscar por número, pasta ou assunto..." className="max-w-md" />
-            </div>
-
-            <div className="space-y-4">
-                {processes.map((proc: any) => (
-                    <ProcessListItem
-                        key={proc.id}
-                        process={proc}
-                        statusColors={statusColors}
-                        statusLabels={statusLabels}
-                        areaLabels={areaLabels}
-                    />
-                ))}
-
-                {processes.length === 0 && (
-                    <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-muted rounded-xl bg-muted/5">
-                        <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center mb-4">
-                            <Briefcase className="h-8 w-8 text-muted-foreground" />
-                        </div>
-                        <h3 className="text-lg font-semibold text-foreground">Nenhum processo cadastrado</h3>
-                        <p className="text-muted-foreground text-sm mt-1">Clique em "Novo Processo" para começar.</p>
+        <PageContainer>
+            <div className="space-y-6 animate-in fade-in duration-500 pb-10">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h2 className="text-3xl font-bold tracking-tight text-foreground">Processos</h2>
+                        <p className="text-muted-foreground mt-1">Gerencie seus processos judiciais e extrajudiciais.</p>
                     </div>
-                )}
+                    <Link href="/processes/new">
+                        <Button className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm">
+                            <Plus className="mr-2 h-4 w-4" /> Novo Processo
+                        </Button>
+                    </Link>
+                </div>
+
+                <div className="flex items-center gap-4">
+                    <SearchInput placeholder="Buscar por número, pasta ou assunto..." className="max-w-md" />
+                </div>
+
+                <div className="space-y-4">
+                    {processes.map((proc: any) => (
+                        <ProcessListItem
+                            key={proc.id}
+                            process={proc}
+                            statusColors={statusColors}
+                            statusLabels={statusLabels}
+                            areaLabels={areaLabels}
+                        />
+                    ))}
+
+                    {processes.length === 0 && (
+                        <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-muted rounded-xl bg-muted/5">
+                            <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                                <Briefcase className="h-8 w-8 text-muted-foreground" />
+                            </div>
+                            <h3 className="text-lg font-semibold text-foreground">Nenhum processo cadastrado</h3>
+                            <p className="text-muted-foreground text-sm mt-1">Clique em "Novo Processo" para começar.</p>
+                        </div>
+                    )}
+                </div>
             </div>
-        </div>
+        </PageContainer>
     )
+
 }
