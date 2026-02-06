@@ -5,14 +5,13 @@ import { useRouter } from "next/navigation"
 import { isSameDay } from "date-fns"
 import { KanbanBoard } from "./board"
 import { WeeklyCalendar } from "./weekly-calendar"
-import { KanbanListView } from "./list-view"
 import { CasesBoard } from "./cases-board"
 import { INSSBoard } from "./inss-board"
 import { TaskModal } from "./task-modal"
 import { CaseModal } from "./case-modal"
 import { INSSModal } from "./inss-modal"
 import { ColumnModal } from "./column-modal"
-import { LayoutGrid, List, Plus, Settings } from "lucide-react"
+import { Plus, Settings } from "lucide-react"
 import { TaskCard, CaseCard, INSSCase, KanbanColumn, Tag, Client } from "@prisma/client"
 import { cn } from "@/lib/utils"
 import { useKanbanTasks } from "./hooks/use-kanban-tasks"
@@ -162,23 +161,6 @@ export function KanbanWrapper({ initialTasks, processes, cases, inssCases, taskC
                 {/* Right Side Actions - Deadlines Tab */}
                 {activeTab === 'deadlines' && (
                     <div className="flex items-center gap-3">
-                        <div className="flex border border-slate-200 rounded-lg overflow-hidden bg-white">
-                            <button
-                                onClick={() => setViewMode('list')}
-                                className={cn("p-2 transition-colors", viewMode === 'list' ? "bg-blue-50 text-blue-600" : "text-slate-400 hover:text-slate-600")}
-                                title="Lista"
-                            >
-                                <List className="w-4 h-4" />
-                            </button>
-                            <div className="w-[1px] bg-slate-200" />
-                            <button
-                                onClick={() => setViewMode('kanban')}
-                                className={cn("p-2 transition-colors", viewMode === 'kanban' ? "bg-blue-50 text-blue-600" : "text-slate-400 hover:text-slate-600")}
-                                title="Kanban"
-                            >
-                                <LayoutGrid className="w-4 h-4" />
-                            </button>
-                        </div>
                         <button
                             onClick={() => setIsTaskModalOpen(true)}
                             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm shadow-blue-200"
@@ -248,20 +230,16 @@ export function KanbanWrapper({ initialTasks, processes, cases, inssCases, taskC
                             onDayClick={setSelectedDate}
                         />
                         <div className="flex-1 overflow-hidden">
-                            {viewMode === 'kanban' ? (
-                                <KanbanBoard
-                                    tasks={deadlineTasks} // Renamed prop
-                                    columns={taskColumns}
-                                    onOpenAddTask={handleOpenAddTask}
-                                    users={users}
-                                    clients={clients}
-                                    processes={processes}
-                                    onMoveTask={moveTask} // New prop
-                                    onDeleteTask={deleteTask} // New prop
-                                />
-                            ) : (
-                                <KanbanListView tasks={deadlineTasks} />
-                            )}
+                            <KanbanBoard
+                                tasks={deadlineTasks} // Renamed prop
+                                columns={taskColumns}
+                                onOpenAddTask={handleOpenAddTask}
+                                users={users}
+                                clients={clients}
+                                processes={processes}
+                                onMoveTask={moveTask} // New prop
+                                onDeleteTask={deleteTask} // New prop
+                            />
                         </div>
                     </div>
                 ) : (
