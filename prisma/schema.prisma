@@ -8,6 +8,62 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+// --- WORKSPACE CORE (NEW) ---
+
+model Workspace {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  domain      String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  members     WorkspaceMember[]
+  roles       Role[]
+  
+  // Domain Entities
+  pipelines   KanbanPipeline[]
+  clients     Client[]
+  processes   Process[]
+  cards       TaskCard[]
+  tags        Tag[]
+  
+  @@index([slug])
+}
+
+model WorkspaceMember {
+  id          String   @id @default(uuid())
+  workspaceId String
+  userId      String
+  roleId      String
+  joinedAt    DateTime @default(now())
+  invitedBy   String?
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  user        User      @relation(fields: [userId], references: [id])
+  role        Role      @relation(fields: [roleId], references: [id])
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String
+  workspaceId String
+  isSystem    Boolean  @default(false)
+  permissions Json     // ["kanban:read", "kanban:write", etc]
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  members     WorkspaceMember[]
+
+  @@unique([workspaceId, name])
+}
+
+// --- DOMAIN ENTITIES ---
+
 model Plan {
   id            String         @id @default(uuid())
   name          String
@@ -38,6 +94,9 @@ model User {
   name                 String?
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
+  
+  // Relations
+  workspaces           WorkspaceMember[]
   actionTypes          ActionType[]
   appointments         Appointment[]
   auditLogs            AuditLog[]
@@ -47,30 +106,153 @@ model User {
   districts            District[]
   inssCases            INSSCase[]
   kanbanColumns        KanbanColumn[]
+  
   responsibleProcesses Process[]      @relation("ResponsibleLawyer")
   processes            Process[]
+  
   subscription         Subscription?
+  
   assignedTasks        TaskCard[]     @relation("TaskAssignedBy")
   completedTasks       TaskCard[]     @relation("TaskCompletedBy")
   responsibleTasks     TaskCard[]     @relation("TaskResponsibleLawyer")
   taskCards            TaskCard[]     @relation("TaskCreator")
+  
   points               UserPoints[]
 }
 
-model KanbanColumn {
-  id        String   @id @default(uuid())
-  name      String
-  color     String   @default("#6366f1")
-  order     Int      @default(0)
-  boardType String   @default("tasks")
-  userId    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tasks     TaskCard[]
+// --- KANBAN SYSTEM (NEW & UPDATED) ---
 
-  @@index([userId, boardType])
+model KanbanPipeline {
+  id          String   @id @default(uuid())
+  name        String
+  workspaceId String
+  position    Int      @default(0)
+  isDefault   Boolean  @default(false)
+  
+  deletedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  columns     KanbanColumn[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, position])
 }
+
+model KanbanColumn {
+  id         String   @id @default(uuid())
+  name       String
+  color      String   @default("#6366f1")
+  position   Int      @default(0)
+  
+  // Relations
+  pipelineId String
+  pipeline   KanbanPipeline @relation(fields: [pipelineId], references: [id])
+
+  userId     String   // Creator (kept for FK integrity)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  tasks      TaskCard[]
+
+  @@unique([pipelineId, name])
+  @@index([pipelineId, position])
+}
+
+model TaskCard {
+  id                  String          @id @default(uuid())
+  title               String
+  description         String?
+  type                TaskType        @default(INTERNAL)
+  
+  // Dates
+  startDate           DateTime?
+  endDate             DateTime?
+  fatalDate           DateTime?
+  publicationDate     DateTime?
+  protocolDate        DateTime?
+  completedAt         DateTime?
+  
+  // Status & Metadata
+  isArchived          Boolean         @default(false)
+  phase               String          @default("A Fazer")
+  columnId            String
+  position            Int             @default(0)
+  
+  protocoled          Boolean         @default(false)
+  points              Int?
+  
+  // Enums
+  daysCount           Int?
+  daysType            DaysType?
+  practiceArea        PracticeArea?
+
+  // Relations
+  workspaceId         String?
+  workspace           Workspace?      @relation(fields: [workspaceId], references: [id])
+  
+  userId              String
+  user                User            @relation("TaskCreator", fields: [userId], references: [id])
+  
+  clientId            String?
+  client              Client?         @relation(fields: [clientId], references: [id])
+  
+  processId           String?
+  process             Process?        @relation(fields: [processId], references: [id])
+  
+  responsibleLawyerId String?
+  responsibleLawyer   User?           @relation("TaskResponsibleLawyer", fields: [responsibleLawyerId], references: [id])
+  
+  assignedById        String?
+  assignedBy          User?           @relation("TaskAssignedBy", fields: [assignedById], references: [id])
+  
+  completedById       String?
+  completedBy         User?           @relation("TaskCompletedBy", fields: [completedById], references: [id])
+  
+  column              KanbanColumn    @relation(fields: [columnId], references: [id])
+  
+  checklist           ChecklistItem[]
+  tags                Tag[]           @relation("TagToTaskCard")
+  
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  @@index([userId])
+  @@index([workspaceId])
+  @@index([fatalDate])
+  @@index([phase])
+  @@index([responsibleLawyerId])
+  @@index([columnId, position])
+}
+
+model ChecklistItem {
+  id          String   @id @default(uuid())
+  title       String
+  isCompleted Boolean  @default(false)
+  taskId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  task        TaskCard @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  @@index([taskId])
+}
+
+model Tag {
+  id         String     @id @default(uuid())
+  name       String
+  color      String
+  userId     String
+  
+  // Workspace Migration
+  workspaceId String?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id])
+  
+  tasks      TaskCard[] @relation("TagToTaskCard")
+}
+
+// --- OTHER DOMAIN ENTITIES (With Workspace Hooks) ---
 
 model Client {
   id                     String            @id @default(uuid())
@@ -88,10 +270,19 @@ model Client {
   acquisitionChannel     String?
   status                 ClientStatus      @default(NEW_LEAD)
   notes                  String?
+  
   userId                 String
+  user                   User              @relation(fields: [userId], references: [id])
+  
+  // Workspace Migration
+  workspaceId            String?
+  workspace              Workspace?        @relation(fields: [workspaceId], references: [id])
+
   createdAt              DateTime          @default(now())
   updatedAt              DateTime          @updatedAt
   deletedAt              DateTime?
+  
+  // PF Specifics
   fatherName             String?
   messageContactName     String?
   messageContactRelation String?
@@ -99,8 +290,9 @@ model Client {
   civilStatus            String?
   profession             String?
   bankDetails            Json?
+  
+  // Relations
   appointments           Appointment[]
-  user                   User              @relation(fields: [userId], references: [id])
   financial              FinancialRecord[]
   processes              Process[]         @relation("ClientProcesses")
   processAuthors         ProcessAuthor[]
@@ -108,6 +300,7 @@ model Client {
   tasks                  TaskCard[]
 
   @@index([userId])
+  @@index([workspaceId])
   @@index([cpfCnpj])
 }
 
@@ -119,96 +312,45 @@ model Process {
   courtLink           String?
   status              ProcessStatus     @default(ACTIVE)
   distributionDate    DateTime?
+  
   clientId            String
+  client              Client            @relation("ClientProcesses", fields: [clientId], references: [id])
+  
   userId              String
+  user                User              @relation(fields: [userId], references: [id])
+  
+  // Workspace Migration
+  workspaceId         String?
+  workspace           Workspace?        @relation(fields: [workspaceId], references: [id])
+
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
   deletedAt           DateTime?
+  
+  // Details
   court               String?
   district            String?
   link                String?
   opponent            String?
   position            String?
   responsibleLawyerId String?
+  responsibleLawyer   User?             @relation("ResponsibleLawyer", fields: [responsibleLawyerId], references: [id])
+  
   actionType          String?
   claimValue          Decimal?
+  
   appointments        Appointment[]
   financial           FinancialRecord[]
-  client              Client            @relation("ClientProcesses", fields: [clientId], references: [id])
-  responsibleLawyer   User?             @relation("ResponsibleLawyer", fields: [responsibleLawyerId], references: [id])
-  user                User              @relation(fields: [userId], references: [id])
   authors             ProcessAuthor[]
   opponents           ProcessOpponent[]
   tasks               TaskCard[]
 
   @@index([userId])
+  @@index([workspaceId])
   @@index([clientId])
 }
 
-model TaskCard {
-  id                  String          @id @default(uuid())
-  title               String
-  description         String?
-  type                TaskType        @default(INTERNAL)
-  startDate           DateTime?
-  endDate             DateTime?
-  fatalDate           DateTime?
-  isArchived          Boolean         @default(false)
-  clientId            String?
-  processId           String?
-  userId              String
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
-  phase               String          @default("A Fazer")
-  publicationDate     DateTime?
-  protocolDate        DateTime?
-  daysCount           Int?
-  daysType            DaysType?
-  protocoled          Boolean         @default(false)
-  practiceArea        PracticeArea?
-  points              Int?
-  responsibleLawyerId String?
-  assignedById        String?
-  completedById       String?
-  completedAt         DateTime?
-  checklist           ChecklistItem[]
-  assignedBy          User?           @relation("TaskAssignedBy", fields: [assignedById], references: [id])
-  client              Client?         @relation(fields: [clientId], references: [id])
-  completedBy         User?           @relation("TaskCompletedBy", fields: [completedById], references: [id])
-  process             Process?        @relation(fields: [processId], references: [id])
-  responsibleLawyer   User?           @relation("TaskResponsibleLawyer", fields: [responsibleLawyerId], references: [id])
-  user                User            @relation("TaskCreator", fields: [userId], references: [id])
-  tags                Tag[]           @relation("TagToTaskCard")
-  columnId            String?
-  column              KanbanColumn?   @relation(fields: [columnId], references: [id])
-  position            Float           @default(0)
-
-  @@index([userId])
-  @@index([fatalDate])
-  @@index([phase])
-  @@index([responsibleLawyerId])
-  @@index([columnId, position])
-}
-
-model ChecklistItem {
-  id          String   @id @default(uuid())
-  title       String
-  isCompleted Boolean  @default(false)
-  taskId      String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  task        TaskCard @relation(fields: [taskId], references: [id], onDelete: Cascade)
-
-  @@index([taskId])
-}
-
-model Tag {
-  id     String     @id @default(uuid())
-  name   String
-  color  String
-  userId String
-  tasks  TaskCard[] @relation("TagToTaskCard")
-}
+// ... Rest of the models unchanged or minimally adapted ...
 
 model CaseCard {
   id            String              @id @default(uuid())
@@ -238,7 +380,6 @@ model CaseChecklistItem {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   case        CaseCard @relation(fields: [caseId], references: [id], onDelete: Cascade)
-
   @@index([caseId])
 }
 
@@ -271,7 +412,6 @@ model INSSChecklistItem {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   inssCase    INSSCase @relation(fields: [inssId], references: [id], onDelete: Cascade)
-
   @@index([inssId])
 }
 
@@ -288,6 +428,7 @@ model FinancialRecord {
   createdAt     DateTime  @default(now())
   installment   String?
   paymentMethod String?
+  
   client        Client    @relation(fields: [clientId], references: [id])
   process       Process?  @relation(fields: [processId], references: [id])
 }
@@ -321,7 +462,6 @@ model ProcessAuthor {
   createdAt DateTime @default(now())
   client    Client   @relation(fields: [clientId], references: [id])
   process   Process  @relation(fields: [processId], references: [id], onDelete: Cascade)
-
   @@index([processId])
 }
 
@@ -335,7 +475,6 @@ model ProcessOpponent {
   clientId  String?
   client    Client?  @relation(fields: [clientId], references: [id])
   process   Process  @relation(fields: [processId], references: [id], onDelete: Cascade)
-
   @@index([processId])
   @@index([clientId])
 }
@@ -346,7 +485,6 @@ model ActionType {
   userId    String
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
-
   @@unique([name, userId])
   @@index([userId])
 }
@@ -357,7 +495,6 @@ model Court {
   userId    String
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
-
   @@unique([name, userId])
   @@index([userId])
 }
@@ -368,7 +505,6 @@ model District {
   userId    String
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
-
   @@unique([name, userId])
   @@index([userId])
 }
@@ -383,7 +519,6 @@ model AuditLog {
   userId     String
   createdAt  DateTime @default(now())
   user       User     @relation(fields: [userId], references: [id])
-
   @@index([entityId])
   @@index([userId])
 }
@@ -397,11 +532,11 @@ model UserPoints {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id])
-
   @@unique([userId, month, year])
   @@index([userId, year, month])
 }
 
+// Enums (Unchanged)
 enum ClientType {
   PF
   PJ

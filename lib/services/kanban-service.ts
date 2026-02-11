@@ -2,15 +2,26 @@ import { db } from "@/lib/db"
 import { TaskType } from "@prisma/client"
 
 export const KanbanService = {
-    getBoard: async (userId: string) => {
+    /**
+     * Get all tasks for a specific pipeline, ordered by position within each column.
+     * This is the ONLY way to fetch board tasks — always scoped to a pipeline.
+     */
+    getTasksByPipeline: async (pipelineId: string) => {
+        // Get column IDs for this pipeline
+        const columns = await db.kanbanColumn.findMany({
+            where: { pipelineId },
+            select: { id: true }
+        })
+        const columnIds = columns.map(c => c.id)
+
+        if (columnIds.length === 0) return []
+
         const tasks = await db.taskCard.findMany({
             where: {
-                userId,
+                columnId: { in: columnIds },
                 isArchived: false,
-                // Optional: Filter by Process status if needed
             },
             include: {
-                // position: true, // Excluded due to missing DB column
                 client: {
                     select: {
                         id: true,
@@ -35,7 +46,10 @@ export const KanbanService = {
                     orderBy: { createdAt: 'asc' }
                 }
             },
-            orderBy: { fatalDate: 'asc' }
+            orderBy: [
+                { columnId: 'asc' },
+                { position: 'asc' }
+            ]
         })
 
         // Serialize dates to avoid Next.js server component errors
@@ -50,20 +64,95 @@ export const KanbanService = {
         }))
     },
 
-    moveCard: async (userId: string, cardId: string, columnId: string) => {
-        // Fetch the target column to get its name (for legacy support)
-        const column = await db.kanbanColumn.findUnique({
-            where: { id: columnId }
-        })
+    /**
+     * TRANSACTIONAL move card between columns (or reorder within column).
+     * Handles position recalculation for both source and target columns.
+     */
+    moveCard: async (cardId: string, targetColumnId: string, targetPosition: number) => {
+        return await db.$transaction(async (tx) => {
+            // 1. Get the card's current state
+            const card = await tx.taskCard.findUnique({
+                where: { id: cardId },
+                select: { id: true, columnId: true, position: true }
+            })
 
-        if (!column) throw new Error('Coluna não encontrada')
+            if (!card) throw new Error('Card não encontrado')
 
-        return await db.taskCard.update({
-            where: { id: cardId, userId },
-            data: {
-                columnId: columnId,
-                phase: column.name
-            } as any
+            const sourceColumnId = card.columnId
+            const isColumnChange = sourceColumnId !== targetColumnId
+
+            // 2. Get target column name for legacy phase field
+            const targetColumn = await tx.kanbanColumn.findUnique({
+                where: { id: targetColumnId },
+                select: { name: true }
+            })
+
+            if (!targetColumn) throw new Error('Coluna destino não encontrada')
+
+            if (isColumnChange) {
+                // --- CROSS-COLUMN MOVE ---
+
+                // A. Close the gap in the source column
+                await tx.taskCard.updateMany({
+                    where: {
+                        columnId: sourceColumnId,
+                        position: { gt: card.position }
+                    },
+                    data: { position: { decrement: 1 } }
+                })
+
+                // B. Make space in the target column
+                await tx.taskCard.updateMany({
+                    where: {
+                        columnId: targetColumnId,
+                        position: { gte: targetPosition }
+                    },
+                    data: { position: { increment: 1 } }
+                })
+
+                // C. Move the card
+                await tx.taskCard.update({
+                    where: { id: cardId },
+                    data: {
+                        columnId: targetColumnId,
+                        position: targetPosition,
+                        phase: targetColumn.name
+                    }
+                })
+            } else {
+                // --- SAME-COLUMN REORDER ---
+                const oldPos = card.position
+                const newPos = targetPosition
+
+                if (oldPos === newPos) return card
+
+                if (oldPos < newPos) {
+                    // Moving down: shift items between old+1 and new UP by 1
+                    await tx.taskCard.updateMany({
+                        where: {
+                            columnId: sourceColumnId,
+                            position: { gt: oldPos, lte: newPos }
+                        },
+                        data: { position: { decrement: 1 } }
+                    })
+                } else {
+                    // Moving up: shift items between new and old-1 DOWN by 1
+                    await tx.taskCard.updateMany({
+                        where: {
+                            columnId: sourceColumnId,
+                            position: { gte: newPos, lt: oldPos }
+                        },
+                        data: { position: { increment: 1 } }
+                    })
+                }
+
+                await tx.taskCard.update({
+                    where: { id: cardId },
+                    data: { position: newPos }
+                })
+            }
+
+            return { success: true }
         })
     },
 
@@ -71,7 +160,7 @@ export const KanbanService = {
         title: string
         description?: string
         type: TaskType
-        phase?: string
+        columnId: string
         fatalDate?: Date
         endDate?: Date
         publicationDate?: Date
@@ -83,18 +172,31 @@ export const KanbanService = {
         clientId?: string
         responsibleLawyerId?: string
         points?: number
-        tags?: string[] // Tag IDs
-        checklist?: string[] // Checklist Titles
+        tags?: string[]
+        checklist?: string[]
     }) => {
-        const { checklist, tags, practiceArea, daysType, ...taskData } = data
+        const { checklist, tags, practiceArea, daysType, columnId, ...taskData } = data
+
+        // Get column name for legacy phase field + calculate next position
+        const column = await db.kanbanColumn.findUnique({
+            where: { id: columnId },
+            select: { name: true }
+        })
+
+        const maxPosition = await db.taskCard.aggregate({
+            where: { columnId },
+            _max: { position: true }
+        })
 
         return await db.taskCard.create({
             data: {
                 ...taskData,
                 userId,
-                phase: data.phase || 'A Fazer',
-                practiceArea: practiceArea as any, // Cast to PracticeArea enum
-                daysType: daysType as any, // Cast to DaysType enum
+                columnId,
+                position: (maxPosition._max.position ?? -1) + 1,
+                phase: column?.name || 'A Fazer',
+                practiceArea: practiceArea as any,
+                daysType: daysType as any,
                 tags: tags && tags.length > 0 ? {
                     connect: tags.map(id => ({ id }))
                 } : undefined,
@@ -131,16 +233,14 @@ export const KanbanService = {
                 practiceArea: practiceArea as any,
                 daysType: daysType as any,
                 tags: tags ? {
-                    set: [], // Clear existing tags
-                    connect: tags.map(id => ({ id })) // Connect new ones
+                    set: [],
+                    connect: tags.map(id => ({ id }))
                 } : undefined
             }
         })
     },
 
-    // Cron-like function to be called periodically (e.g., via Vercel Cron or on Page Load optimized)
     checkAutoArchive: async (userId: string) => {
-        // Archive Protocolled tasks > 30 days
         const thirtyDaysAgo = new Date()
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 

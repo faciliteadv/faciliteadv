@@ -54,7 +54,7 @@ export function TaskModal({ isOpen, onClose, processes, columns, onTaskCreated, 
     const [newChecklistItem, setNewChecklistItem] = useState("")
 
     const [processId, setProcessId] = useState<string>("")
-    const [phase, setPhase] = useState<string>(columns.length > 0 ? columns[0].name : "A Fazer")
+    const [columnId, setColumnId] = useState<string>(columns.length > 0 ? columns[0].id : "")
     const [practiceArea, setPracticeArea] = useState<string>("")
     const [responsibleLawyerId, setResponsibleLawyerId] = useState<string>("")
     const [daysType, setDaysType] = useState<string>("")  // Default empty for "Selecione"
@@ -124,7 +124,7 @@ export function TaskModal({ isOpen, onClose, processes, columns, onTaskCreated, 
             getUsersForResponsibleSelect().then(setUsers)
             // Reset to defaults
             setProcessId("")
-            setPhase(defaultPhase || (columns.length > 0 ? columns[0].name : "A Fazer"))
+            setColumnId(defaultPhase ? (columns.find(c => c.name === defaultPhase)?.id || columns[0]?.id || "") : (columns.length > 0 ? columns[0].id : ""))
             setPracticeArea("")
             setResponsibleLawyerId("")
             setDaysType("") // Empty = "Selecione"
@@ -149,11 +149,13 @@ export function TaskModal({ isOpen, onClose, processes, columns, onTaskCreated, 
 
 
 
+        const selectedColumn = columns.find(c => c.id === columnId)
         const payload = {
             title: formData.get('title') as string,
             description: formData.get('description') as string || undefined,
             type: 'INTERNAL' as const,
-            phase: phase,
+            columnId: columnId,
+            phase: selectedColumn?.name || 'A Fazer',
             practiceArea: practiceArea || undefined,
             processId: (processId && processId !== 'NONE') ? processId : undefined,
             publicationDate: publicationDate ? new Date(publicationDate) : undefined,
@@ -176,7 +178,7 @@ export function TaskModal({ isOpen, onClose, processes, columns, onTaskCreated, 
             setPracticeArea('')
             setResponsibleLawyerId('')
             setPoints(0)
-            setPhase(columns.length > 0 ? columns[0].name : "A Fazer")
+            setColumnId(columns.length > 0 ? columns[0].id : "")
             onTaskCreated?.()
             onClose()
         } catch (error) {
@@ -241,13 +243,13 @@ export function TaskModal({ isOpen, onClose, processes, columns, onTaskCreated, 
                             <Label className="block text-sm font-medium text-slate-700 mb-1.5">
                                 Situação (Fase) <span className="text-red-500">*</span>
                             </Label>
-                            <Select value={phase} onValueChange={setPhase}>
+                            <Select value={columnId} onValueChange={setColumnId}>
                                 <SelectTrigger className="w-full">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {columns.map(col => (
-                                        <SelectItem key={col.id} value={col.name}>{col.name}</SelectItem>
+                                        <SelectItem key={col.id} value={col.id}>{col.name}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>

@@ -1,188 +1,172 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useCallback } from 'react'
-import { arrayMove } from "@dnd-kit/sortable"
-import { TaskCard, Tag, Client } from "@prisma/client"
-import { moveCardAction, deleteTaskAction, createTaskAction, fetchBoardAction } from "@/lib/actions/kanban-actions"
-import { useRouter } from 'next/navigation'
+'use client'
 
-// Define the ExtendedTask type matching the one in the components
-export type ExtendedTask = Omit<TaskCard, 'phase' | 'createdAt' | 'updatedAt' | 'fatalDate' | 'endDate' | 'publicationDate' | 'protocolDate'> & {
-    phase: string
-    createdAt: string
-    updatedAt: string
-    fatalDate: string | null
-    endDate: string | null
-    publicationDate: string | null
-    protocolDate: string | null
-    columnId?: string | null
-    client?: Pick<Client, 'id' | 'name'> | null
-    process?: { id: string; number: string; folderName: string | null } | null
-    responsibleLawyer?: { id: string; name: string | null } | null
-    tags?: Tag[]
-    checklist?: { id: string; title: string; isCompleted: boolean }[]
-}
+import { useState, useCallback, useRef } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { fetchBoardAction, moveCardAction, deleteTaskAction } from '@/lib/actions/kanban-actions'
 
-// Structured Query Key for Granularity
-const QUERY_KEY = ['kanban-tasks', { scope: 'board', view: 'all' }]
+type Task = any // Will be typed from the full TaskCard with relations
 
-export function useKanbanTasks(initialTasks: ExtendedTask[]) {
+/**
+ * Kanban tasks hook — pipeline-scoped, with proper optimistic updates.
+ * 
+ * KEY DESIGN DECISIONS:
+ * - Query key includes pipelineId so changing pipeline = new cache
+ * - moveTask does optimistic update with snapshot rollback
+ * - NO invalidateQueries on settle — we trust the optimistic state
+ * - Server is source of truth only on initial load and explicit refetch
+ */
+export function useKanbanTasks(pipelineId: string | null, initialTasks: Task[] = []) {
     const queryClient = useQueryClient()
-    const router = useRouter()
 
-    // 1. Query (The Single Source of Truth)
-    // Real Server State Architecture:
-    // - queryFn: fetchBoardAction (Server Action)
-    // - initialData: Hydrates from Server Props
-    // - staleTime: 5 mins (Prevents aggressive background refetching)
-    // - refetchOnWindowFocus: false (Prevents layout jumps)
-    const { data: tasks = initialTasks } = useQuery({
+    const QUERY_KEY = ['kanban-tasks', pipelineId]
+
+    // Fetch tasks for the active pipeline
+    const { data: tasks = initialTasks, isLoading, refetch } = useQuery({
         queryKey: QUERY_KEY,
-        queryFn: () => fetchBoardAction(),
-        initialData: initialTasks,
-        staleTime: 1000 * 60 * 5,
-        refetchOnWindowFocus: false,
+        queryFn: async () => {
+            if (!pipelineId) return []
+            return await fetchBoardAction(pipelineId)
+        },
+        initialData: initialTasks.length > 0 ? initialTasks : undefined,
+        enabled: !!pipelineId,
+        staleTime: 1000 * 60 * 5, // 5 min — don't refetch aggressively
+        refetchOnWindowFocus: false, // Don't fight optimistic state
     })
 
-    // 2. Mutations with Snapshot Pattern
-
-    // Move Task Mutation
+    // === MOVE TASK (Optimistic + Transactional) ===
     const { mutate: moveTaskMutation } = useMutation({
-        mutationFn: async ({ taskId, targetColumnId, targetPhaseName, overTaskId }: { taskId: string, targetColumnId: string, targetPhaseName?: string, overTaskId?: string }) => {
-            const task = tasks.find(t => t.id === taskId)
-            if (!task) return
-
-            const isColumnChange = task.columnId !== targetColumnId
-
-            if (isColumnChange) {
-                await moveCardAction(taskId, targetColumnId)
-            } else {
-                // Logic for same-column reorder (if backend supported it)
-            }
+        mutationFn: async ({ cardId, targetColumnId, targetPosition }: {
+            cardId: string
+            targetColumnId: string
+            targetPosition: number
+        }) => {
+            await moveCardAction(cardId, targetColumnId, targetPosition)
         },
-        onMutate: async ({ taskId, targetColumnId, targetPhaseName, overTaskId }) => {
-            // A. Cancel any outgoing refetches (Mutation Ordering Protection)
+        onMutate: async ({ cardId, targetColumnId, targetPosition }) => {
+            // Cancel any outgoing refetches
             await queryClient.cancelQueries({ queryKey: QUERY_KEY })
 
-            // B. Snapshot the previous value
-            const previousTasks = queryClient.getQueryData<ExtendedTask[]>(QUERY_KEY)
+            // Snapshot current state for rollback
+            const snapshot = queryClient.getQueryData<Task[]>(QUERY_KEY)
 
-            // C. Optimistically update to the new value
-            queryClient.setQueryData<ExtendedTask[]>(QUERY_KEY, (old) => {
-                if (!old) return []
-                const activeIndexer = old.findIndex(t => t.id === taskId)
-                if (activeIndexer === -1) return old
+            // Optimistic update
+            queryClient.setQueryData<Task[]>(QUERY_KEY, (old = []) => {
+                const card = old.find(t => t.id === cardId)
+                if (!card) return old
 
-                const activeTask = old[activeIndexer]
-                const isColumnChange = activeTask.columnId !== targetColumnId
-                let newTasks = [...old]
+                const sourceColumnId = card.columnId
+                const isColumnChange = sourceColumnId !== targetColumnId
+
+                let updated = old.map(t => ({ ...t })) // Shallow clone all
 
                 if (isColumnChange) {
-                    newTasks[activeIndexer] = {
-                        ...activeTask,
-                        columnId: targetColumnId,
-                        phase: targetPhaseName || activeTask.phase
-                    }
-                } else if (overTaskId) {
-                    const overIndexer = old.findIndex(t => t.id === overTaskId)
-                    if (activeIndexer !== overIndexer && overIndexer !== -1) {
-                        newTasks = arrayMove(newTasks, activeIndexer, overIndexer)
-                    }
+                    // 1. Close gap in source column
+                    updated = updated.map(t => {
+                        if (t.columnId === sourceColumnId && t.position > card.position) {
+                            return { ...t, position: t.position - 1 }
+                        }
+                        return t
+                    })
+
+                    // 2. Make space in target column
+                    updated = updated.map(t => {
+                        if (t.columnId === targetColumnId && t.position >= targetPosition) {
+                            return { ...t, position: t.position + 1 }
+                        }
+                        return t
+                    })
+
+                    // 3. Move the card
+                    updated = updated.map(t => {
+                        if (t.id === cardId) {
+                            return { ...t, columnId: targetColumnId, position: targetPosition }
+                        }
+                        return t
+                    })
+                } else {
+                    // Same column reorder
+                    const oldPos = card.position
+                    const newPos = targetPosition
+
+                    updated = updated.map(t => {
+                        if (t.id === cardId) {
+                            return { ...t, position: newPos }
+                        }
+                        if (t.columnId === sourceColumnId) {
+                            if (oldPos < newPos && t.position > oldPos && t.position <= newPos) {
+                                return { ...t, position: t.position - 1 }
+                            }
+                            if (oldPos > newPos && t.position >= newPos && t.position < oldPos) {
+                                return { ...t, position: t.position + 1 }
+                            }
+                        }
+                        return t
+                    })
                 }
-                return newTasks
+
+                return updated
             })
 
-            // D. Return context for rollback
-            return { previousTasks }
+            return { snapshot }
         },
-        onError: (err, newTodo, context) => {
-            console.error("Move failed", err)
-            // E. Rollback to the previous value
-            if (context?.previousTasks) {
-                queryClient.setQueryData(QUERY_KEY, context.previousTasks)
+        onError: (_err, _vars, context) => {
+            // Rollback on failure
+            if (context?.snapshot) {
+                queryClient.setQueryData(QUERY_KEY, context.snapshot)
             }
-            alert("Erro ao mover tarefa.")
         },
-        onSettled: () => {
-            // F. Eventual Consistency (Background Validate)
-            // Replaces router.refresh() to avoid Page Flicker
-            queryClient.invalidateQueries({ queryKey: QUERY_KEY })
-        }
+        // NO onSettled invalidation — trust optimistic state
     })
 
-    // Add Task Mutation
-    const { mutate: addTaskMutation } = useMutation({
-        mutationFn: async (task: ExtendedTask) => {
-            // Facade: The Modal already called Server Action. This acts as a Sync.
-            return task
-        },
-        onMutate: async (task) => {
-            await queryClient.cancelQueries({ queryKey: QUERY_KEY })
-            const previousTasks = queryClient.getQueryData<ExtendedTask[]>(QUERY_KEY)
-
-            queryClient.setQueryData<ExtendedTask[]>(QUERY_KEY, (old) => {
-                return old ? [task, ...old] : [task]
-            })
-
-            return { previousTasks }
-        },
-        onSettled: () => {
-            // Sync with server state
-            queryClient.invalidateQueries({ queryKey: QUERY_KEY })
-        }
-    })
-
-    // Delete Task Mutation
+    // === DELETE TASK ===
     const { mutate: deleteTaskMutation } = useMutation({
         mutationFn: async (taskId: string) => {
             await deleteTaskAction(taskId)
         },
         onMutate: async (taskId) => {
             await queryClient.cancelQueries({ queryKey: QUERY_KEY })
-            const previousTasks = queryClient.getQueryData<ExtendedTask[]>(QUERY_KEY)
+            const snapshot = queryClient.getQueryData<Task[]>(QUERY_KEY)
 
-            queryClient.setQueryData<ExtendedTask[]>(QUERY_KEY, (old) => {
-                return old ? old.filter(t => t.id !== taskId) : []
+            queryClient.setQueryData<Task[]>(QUERY_KEY, (old = []) => {
+                return old.filter(t => t.id !== taskId)
             })
 
-            return { previousTasks }
+            return { snapshot }
         },
-        onError: (err, taskId, context) => {
-            console.error("Delete failed", err)
-            if (context?.previousTasks) {
-                queryClient.setQueryData(QUERY_KEY, context.previousTasks)
+        onError: (_err, _vars, context) => {
+            if (context?.snapshot) {
+                queryClient.setQueryData(QUERY_KEY, context.snapshot)
             }
-            alert("Erro ao excluir tarefa.")
         },
-        onSettled: () => {
-            queryClient.invalidateQueries({ queryKey: QUERY_KEY })
-        }
     })
 
-    // Facade Functions (Adapters to maintain API)
-    const moveTask = useCallback((taskId: string, targetColumnId: string, targetPhaseName?: string, overTaskId?: string) => {
-        moveTaskMutation({ taskId, targetColumnId, targetPhaseName, overTaskId })
-    }, [moveTaskMutation])
+    // === ADD TASK (directly to cache) ===
+    const addTask = useCallback((task: Task) => {
+        queryClient.setQueryData<Task[]>(QUERY_KEY, (old = []) => {
+            return [...old, task]
+        })
+    }, [queryClient, QUERY_KEY])
 
-    const addTask = useCallback((task: ExtendedTask) => {
-        addTaskMutation(task)
-    }, [addTaskMutation])
+    // === FACADE FUNCTIONS ===
+
+    /**
+     * Move a task to a target column at a specific position.
+     * Board.tsx computes the position from the drop context.
+     */
+    const moveTask = useCallback((cardId: string, targetColumnId: string, targetPosition: number) => {
+        moveTaskMutation({ cardId, targetColumnId, targetPosition })
+    }, [moveTaskMutation])
 
     const deleteTask = useCallback((taskId: string) => {
         deleteTaskMutation(taskId)
     }, [deleteTaskMutation])
 
-    // Legacy Sync - Replaced by React Query internal hydration
-    // Kept empty to satisfy signature if called
-    const syncServerTasks = useCallback((serverTasks: ExtendedTask[]) => {
-        // Option: we could update query data here if we trust server props more
-        // queryClient.setQueryData(QUERY_KEY, serverTasks)
-    }, [])
-
     return {
         tasks,
+        isLoading,
         moveTask,
         addTask,
         deleteTask,
-        syncServerTasks
+        refetch,
     }
 }

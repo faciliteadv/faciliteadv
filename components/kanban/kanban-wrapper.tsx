@@ -1,24 +1,29 @@
 'use client'
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { isSameDay } from "date-fns"
+import { useState, useCallback } from "react"
 import { KanbanBoard } from "./board"
-import { WeeklyCalendar } from "./weekly-calendar"
-import { CasesBoard } from "./cases-board"
-import { INSSBoard } from "./inss-board"
 import { TaskModal } from "./task-modal"
 import { CaseModal } from "./case-modal"
-import { INSSModal } from "./inss-modal"
 import { ColumnModal } from "./column-modal"
-import { Plus, Settings } from "lucide-react"
-import { TaskCard, CaseCard, INSSCase, KanbanColumn, Tag, Client } from "@prisma/client"
+import { useEsteiraModal } from "@/components/providers/esteira-modal-provider"
+import { Plus } from "lucide-react"
+import { PipelineActionsMenu } from "./pipeline-actions-menu"
+import { Tag, Client, KanbanColumn } from "@prisma/client"
 import { cn } from "@/lib/utils"
 import { useKanbanTasks } from "./hooks/use-kanban-tasks"
-import { useKanbanFilters } from "./hooks/use-kanban-filters"
+import { useKanbanColumns } from "./hooks/use-kanban-columns"
+import { useRouter } from "next/navigation"
 
 // Define proper extended types for data with relations
-type ExtendedTask = Omit<TaskCard, 'createdAt' | 'updatedAt' | 'fatalDate' | 'endDate' | 'publicationDate' | 'protocolDate'> & {
+type ExtendedTask = {
+    id: string
+    title: string
+    description?: string | null
+    type?: string
+    phase: string
+    columnId: string
+    position: number
+    isArchived: boolean
     createdAt: string
     updatedAt: string
     fatalDate: string | null
@@ -27,80 +32,95 @@ type ExtendedTask = Omit<TaskCard, 'createdAt' | 'updatedAt' | 'fatalDate' | 'en
     protocolDate: string | null
     client?: Pick<Client, 'id' | 'name'> | null
     process?: { id: string; number: string; folderName: string | null } | null
+    responsibleLawyer?: { id: string; name: string | null } | null
     tags?: Tag[]
     checklist?: { id: string; title: string; isCompleted: boolean }[]
+    [key: string]: any
 }
 
-type ExtendedCase = Omit<CaseCard, 'createdAt' | 'updatedAt' | 'deadline'> & {
-    createdAt: string
-    updatedAt: string
-    deadline: string | null
-    checklist?: { id: string; title: string; isCompleted: boolean }[]
+type ExtendedCase = {
+    id: string
+    [key: string]: any
 }
 
-type ExtendedINSS = Omit<INSSCase, 'createdAt' | 'updatedAt' | 'deadline'> & {
-    createdAt: string
-    updatedAt: string
-    deadline: string | null
-    checklist?: { id: string; title: string; isCompleted: boolean }[]
-}
-
-// Define the process subset that matches what's selected in the kanban page
 type ProcessOption = {
     id: string
     number: string
     folderName: string | null
 }
 
+type Pipeline = {
+    id: string
+    name: string
+    isDefault: boolean
+    position?: number
+    order?: string
+}
+
 type Props = {
     initialTasks: ExtendedTask[]
+    initialColumns: KanbanColumn[]
+    pipelines: Pipeline[]
+    activePipelineId: string | null
     processes: ProcessOption[]
     cases: ExtendedCase[]
-    inssCases: ExtendedINSS[]
-    taskColumns: KanbanColumn[]
-    caseColumns: KanbanColumn[]
-    inssColumns: KanbanColumn[]
-    // New props for editing
     users: { id: string; name: string | null; email: string | null }[]
     clients: { id: string; name: string }[]
 }
 
-export function KanbanWrapper({ initialTasks, processes, cases, inssCases, taskColumns, caseColumns, inssColumns, users, clients }: Props) {
+export function KanbanWrapper({
+    initialTasks,
+    initialColumns,
+    pipelines,
+    activePipelineId,
+    processes,
+    cases,
+    users,
+    clients
+}: Props) {
     const router = useRouter()
+    const { openModal: openEsteiraModal } = useEsteiraModal()
 
-    // 1. Hooks (Logic & State)
+    // Pipeline selection
+    const [selectedPipelineId, setSelectedPipelineId] = useState(activePipelineId)
+
+    // Kanban tasks hook — scoped to active pipeline
     const {
         tasks,
+        isLoading: isLoadingTasks,
         moveTask,
         addTask,
         deleteTask,
-        syncServerTasks
-    } = useKanbanTasks(initialTasks)
+        refetch: refetchTasks,
+    } = useKanbanTasks(selectedPipelineId, initialTasks)
 
+    // Kanban columns hook — Single Source of Truth
+    // Replaces manual useState + useEffect sync
+    // CRITICAL FIX: Only use initialColumns if we are viewing the server-rendered pipeline.
+    // Otherwise, we must fetch fresh data to avoid showing Pipeline A's columns for Pipeline B.
+    const shouldInjectInitialData = selectedPipelineId === activePipelineId
     const {
-        activeTab, setActiveTab,
-        casesSubTab, setCasesSubTab,
-        viewMode, setViewMode,
-        selectedDate, setSelectedDate,
-        // searchQuery
-    } = useKanbanFilters()
+        columns,
+        reorderColumns,
+        refetch: refetchColumns
+    } = useKanbanColumns(selectedPipelineId, shouldInjectInitialData ? initialColumns : [])
 
+    // UI State
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false)
     const [isCaseModalOpen, setIsCaseModalOpen] = useState(false)
-    const [isINSSModalOpen, setIsINSSModalOpen] = useState(false)
     const [isColumnModalOpen, setIsColumnModalOpen] = useState(false)
     const [selectedPhase, setSelectedPhase] = useState<string | undefined>(undefined)
 
-    // Sync state with server data on revalidation (Phase 1.5 requirement)
-    useEffect(() => {
-        syncServerTasks(initialTasks)
-    }, [initialTasks, syncServerTasks])
+    // Pipeline switch handler
+    const handlePipelineSwitch = useCallback((pipelineId: string) => {
+        setSelectedPipelineId(pipelineId)
+        // Update URL without full page reload
+        router.push(`/kanban?pipeline=${pipelineId}`, { scroll: false })
+    }, [router])
 
-    const handleTaskCreated = (newTask?: ExtendedTask) => {
-        if (newTask) {
-            addTask(newTask)
-        }
-        // router.refresh() // addTask already handles this via hook
+    // Handlers
+    const handleTaskCreated = () => {
+        refetchTasks()
     }
 
     const handleOpenAddTask = (phase: string) => {
@@ -108,150 +128,123 @@ export function KanbanWrapper({ initialTasks, processes, cases, inssCases, taskC
         setIsTaskModalOpen(true)
     }
 
-    // Filter tasks by type and optionally by date
-    // Note: This logic could move to a `useKanbanSelectors` hook in Phase 2
-    const allDeadlineTasks = tasks.filter(t => t.type === 'DEADLINE' || t.type === 'INTERNAL' || !t.type)
-    const deadlineTasks = selectedDate
-        ? allDeadlineTasks.filter(t => t.fatalDate && isSameDay(new Date(t.fatalDate), selectedDate))
-        : allDeadlineTasks
+    // Handled by React Query now
+    const handleColumnAdded = useCallback((column: KanbanColumn) => {
+        refetchColumns()
+    }, [refetchColumns])
 
     return (
-        <div className="flex flex-col h-full">
+        <>
             {/* Modals */}
             <TaskModal
                 isOpen={isTaskModalOpen}
                 onClose={() => { setIsTaskModalOpen(false); setSelectedPhase(undefined) }}
                 processes={processes}
-                columns={taskColumns.map(col => ({ id: col.id, name: col.name }))}
+                columns={columns.map(col => ({ id: col.id, name: col.name }))}
                 onTaskCreated={handleTaskCreated}
                 defaultPhase={selectedPhase}
             />
             <CaseModal isOpen={isCaseModalOpen} onClose={() => setIsCaseModalOpen(false)} />
-            <INSSModal isOpen={isINSSModalOpen} onClose={() => setIsINSSModalOpen(false)} />
             <ColumnModal
                 isOpen={isColumnModalOpen}
                 onClose={() => setIsColumnModalOpen(false)}
-                boardType={activeTab === 'deadlines' ? 'tasks' : (casesSubTab === 'crm' ? 'cases' : 'inss')}
+                pipelineId={selectedPipelineId || ''}
             />
 
-            {/* Top Bar */}
-            <div className="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between shrink-0">
-                {/* Main Tabs */}
-                <div className="flex bg-slate-100 p-1 rounded-lg">
-                    <button
-                        onClick={() => setActiveTab('deadlines')}
-                        className={cn(
-                            "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
-                            activeTab === 'deadlines' ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                        )}
-                    >
-                        Prazos e Atividades
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('cases')}
-                        className={cn(
-                            "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
-                            activeTab === 'cases' ? "bg-white text-purple-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                        )}
-                    >
-                        Casos
-                    </button>
-                </div>
+            {/* Main Content */}
+            <div className="flex flex-col h-full">
+                {/* Pipeline Selector — Full-Width Horizontal Strip */}
+                <div className="bg-white border-b border-slate-200 px-4 py-3 shrink-0">
+                    <div className="flex items-center gap-4">
+                        {/* Pipeline Tabs — scrollable when overflowing */}
+                        <div className="flex-1 flex items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent pb-0.5">
+                            {pipelines.map(pipeline => (
+                                <div
+                                    role="button"
+                                    key={pipeline.id}
+                                    onClick={() => handlePipelineSwitch(pipeline.id)}
+                                    className={cn(
+                                        "flex items-center justify-center whitespace-nowrap py-2.5 px-6 rounded-lg text-sm font-semibold transition-all min-w-fit cursor-pointer select-none",
+                                        selectedPipelineId === pipeline.id
+                                            ? "bg-blue-600 text-white shadow-md shadow-blue-200/50"
+                                            : "text-slate-500 hover:text-slate-800 hover:bg-slate-100 bg-slate-50"
+                                    )}
+                                >
+                                    {pipeline.name}
+                                    {/* Action Menu - Only visible on hover or if active */}
+                                    <div onClick={(e) => e.stopPropagation()} className="ml-1">
+                                        <PipelineActionsMenu
+                                            pipelineId={pipeline.id}
+                                            pipelineName={pipeline.name}
+                                            isActive={selectedPipelineId === pipeline.id}
+                                        />
+                                    </div>
+                                </div>
+                            ))}
 
-                {/* Right Side Actions - Deadlines Tab */}
-                {activeTab === 'deadlines' && (
-                    <div className="flex items-center gap-3">
+                            {/* "+" Button — Create New Pipeline */}
+                            <button
+                                onClick={openEsteiraModal}
+                                className="flex items-center justify-center gap-1.5 whitespace-nowrap py-2.5 px-4 rounded-lg text-sm font-medium transition-all min-w-fit border-2 border-dashed border-slate-300 text-slate-400 hover:text-blue-600 hover:border-blue-400 hover:bg-blue-50"
+                                title="Criar nova esteira"
+                            >
+                                <Plus className="w-4 h-4" />
+                                <span className="hidden sm:inline">Nova Esteira</span>
+                            </button>
+                        </div>
+
+                        {/* Right Side — New Task Button */}
                         <button
                             onClick={() => setIsTaskModalOpen(true)}
-                            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm shadow-blue-200"
+                            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors shadow-md bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200/50 shrink-0"
                         >
                             <Plus className="w-4 h-4" />
                             Nova Tarefa
                         </button>
                     </div>
-                )}
+                </div>
 
-                {/* Right Side Actions - Cases Tab */}
-                {activeTab === 'cases' && (
-                    <div className="flex items-center gap-3">
-                        {/* Sub-tabs */}
-                        <div className="flex border border-slate-200 rounded-lg overflow-hidden bg-white">
-                            <button
-                                onClick={() => setCasesSubTab('crm')}
-                                className={cn(
-                                    "px-4 py-2 text-xs font-medium transition-colors",
-                                    casesSubTab === 'crm' ? "bg-purple-50 text-purple-700" : "text-slate-500 hover:text-slate-700"
-                                )}
-                            >
-                                CRM Casos
-                            </button>
-                            <div className="w-[1px] bg-slate-200" />
-                            <button
-                                onClick={() => setCasesSubTab('inss')}
-                                className={cn(
-                                    "px-4 py-2 text-xs font-medium transition-colors",
-                                    casesSubTab === 'inss' ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:text-slate-700"
-                                )}
-                            >
-                                INSS Admin
-                            </button>
+                {/* Content Area */}
+                <div className="flex-1 flex flex-col overflow-hidden bg-slate-50/50">
+                    {pipelines.length === 0 ? (
+                        /* No pipelines — prompt to create */
+                        <div className="flex items-center justify-center h-full">
+                            <div className="text-center space-y-4">
+                                <p className="text-slate-500 text-lg">Nenhuma esteira encontrada</p>
+                                <button
+                                    onClick={openEsteiraModal}
+                                    className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                                >
+                                    Criar Primeira Esteira
+                                </button>
+                            </div>
                         </div>
-
-                        <button
-                            onClick={() => setIsColumnModalOpen(true)}
-                            className="flex items-center gap-2 text-slate-500 hover:text-slate-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                    ) : (
+                        <div
+                            className="flex-1 overflow-hidden relative"
+                            // KEY PROP IS CRITICAL for strict isolation.
+                            // Forces complete remount of board when pipeline changes.
+                            key={selectedPipelineId}
                         >
-                            <Settings className="w-4 h-4" />
-                            Personalizar
-                        </button>
-                        <button
-                            onClick={() => casesSubTab === 'crm' ? setIsCaseModalOpen(true) : setIsINSSModalOpen(true)}
-                            className={cn(
-                                "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm",
-                                casesSubTab === 'crm'
-                                    ? "bg-purple-600 hover:bg-purple-700 text-white shadow-purple-200"
-                                    : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200"
-                            )}
-                        >
-                            <Plus className="w-4 h-4" />
-                            {casesSubTab === 'crm' ? 'Novo Caso' : 'Novo INSS'}
-                        </button>
-                    </div>
-                )}
-            </div>
-
-            {/* Content Area */}
-            <div className="flex-1 overflow-hidden bg-slate-50/50">
-                {activeTab === 'deadlines' ? (
-                    <div className="h-full flex flex-col">
-                        <WeeklyCalendar
-                            tasks={allDeadlineTasks}
-                            selectedDate={selectedDate}
-                            onDayClick={setSelectedDate}
-                        />
-                        <div className="flex-1 overflow-hidden">
                             <KanbanBoard
-                                tasks={deadlineTasks} // Renamed prop
-                                columns={taskColumns}
+                                tasks={tasks}
+                                columns={columns}
+                                pipelineId={selectedPipelineId || ''}
                                 onOpenAddTask={handleOpenAddTask}
                                 users={users}
                                 clients={clients}
                                 processes={processes}
-                                onMoveTask={moveTask} // New prop
-                                onDeleteTask={deleteTask} // New prop
+                                // @ts-ignore
+                                onMoveTask={moveTask}
+                                onDeleteTask={deleteTask}
+                                // Now handled via query invalidation in modal/hook
+                                onColumnAdded={handleColumnAdded}
+                                onColumnsChanged={() => { }} // Optimistic handled in hook
                             />
                         </div>
-                    </div>
-                ) : (
-                    <div className="h-full overflow-hidden">
-                        {casesSubTab === 'crm' ? (
-                            <CasesBoard initialCases={cases} columns={caseColumns} />
-                        ) : (
-                            <INSSBoard initialCases={inssCases} columns={inssColumns} />
-                        )}
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
-        </div>
+        </>
     )
 }

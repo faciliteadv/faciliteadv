@@ -3,10 +3,13 @@
 import { createClient } from "@/utils/supabase/server"
 import { KanbanService } from "@/lib/services/kanban-service"
 import { TaskType } from "@prisma/client"
-import { revalidatePath } from "next/cache"
 import { db } from "@/lib/db"
 
-export async function fetchBoardAction() {
+/**
+ * Fetch board tasks for a specific pipeline.
+ * NO revalidatePath — React Query manages client state.
+ */
+export async function fetchBoardAction(pipelineId: string) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -14,14 +17,18 @@ export async function fetchBoardAction() {
         throw new Error('Não autorizado')
     }
 
-    return await KanbanService.getBoard(user.id)
+    return await KanbanService.getTasksByPipeline(pipelineId)
 }
 
+/**
+ * Create a task in a specific column with proper position.
+ * NO revalidatePath — React Query manages client state.
+ */
 export async function createTaskAction(data: {
     title: string
     description?: string
     type: TaskType
-    phase?: string
+    columnId: string
     practiceArea?: string
     fatalDate?: Date
     endDate?: Date
@@ -30,6 +37,7 @@ export async function createTaskAction(data: {
     daysCount?: number
     daysType?: 'BUSINESS' | 'CALENDAR'
     processId?: string
+    clientId?: string
     responsibleLawyerId?: string
     points?: number
     checklist?: string[]
@@ -42,35 +50,11 @@ export async function createTaskAction(data: {
     }
 
     try {
-        // Resolve columnId based on phase name
-        const phaseName = data.phase || 'A Fazer'
-        const column = await db.kanbanColumn.findFirst({
-            where: { name: phaseName, userId: user.id }
-        })
+        const task = await KanbanService.createTask(user.id, data)
 
-        // Create the task
-        const task = await db.taskCard.create({
-            data: {
-                title: data.title,
-                description: data.description,
-                type: data.type,
-                phase: phaseName,
-                columnId: column?.id, // Link by ID
-                practiceArea: data.practiceArea as any,
-                fatalDate: data.fatalDate,
-                endDate: data.endDate,
-                publicationDate: data.publicationDate,
-                protocolDate: data.protocolDate,
-                daysCount: data.daysCount,
-                daysType: data.daysType as any,
-                processId: data.processId,
-                responsibleLawyerId: data.responsibleLawyerId,
-                points: data.points,
-                userId: user.id,
-                checklist: data.checklist && data.checklist.length > 0 ? {
-                    create: data.checklist.map(title => ({ title }))
-                } : undefined
-            } as any,
+        // Return with serialized dates and includes
+        const fullTask = await db.taskCard.findUnique({
+            where: { id: task.id },
             include: {
                 client: { select: { id: true, name: true } },
                 process: { select: { id: true, number: true, folderName: true } },
@@ -80,17 +64,30 @@ export async function createTaskAction(data: {
             }
         })
 
-        revalidatePath('/kanban')
-        revalidatePath('/')
-        return { success: true, task }
+        if (!fullTask) throw new Error('Task created but not found')
+
+        return {
+            success: true,
+            task: {
+                ...fullTask,
+                createdAt: fullTask.createdAt.toISOString(),
+                updatedAt: fullTask.updatedAt.toISOString(),
+                fatalDate: fullTask.fatalDate ? fullTask.fatalDate.toISOString() : null,
+                endDate: fullTask.endDate ? fullTask.endDate.toISOString() : null,
+                publicationDate: fullTask.publicationDate ? fullTask.publicationDate.toISOString() : null,
+                protocolDate: fullTask.protocolDate ? fullTask.protocolDate.toISOString() : null,
+            }
+        }
     } catch (error) {
         console.error('Erro ao criar tarefa:', error)
         throw new Error('Erro ao criar tarefa. Verifique os dados e tente novamente.')
     }
 }
 
-// Quick create task - for inline creation with just title and phase
-export async function quickCreateTaskAction(title: string, phase: string) {
+/**
+ * Quick create task — inline creation with just title and columnId.
+ */
+export async function quickCreateTaskAction(title: string, columnId: string) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -99,19 +96,14 @@ export async function quickCreateTaskAction(title: string, phase: string) {
     }
 
     try {
-        // Resolve columnId
-        const column = await db.kanbanColumn.findFirst({
-            where: { name: phase, userId: user.id }
+        const task = await KanbanService.createTask(user.id, {
+            title,
+            type: 'INTERNAL',
+            columnId,
         })
 
-        const task = await db.taskCard.create({
-            data: {
-                title,
-                type: 'INTERNAL',
-                phase,
-                columnId: column?.id,
-                userId: user.id
-            } as any,
+        const fullTask = await db.taskCard.findUnique({
+            where: { id: task.id },
             include: {
                 client: { select: { id: true, name: true } },
                 process: { select: { id: true, number: true, folderName: true } },
@@ -121,16 +113,32 @@ export async function quickCreateTaskAction(title: string, phase: string) {
             }
         })
 
-        revalidatePath('/kanban')
-        revalidatePath('/')
-        return { success: true, task }
+        if (!fullTask) throw new Error('Task created but not found')
+
+        return {
+            success: true,
+            task: {
+                ...fullTask,
+                createdAt: fullTask.createdAt.toISOString(),
+                updatedAt: fullTask.updatedAt.toISOString(),
+                fatalDate: fullTask.fatalDate ? fullTask.fatalDate.toISOString() : null,
+                endDate: fullTask.endDate ? fullTask.endDate.toISOString() : null,
+                publicationDate: fullTask.publicationDate ? fullTask.publicationDate.toISOString() : null,
+                protocolDate: fullTask.protocolDate ? fullTask.protocolDate.toISOString() : null,
+            }
+        }
     } catch (error) {
         console.error('Erro ao criar tarefa rápida:', error)
         throw new Error('Erro ao criar tarefa.')
     }
 }
 
-export async function moveCardAction(cardId: string, columnId: string) {
+/**
+ * TRANSACTIONAL move card.
+ * Handles both cross-column moves and same-column reordering.
+ * NO revalidatePath — React Query manages client state via optimistic updates.
+ */
+export async function moveCardAction(cardId: string, targetColumnId: string, targetPosition: number) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -139,9 +147,7 @@ export async function moveCardAction(cardId: string, columnId: string) {
     }
 
     try {
-        await KanbanService.moveCard(user.id, cardId, columnId)
-        revalidatePath('/kanban')
-        revalidatePath('/')
+        await KanbanService.moveCard(cardId, targetColumnId, targetPosition)
         return { success: true }
     } catch (error) {
         console.error('Erro ao mover tarefa:', error)
@@ -158,18 +164,14 @@ export async function deleteTaskAction(taskId: string) {
     }
 
     try {
-        // First delete checklist items (cascade should handle, but being explicit)
         await db.checklistItem.deleteMany({
             where: { taskId }
         })
 
-        // Then delete the task
         await db.taskCard.delete({
             where: { id: taskId, userId: user.id }
         })
 
-        revalidatePath('/kanban')
-        revalidatePath('/')
         return { success: true }
     } catch (error) {
         console.error('Erro ao excluir tarefa:', error)
@@ -191,7 +193,6 @@ export async function archiveTaskAction(taskId: string) {
             data: { isArchived: true }
         })
 
-        revalidatePath('/kanban')
         return { success: true }
     } catch (error) {
         console.error('Erro ao arquivar tarefa:', error)
@@ -208,7 +209,6 @@ export async function toggleChecklistItemAction(checklistItemId: string) {
     }
 
     try {
-        // Get current state
         const item = await db.checklistItem.findUnique({
             where: { id: checklistItemId }
         })
@@ -217,13 +217,11 @@ export async function toggleChecklistItemAction(checklistItemId: string) {
             throw new Error('Item não encontrado')
         }
 
-        // Toggle the completion status
         const updated = await db.checklistItem.update({
             where: { id: checklistItemId },
             data: { isCompleted: !item.isCompleted }
         })
 
-        revalidatePath('/kanban')
         return { success: true, isCompleted: updated.isCompleted }
     } catch (error) {
         console.error('Erro ao atualizar checklist:', error)
@@ -239,7 +237,6 @@ export async function updateTaskAction(taskId: string, data: any) {
         throw new Error('Não autorizado')
     }
 
-    // Sanitize dates (convert ISO strings from client to Date objects for Prisma)
     const sanitizedData = {
         ...data,
         fatalDate: data.fatalDate ? new Date(data.fatalDate) : null,
@@ -250,8 +247,6 @@ export async function updateTaskAction(taskId: string, data: any) {
 
     try {
         await KanbanService.updateTask(user.id, taskId, sanitizedData)
-        revalidatePath('/kanban')
-        revalidatePath('/')
         return { success: true }
     } catch (error) {
         console.error('Erro detalhado ao atualizar tarefa:', error)

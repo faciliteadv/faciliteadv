@@ -3,7 +3,8 @@ import { createClient } from "@/utils/supabase/server"
 
 /**
  * Ensures the Supabase auth user exists in our database.
- * Creates the user record if it doesn't exist.
+ * Creates the user record if user doesn't exist.
+ * Default pipeline + columns are created via WorkspaceService when a workspace is created.
  * Should be called on protected routes.
  */
 export async function ensureUserExists() {
@@ -21,6 +22,8 @@ export async function ensureUserExists() {
 
     // Create if not exists
     if (!dbUser) {
+        console.log(`[ensureUserExists] Creating new user: ${user.id}`)
+
         dbUser = await db.user.create({
             data: {
                 id: user.id,

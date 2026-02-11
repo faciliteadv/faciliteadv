@@ -28,7 +28,8 @@ import Link from "next/link"
 import { CopyButton } from "@/components/ui/copy-button"
 import { ProcessFinancialTab } from "@/components/processes/process-financial-tab"
 import { ProcessDeadlineTab } from "@/components/processes/process-deadline-tab"
-import { getKanbanColumns } from "@/lib/actions/column-actions"
+import { getColumnsByPipeline } from "@/lib/actions/column-actions"
+import { WorkspaceService } from "@/lib/services/workspace-service"
 import { PageContainer } from "@/components/layout/page-container"
 
 interface PageProps {
@@ -124,8 +125,18 @@ export default async function ProcessDetailPage({ params }: PageProps) {
         orderBy: { startAt: 'asc' }
     })
 
-    // Fetch kanban columns for task creation
-    const kanbanColumns = await getKanbanColumns('tasks')
+    // Fetch kanban columns for task creation — use default pipeline
+    const wsData = await WorkspaceService.getActiveWorkspace(user.id)
+    let kanbanColumns: { id: string; name: string; color: string; position: number }[] = []
+    if (wsData) {
+        const pipelines = await WorkspaceService.listPipelines(wsData.workspace.id)
+        const defaultPipeline = pipelines.find(p => p.isDefault) || pipelines[0]
+        if (defaultPipeline) {
+            kanbanColumns = (await getColumnsByPipeline(defaultPipeline.id)).map(c => ({
+                id: c.id, name: c.name, color: c.color, position: c.position as number || 0
+            }))
+        }
+    }
 
     return (
         <PageContainer>

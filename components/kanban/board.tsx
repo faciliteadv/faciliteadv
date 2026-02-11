@@ -25,10 +25,10 @@ import {
     useSortable
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { TaskCard, Tag, KanbanColumn } from "@prisma/client"
+import { Tag, KanbanColumn, Client } from "@prisma/client"
 import { moveCardAction, deleteTaskAction, quickCreateTaskAction } from "@/lib/actions/kanban-actions"
 import { reorderColumnsAction, updateColumnAction, createColumnAction, deleteColumnAction } from "@/lib/actions/column-actions"
-import { AlertCircle, FileText, MoreHorizontal, Trash2, GripVertical, Calendar, Plus, Pencil, Check, X } from "lucide-react"
+import { AlertCircle, FileText, MoreHorizontal, Trash2, GripVertical, Calendar, Plus, Pencil, Check, X, LayoutDashboard } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { TaskDetailModal } from "./task-detail-modal"
 import {
@@ -69,32 +69,41 @@ function getUserColor(name: string): string {
     return colors[index]
 }
 
-type ExtendedTask = Omit<TaskCard, 'phase' | 'createdAt' | 'updatedAt' | 'fatalDate' | 'endDate' | 'publicationDate' | 'protocolDate'> & {
+type ExtendedTask = {
+    id: string
+    title: string
+    description?: string | null
+    type?: string
     phase: string
+    columnId: string
+    position: number
+    isArchived: boolean
     createdAt: string
     updatedAt: string
     fatalDate: string | null
     endDate: string | null
     publicationDate: string | null
     protocolDate: string | null
-    columnId?: string | null
-    client?: { id: string; name: string } | null
+    client?: Pick<Client, 'id' | 'name'> | null
     process?: { id: string; number: string; folderName: string | null } | null
     responsibleLawyer?: { id: string; name: string | null } | null
     tags?: Tag[]
     checklist?: { id: string; title: string; isCompleted: boolean }[]
+    [key: string]: any
 }
 
 type BoardProps = {
     tasks: ExtendedTask[]
     columns: KanbanColumn[]
+    pipelineId: string
     onOpenAddTask?: (phase: string) => void
     users: { id: string; name: string | null; email: string | null }[]
     clients: { id: string; name: string }[]
     processes: { id: string; number: string; folderName: string | null }[]
-    // New Props for Controlled Mode
-    onMoveTask: (taskId: string, targetColumnId: string, targetPhaseName?: string, overTaskId?: string) => void
+    onMoveTask: (cardId: string, targetColumnId: string, targetPosition: number) => void
     onDeleteTask: (taskId: string) => void
+    onColumnAdded?: (column: KanbanColumn) => void
+    onColumnsChanged?: (columns: KanbanColumn[]) => void
 }
 
 type DragData = {
@@ -114,14 +123,17 @@ const dropAnimation: DropAnimation = {
 };
 
 export function KanbanBoard({
-    tasks, // NOW CONTROLLED
+    tasks,
     columns: initialColumns,
+    pipelineId,
     onOpenAddTask,
     users,
     clients,
     processes,
     onMoveTask,
-    onDeleteTask
+    onDeleteTask,
+    onColumnAdded,
+    onColumnsChanged
 }: BoardProps) {
     // REMOVED: const [tasks, setTasks] = useState(initialTasks)
     // REMOVED: useEffect sync
@@ -188,9 +200,10 @@ export function KanbanBoard({
                 if (newIndex !== -1) {
                     const reorderedColumns = arrayMove(columns, oldIndex, newIndex)
                     setColumns(reorderedColumns)
+                    onColumnsChanged?.(reorderedColumns)
 
-                    // Persist to server
-                    await reorderColumnsAction(reorderedColumns.map(col => col.id))
+                    // Persist to server — scoped to this pipeline
+                    await reorderColumnsAction(pipelineId, reorderedColumns.map(col => col.id))
                 }
             }
             return
@@ -199,35 +212,36 @@ export function KanbanBoard({
         // Handle Card Movement
         if (activeType === 'card') {
             const cardId = active.id as string
+            const activeCard = tasks.find(t => t.id === cardId)
+            if (!activeCard) return
 
-            // Find which column the card was dropped on
             let targetColumnId: string | null = null
-            let targetColumnName: string | null = null
+            let targetPosition: number = 0
 
-            // Check if dropped directly on a column
+            // Check if dropped directly on a column (empty column or column header)
             const targetColumn = columns.find(col => col.id === over.id)
             if (targetColumn) {
                 targetColumnId = targetColumn.id
-                targetColumnName = targetColumn.name
+                // Dropped on column itself = append at end
+                const columnTasks = tasks.filter(t => t.columnId === targetColumnId && t.id !== cardId)
+                targetPosition = columnTasks.length
             } else {
-                // Dropped on another card - find that card's column
-                const targetCard = tasks.find(t => t.id === over.id)
-                if (targetCard) {
-                    targetColumnId = targetCard.columnId || null
-                    // Fallback to phase matching if columnId is missing (should not happen after migration)
-                    if (!targetColumnId) {
-                        const col = columns.find(c => c.name === targetCard.phase)
-                        if (col) targetColumnId = col.id
-                    }
-                    targetColumnName = targetCard.phase // Approximate, or fetch from column
+                // Dropped on another card - find that card's column + compute position
+                const overCard = tasks.find(t => t.id === over.id)
+                if (overCard) {
+                    targetColumnId = overCard.columnId
+                    const columnTasks = tasks
+                        .filter(t => t.columnId === targetColumnId && t.id !== cardId)
+                        .sort((a, b) => a.position - b.position)
+
+                    // Find the position of the card we dropped onto
+                    const overIndex = columnTasks.findIndex(t => t.id === overCard.id)
+                    targetPosition = overIndex !== -1 ? overIndex : columnTasks.length
                 }
             }
 
-            const activeCard = tasks.find(t => t.id === cardId)
-
-            if (targetColumnId && activeCard) {
-                // Delegate to Parent / Hook
-                onMoveTask(cardId, targetColumnId, targetColumnName || undefined, over.id as string)
+            if (targetColumnId) {
+                onMoveTask(cardId, targetColumnId, targetPosition)
             }
         }
     }
@@ -281,6 +295,31 @@ export function KanbanBoard({
     const isDialogOpen = !!columnToDelete || !!taskToDelete || !!columnWarning
     const { ref: scrollContainerRef } = useDraggableScroll()
 
+    // EMPTY STATE
+    if (columns.length === 0) {
+        return (
+            <div className="flex-1 flex flex-col items-center justify-center bg-slate-50/50 p-8 animate-in fade-in duration-500">
+                <div className="max-w-md w-full bg-white p-10 rounded-3xl shadow-sm border border-slate-200 flex flex-col items-center text-center">
+                    <div className="p-4 bg-blue-50 rounded-2xl mb-6 ring-8 ring-blue-50/50">
+                        <LayoutDashboard className="w-10 h-10 text-blue-600" />
+                    </div>
+                    <h2 className="text-xl font-bold text-slate-900 mb-2">Sua esteira está vazia</h2>
+                    <p className="text-slate-500 mb-8 text-sm leading-relaxed max-w-xs mx-auto">
+                        Crie sua primeira lista para organizar o fluxo de trabalho desta esteira.
+                    </p>
+
+                    <AddListButton onAddList={async (name) => {
+                        const result = await createColumnAction(pipelineId, name, '#64748b')
+                        if (result.success && result.column) {
+                            setColumns(prev => [...prev, result.column])
+                            if (onColumnAdded) onColumnAdded(result.column)
+                        }
+                    }} />
+                </div>
+            </div>
+        )
+    }
+
     // ... Render (Keep rest same, but now using `tasks` prop) ...
     return (
         <>
@@ -331,9 +370,10 @@ export function KanbanBoard({
                                 ))}
                             </SortableContext>
                             <AddListButton onAddList={async (name) => {
-                                const result = await createColumnAction('tasks', name, '#64748b')
+                                const result = await createColumnAction(pipelineId, name, '#64748b')
                                 if (result.success && result.column) {
                                     setColumns(prev => [...prev, result.column])
+                                    if (onColumnAdded) onColumnAdded(result.column)
                                 }
                             }} />
                         </div>
@@ -352,7 +392,7 @@ export function KanbanBoard({
                 </DragOverlay>
 
                 <TaskDetailModal
-                    task={selectedTask}
+                    task={selectedTask as any}
                     isOpen={selectedTask !== null}
                     onClose={() => setSelectedTask(null)}
                     users={users}

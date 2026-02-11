@@ -2,11 +2,17 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Home, Users, FileText, Calendar, DollarSign, Settings, LayoutDashboard, Scale, PanelLeft } from "lucide-react"
+import { Home, Users, FileText, DollarSign, Settings, LayoutDashboard, Scale, PanelLeft } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { WorkspaceSelector } from "@/components/workspace/workspace-selector"
 
-export function Sidebar() {
+interface SidebarProps {
+    workspaces?: { id: string; name: string; slug: string; role?: string }[]
+    activeWorkspaceId?: string
+}
+
+export function Sidebar({ workspaces = [], activeWorkspaceId = "" }: SidebarProps) {
     const [collapsed, setCollapsed] = useState(false)
     const onToggle = () => setCollapsed(!collapsed)
 
@@ -14,8 +20,7 @@ export function Sidebar() {
         { href: "/dashboard", icon: Home, label: "Dashboard" },
         { href: "/clients", icon: Users, label: "Clientes" },
         { href: "/processes", icon: FileText, label: "Processos" },
-        { href: "/agenda", icon: Calendar, label: "Agenda" },
-        { href: "/kanban", icon: LayoutDashboard, label: "Prazos e Casos" },
+        { href: "/kanban", icon: LayoutDashboard, label: "Kanban" },
         { href: "/financial", icon: DollarSign, label: "Financeiro" },
     ]
 
@@ -25,33 +30,44 @@ export function Sidebar() {
             collapsed ? "w-20" : "w-64"
         )}>
             <div className={cn(
-                "p-6 border-b border-sidebar-border flex items-center justify-between",
-                collapsed && "px-4 justify-center"
+                "p-4 border-b border-sidebar-border flex items-center justify-between gap-2",
+                collapsed && "px-2 justify-center flex-col gap-4"
             )}>
-                {!collapsed && (
-                    <div className="flex items-center gap-2 overflow-hidden whitespace-nowrap">
-                        <div className="w-8 h-8 rounded-lg bg-sidebar-primary flex items-center justify-center shrink-0">
-                            <Scale className="w-5 h-5 text-sidebar-primary-foreground" />
-                        </div>
-                        <div className="flex flex-col">
-                            <h1 className="text-lg font-bold tracking-tight text-sidebar-foreground">FaciliteADV</h1>
-                            <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Premium</p>
-                        </div>
+                {workspaces.length > 0 ? (
+                    <div className="flex-1 min-w-0">
+                        <WorkspaceSelector
+                            workspaces={workspaces}
+                            activeWorkspaceId={activeWorkspaceId}
+                            collapsed={collapsed}
+                        />
                     </div>
+                ) : (
+                    !collapsed && (
+                        <div className="flex items-center gap-2 overflow-hidden whitespace-nowrap px-2 py-2">
+                            <div className="w-8 h-8 rounded-lg bg-sidebar-primary flex items-center justify-center shrink-0">
+                                <Scale className="w-5 h-5 text-sidebar-primary-foreground" />
+                            </div>
+                            <div className="flex flex-col">
+                                <h1 className="text-lg font-bold tracking-tight text-sidebar-foreground">FaciliteADV</h1>
+                                <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Premium</p>
+                            </div>
+                        </div>
+                    )
                 )}
-                {collapsed && (
+                {collapsed && workspaces.length === 0 && (
                     <div className="w-8 h-8 rounded-lg bg-sidebar-primary flex items-center justify-center mb-0">
                         <Scale className="w-5 h-5 text-sidebar-primary-foreground" />
                     </div>
                 )}
+
 
                 <Button
                     variant="ghost"
                     size="icon"
                     onClick={onToggle}
                     className={cn(
-                        "text-sidebar-foreground/50 hover:text-sidebar-foreground",
-                        !collapsed && "ml-2"
+                        "text-sidebar-foreground/50 hover:text-sidebar-foreground shrink-0",
+                        collapsed && "mt-2" // spacing in vertical layout
                     )}
                 >
                     <PanelLeft className="w-5 h-5" />

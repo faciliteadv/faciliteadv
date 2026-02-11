@@ -1,8 +1,11 @@
 import { Sidebar } from "@/components/layout/sidebar"
 import { Header } from "@/components/layout/header"
 import { ensureUserExists } from "@/lib/auth/ensure-user"
+import { redirect } from "next/navigation"
 
 import { QueryProvider } from "@/components/providers/query-provider"
+import { EsteiraModalProvider } from "@/components/providers/esteira-modal-provider"
+import { WorkspaceService } from "@/lib/services/workspace-service"
 
 export default async function AppLayout({
     children,
@@ -11,17 +14,30 @@ export default async function AppLayout({
 }) {
     const user = await ensureUserExists()
 
+    if (!user) {
+        redirect('/login')
+    }
+
+    const workspaces = await WorkspaceService.listUserWorkspaces(user.id)
+    const activeWorkspace = await WorkspaceService.getActiveWorkspace(user.id)
+
     return (
         <QueryProvider>
-            <div className="flex h-screen overflow-hidden bg-background">
-                <Sidebar />
-                <div className="flex-1 flex flex-col h-full overflow-hidden">
-                    <Header />
-                    <main className="flex-1 overflow-y-auto transition-all duration-300">
-                        {children}
-                    </main>
+            <EsteiraModalProvider>
+                <div className="flex h-screen overflow-hidden bg-background">
+                    <Sidebar
+                        workspaces={workspaces}
+                        activeWorkspaceId={activeWorkspace?.workspace.id || ''}
+                    />
+                    <div className="flex-1 flex flex-col h-full overflow-hidden">
+                        <Header />
+                        <main className="flex-1 flex flex-col overflow-hidden transition-all duration-300">
+                            {children}
+                        </main>
+                    </div>
                 </div>
-            </div>
+            </EsteiraModalProvider>
         </QueryProvider>
     );
 }
+

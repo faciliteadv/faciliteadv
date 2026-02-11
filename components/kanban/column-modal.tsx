@@ -8,7 +8,7 @@ import {
     updateColumnAction,
     deleteColumnAction,
     reorderColumnsAction,
-    getKanbanColumns
+    getColumnsByPipeline
 } from "@/lib/actions/column-actions"
 import {
     DndContext,
@@ -32,20 +32,20 @@ type Column = {
     id: string
     name: string
     color: string
-    order: number
+    position: number
 }
 
 type Props = {
     isOpen: boolean
     onClose: () => void
-    boardType: 'tasks' | 'cases' | 'inss'
+    pipelineId: string
 }
 
 const PRESET_COLORS = [
     "#64748b", "#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#6366f1", "#a855f7", "#ec4899", "#1e3a8a", "#064e3b"
 ]
 
-export function ColumnModal({ isOpen, onClose, boardType }: Props) {
+export function ColumnModal({ isOpen, onClose, pipelineId }: Props) {
     const [columns, setColumns] = useState<Column[]>([])
     const [loading, setLoading] = useState(true)
     const [editingColumn, setEditingColumn] = useState<Column | null>(null)
@@ -62,14 +62,14 @@ export function ColumnModal({ isOpen, onClose, boardType }: Props) {
     const fetchColumns = useCallback(async () => {
         setLoading(true)
         try {
-            const cols = await getKanbanColumns(boardType)
-            setColumns(cols)
+            const cols = await getColumnsByPipeline(pipelineId)
+            setColumns(cols.map(c => ({ id: c.id, name: c.name, color: c.color, position: c.position })))
         } catch (error) {
             console.error("Erro ao buscar colunas:", error)
         } finally {
             setLoading(false)
         }
-    }, [boardType])
+    }, [pipelineId])
 
     useEffect(() => {
         if (isOpen) {
@@ -89,7 +89,7 @@ export function ColumnModal({ isOpen, onClose, boardType }: Props) {
 
             try {
                 // Call action to save new order
-                await reorderColumnsAction(newItems.map(i => i.id))
+                await reorderColumnsAction(pipelineId, newItems.map(i => i.id))
             } catch (error) {
                 console.error("Erro ao reordenar colunas:", error)
                 fetchColumns() // Revert on error
@@ -100,7 +100,7 @@ export function ColumnModal({ isOpen, onClose, boardType }: Props) {
     async function handleAddColumn() {
         if (!newName.trim()) return
         try {
-            await createColumnAction(boardType, newName, newColor)
+            await createColumnAction(pipelineId, newName, newColor)
             setNewName("")
             fetchColumns()
         } catch {
