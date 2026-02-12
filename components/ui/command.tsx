@@ -121,13 +121,7 @@ const CommandItem = React.forwardRef<
             className
         )}
         onSelect={onSelect}
-        onMouseDown={(e) => {
-            e.preventDefault()
-            if (onSelect) {
-                // The value is passed to onSelect by cmdk internally
-                onSelect(props.value || "")
-            }
-        }}
+
         {...props}
     />
 ))

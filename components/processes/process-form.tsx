@@ -729,12 +729,6 @@ function Combobox({
                                 <CommandItem
                                     key={op.value}
                                     value={op.search || op.label}
-                                    // TRUQUE PARA O MOUSE: 
-                                    // Usamos onPointerDown para evitar perda de foco e o clique funcionar de primeira
-                                    onPointerDown={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                    }}
                                     onSelect={() => {
                                         onValueChange(op.value);
                                         setOpen(false);

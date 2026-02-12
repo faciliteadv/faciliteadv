@@ -31,7 +31,7 @@ export default async function AppLayout({
                     />
                     <div className="flex-1 flex flex-col h-full overflow-hidden">
                         <Header />
-                        <main className="flex-1 flex flex-col overflow-hidden transition-all duration-300">
+                        <main className="flex-1 flex flex-col overflow-y-auto transition-all duration-300">
                             {children}
                         </main>
                     </div>

@@ -6,19 +6,27 @@ import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { sanitizeFormData, sanitizeRelations, sanitizeNumeric, prepareForPrisma } from "@/lib/utils/data-sanitizer"
 import { recordAuditLog } from "@/lib/utils/audit"
+import { CreateProcessSchema, UpdateProcessSchema, CreateFinancialRecordSchema } from "@/lib/validations/schemas"
+import { withAuth } from "@/lib/auth/with-auth"
 
 // Simple fetch for select
+// Simple fetch for select
 export async function getClientsForSelect() {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return []
+    return withAuth(async ({ userId, workspaceId }) => {
 
-    const clients = await db.client.findMany({
-        where: { userId: user.id, deletedAt: null },
-        select: { id: true, name: true, cpfCnpj: true },
-        orderBy: { name: 'asc' }
+        const clients = await db.client.findMany({
+            where: {
+                deletedAt: null,
+                OR: [
+                    ...(workspaceId ? [{ workspaceId }] : []),
+                    { userId, workspaceId: null }
+                ]
+            },
+            select: { id: true, name: true, cpfCnpj: true },
+            orderBy: { name: 'asc' }
+        })
+        return clients
     })
-    return clients
 }
 
 export async function getUsersForResponsibleSelect() {
@@ -136,123 +144,122 @@ export async function createDistrict(name: string) {
 }
 
 // Create Process
-export async function createProcess(data: any) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error("Não autorizado")
+// Create Process
+export async function createProcess(rawData: unknown) {
+    return withAuth(async ({ userId, workspaceId }) => {
 
-    try {
-        const sanitized = sanitizeFormData(data)
+        try {
+            const parsed = CreateProcessSchema.parse(rawData)
+            const sanitized = sanitizeFormData(parsed)
 
-        if (!sanitized.clientId || !sanitized.number || !sanitized.area) {
-            throw new Error("Número do processo, cliente e área de atuação são obrigatórios")
-        }
+            const sanitizedAuthors = sanitizeRelations(parsed.authors)
+            const sanitizedOpponents = sanitizeRelations(parsed.opponents)
+            const claimValue = sanitizeNumeric(sanitized.claimValue)
 
-        const sanitizedAuthors = sanitizeRelations(sanitized.authors)
-        const sanitizedOpponents = sanitizeRelations(sanitized.opponents)
-        const claimValue = sanitizeNumeric(sanitized.claimValue)
-
-        const result = await db.$transaction(async (tx) => {
-            const processData = prepareForPrisma({
-                number: sanitized.number,
-                area: sanitized.area || null,
-                actionType: sanitized.actionType || null,
-                folderName: sanitized.folderName || null,
-                status: sanitized.status || 'ACTIVE',
-                opponent: sanitized.opponent || null,
-                position: sanitized.position || null,
-                district: sanitized.district || null,
-                court: sanitized.court || null,
-                link: sanitized.link || null,
-                claimValue: claimValue
-            })
-
-            const createData: any = {
-                ...processData,
-                user: { connect: { id: user.id } },
-                client: { connect: { id: sanitized.clientId } }
-            }
-
-            if (sanitized.responsibleLawyerId) {
-                createData.responsibleLawyer = { connect: { id: sanitized.responsibleLawyerId } }
-            }
-
-            const process = await tx.process.create({
-                data: createData
-            })
-
-            if (sanitizedAuthors.length > 0) {
-                await tx.processAuthor.createMany({
-                    data: sanitizedAuthors.map((a: any) => ({
-                        processId: process.id,
-                        clientId: a.clientId,
-                        position: a.position || 'AUTOR'
-                    }))
+            const result = await db.$transaction(async (tx) => {
+                const processData = prepareForPrisma({
+                    number: sanitized.number,
+                    area: sanitized.area || null,
+                    actionType: sanitized.actionType || null,
+                    folderName: sanitized.folderName || null,
+                    status: sanitized.status || 'ACTIVE',
+                    opponent: sanitized.opponent || null,
+                    position: sanitized.position || null,
+                    district: sanitized.district || null,
+                    court: sanitized.court || null,
+                    link: sanitized.link || null,
+                    claimValue: claimValue
                 })
-            }
 
-            if (sanitizedOpponents.length > 0) {
-                const opponentClientIds = sanitizedOpponents
-                    .map((o: any) => o.clientId)
-                    .filter(Boolean)
+                const createData: any = {
+                    ...processData,
+                    user: { connect: { id: userId } },
+                    client: { connect: { id: sanitized.clientId } },
+                    ...(workspaceId ? { workspace: { connect: { id: workspaceId } } } : {})
+                }
 
-                const opponentClients = opponentClientIds.length > 0
-                    ? await tx.client.findMany({
-                        where: { id: { in: opponentClientIds } },
-                        select: { id: true, name: true, cpfCnpj: true }
+                if (sanitized.responsibleLawyerId) {
+                    createData.responsibleLawyer = { connect: { id: sanitized.responsibleLawyerId } }
+                }
+
+                const process = await tx.process.create({
+                    data: createData
+                })
+
+                if (sanitizedAuthors.length > 0) {
+                    await tx.processAuthor.createMany({
+                        data: sanitizedAuthors.map((a: any) => ({
+                            processId: process.id,
+                            clientId: a.clientId,
+                            position: a.position || 'AUTOR'
+                        }))
                     })
-                    : []
+                }
 
-                const clientMap = new Map(opponentClients.map(c => [c.id, c]))
+                if (sanitizedOpponents.length > 0) {
+                    const opponentClientIds = sanitizedOpponents
+                        .map((o: any) => o.clientId)
+                        .filter(Boolean)
 
-                const opponentDataList = sanitizedOpponents.map((o: any) => {
-                    const client = o.clientId ? clientMap.get(o.clientId) : null
-                    return {
-                        processId: process.id,
-                        clientId: o.clientId || null,
-                        name: client?.name || o.name || 'Não informado',
-                        cpfCnpj: client?.cpfCnpj || o.cpfCnpj || null,
-                        position: o.position || 'REU'
-                    }
+                    const opponentClients = opponentClientIds.length > 0
+                        ? await tx.client.findMany({
+                            where: { id: { in: opponentClientIds } },
+                            select: { id: true, name: true, cpfCnpj: true }
+                        })
+                        : []
+
+                    const clientMap = new Map(opponentClients.map(c => [c.id, c]))
+
+                    const opponentDataList = sanitizedOpponents.map((o: any) => {
+                        const client = o.clientId ? clientMap.get(o.clientId) : null
+                        return {
+                            processId: process.id,
+                            clientId: o.clientId || null,
+                            name: client?.name || o.name || 'Não informado',
+                            cpfCnpj: client?.cpfCnpj || o.cpfCnpj || null,
+                            position: o.position || 'REU'
+                        }
+                    })
+
+                    await tx.processOpponent.createMany({
+                        data: opponentDataList
+                    })
+                }
+
+                // Record Audit Log
+                await recordAuditLog({
+                    userId,
+                    entityId: process.id,
+                    entityType: 'PROCESS',
+                    action: 'CREATE',
+                    newData: { ...process, authorsCount: sanitizedAuthors.length, opponentsCount: sanitizedOpponents.length }
                 })
 
-                await tx.processOpponent.createMany({
-                    data: opponentDataList
-                })
-            }
-
-            // Record Audit Log
-            await recordAuditLog({
-                userId: user.id,
-                entityId: process.id,
-                entityType: 'PROCESS',
-                action: 'CREATE',
-                newData: { ...process, authorsCount: sanitizedAuthors.length, opponentsCount: sanitizedOpponents.length }
+                return process
             })
 
-            return process
-        })
+            revalidatePath("/processes")
+            revalidatePath("/dashboard")
+            revalidatePath(`/clients/${sanitized.clientId}`)
 
-        revalidatePath("/processes")
-        revalidatePath("/dashboard")
-        revalidatePath(`/clients/${sanitized.clientId}`)
-
-        return { success: true, message: "Processo criado com sucesso", id: result.id }
-    } catch (error: any) {
-        console.error("Error creating process:", error)
-        throw new Error(error.message || "Falha ao criar processo.")
-    }
+            return { success: true, message: "Processo criado com sucesso", id: result.id }
+        } catch (error: any) {
+            console.error("Error creating process:", error)
+            throw new Error(error.message || "Falha ao criar processo.")
+        }
+    })
 }
 
-export async function updateProcessAction(processId: string, data: any) {
+export async function updateProcessAction(processId: string, rawData: unknown) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error("Não autorizado")
 
     try {
-        const sanitized = sanitizeFormData(data)
-        const sanitizedAuthors = sanitizeRelations(sanitized.authors)
-        const sanitizedOpponents = sanitizeRelations(sanitized.opponents)
+        const parsed = UpdateProcessSchema.parse(rawData)
+        const sanitized = sanitizeFormData(parsed)
+        const sanitizedAuthors = sanitizeRelations(parsed.authors)
+        const sanitizedOpponents = sanitizeRelations(parsed.opponents)
         const claimValue = sanitizeNumeric(sanitized.claimValue)
 
         await db.$transaction(async (tx) => {
@@ -401,13 +408,14 @@ export async function getFinancialRecordsByProcessId(processId: string) {
     }))
 }
 
-export async function createFinancialRecordAction(data: any) {
+export async function createFinancialRecordAction(rawData: unknown) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error("Não autorizado")
 
     try {
-        const sanitized = sanitizeFormData(data)
+        const parsed = CreateFinancialRecordSchema.parse(rawData)
+        const sanitized = sanitizeFormData(parsed)
         const amount = sanitizeNumeric(sanitized.amount)
 
         const record = await db.financialRecord.create({

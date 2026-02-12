@@ -44,6 +44,13 @@ export const KanbanService = {
                 tags: true,
                 checklist: {
                     orderBy: { createdAt: 'asc' }
+                },
+                column: {
+                    select: {
+                        id: true,
+                        name: true,
+                        color: true
+                    }
                 }
             },
             orderBy: [

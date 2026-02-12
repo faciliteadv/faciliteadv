@@ -2,6 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server"
 import { db } from "@/lib/db"
+import { withAuth } from "@/lib/auth/with-auth"
 
 /**
  * Get columns for a specific pipeline, ordered by position.
@@ -50,47 +51,54 @@ export async function createColumnAction(pipelineId: string, name: string, color
  * Also updates the `phase` field on all tasks in this column for legacy compat.
  */
 export async function updateColumnAction(columnId: string, name: string, color: string) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Não autorizado')
+    return withAuth(async ({ userId }) => {
+        return await db.$transaction(async (tx) => {
+            const currentColumn = await tx.kanbanColumn.findUnique({
+                where: { id: columnId }
+            })
 
-    const currentColumn = await db.kanbanColumn.findUnique({
-        where: { id: columnId }
-    })
+            if (!currentColumn) throw new Error('Coluna não encontrada')
 
-    if (!currentColumn) throw new Error('Coluna não encontrada')
+            const oldName = currentColumn.name
 
-    const oldName = currentColumn.name
+            await tx.kanbanColumn.update({
+                where: { id: columnId },
+                data: { name, color }
+            })
 
-    await db.kanbanColumn.update({
-        where: { id: columnId },
-        data: { name, color }
-    })
+            // Sync phase field on tasks if column was renamed
+            if (oldName !== name) {
+                await tx.taskCard.updateMany({
+                    where: { columnId },
+                    data: { phase: name }
+                })
+            }
 
-    // Sync phase field on tasks if column was renamed
-    if (oldName !== name) {
-        await db.taskCard.updateMany({
-            where: { columnId },
-            data: { phase: name }
+            return { success: true }
         })
-    }
-
-    return { success: true }
+    })
 }
 
 /**
  * Delete a column.
  */
 export async function deleteColumnAction(columnId: string) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Não autorizado')
+    return withAuth(async () => {
+        // Safety check: Don't delete if has cards
+        const cardsCount = await db.taskCard.count({
+            where: { columnId }
+        })
 
-    await db.kanbanColumn.delete({
-        where: { id: columnId }
+        if (cardsCount > 0) {
+            throw new Error("Não é possível excluir uma coluna com cards. Mova ou arquive os cards primeiro.")
+        }
+
+        await db.kanbanColumn.delete({
+            where: { id: columnId }
+        })
+
+        return { success: true }
     })
-
-    return { success: true }
 }
 
 /**

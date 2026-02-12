@@ -5,7 +5,7 @@ import { createClient as createSupabaseClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
 import { ClientService } from "@/lib/services/client-service"
 import { recordAuditLog } from "@/lib/utils/audit"
-import { z } from "zod"
+import { ClientCreateSchema } from "@/lib/validations/client"
 
 // Helper to capitalize words
 const toTitleCase = (str: string) => {
@@ -52,13 +52,14 @@ export async function fetchCPFData(cpf: string) {
     }
 }
 
-export async function createClient(data: any) {
+export async function createClient(rawData: unknown) {
     const supabase = await createSupabaseClient()
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) throw new Error("Unauthorized")
 
     try {
+        const data = ClientCreateSchema.parse(rawData)
         const client = await ClientService.createClient(user.id, data)
 
         // Record Audit Log
@@ -79,13 +80,14 @@ export async function createClient(data: any) {
     }
 }
 
-export async function updateClientAction(clientId: string, data: any) {
+export async function updateClientAction(clientId: string, rawData: unknown) {
     const supabase = await createSupabaseClient()
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) throw new Error("Unauthorized")
 
     try {
+        const data = ClientCreateSchema.partial().parse(rawData)
         const oldClient = await db.client.findUnique({ where: { id: clientId } })
         const updatedClient = await ClientService.updateClient(user.id, clientId, data)
 

@@ -4,6 +4,8 @@ import { createClient } from "@/utils/supabase/server"
 import { KanbanService } from "@/lib/services/kanban-service"
 import { TaskType } from "@prisma/client"
 import { db } from "@/lib/db"
+import { UpdateTaskSchema } from "@/lib/validations/schemas"
+import { withAuth } from "@/lib/auth/with-auth"
 
 /**
  * Fetch board tasks for a specific pipeline.
@@ -139,20 +141,15 @@ export async function quickCreateTaskAction(title: string, columnId: string) {
  * NO revalidatePath — React Query manages client state via optimistic updates.
  */
 export async function moveCardAction(cardId: string, targetColumnId: string, targetPosition: number) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-        throw new Error('Não autorizado. Faça login novamente.')
-    }
-
-    try {
-        await KanbanService.moveCard(cardId, targetColumnId, targetPosition)
-        return { success: true }
-    } catch (error) {
-        console.error('Erro ao mover tarefa:', error)
-        throw new Error('Erro ao mover tarefa.')
-    }
+    return withAuth(async ({ userId }) => {
+        try {
+            await KanbanService.moveCard(cardId, targetColumnId, targetPosition)
+            return { success: true }
+        } catch (error) {
+            console.error('Erro ao mover tarefa:', error)
+            throw new Error('Erro ao mover tarefa.')
+        }
+    })
 }
 
 export async function deleteTaskAction(taskId: string) {
@@ -229,7 +226,7 @@ export async function toggleChecklistItemAction(checklistItemId: string) {
     }
 }
 
-export async function updateTaskAction(taskId: string, data: any) {
+export async function updateTaskAction(taskId: string, rawData: unknown) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -237,6 +234,7 @@ export async function updateTaskAction(taskId: string, data: any) {
         throw new Error('Não autorizado')
     }
 
+    const data = UpdateTaskSchema.parse(rawData)
     const sanitizedData = {
         ...data,
         fatalDate: data.fatalDate ? new Date(data.fatalDate) : null,

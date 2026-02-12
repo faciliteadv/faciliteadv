@@ -100,11 +100,10 @@ model User {
   actionTypes          ActionType[]
   appointments         Appointment[]
   auditLogs            AuditLog[]
-  caseCards            CaseCard[]
   clients              Client[]
   courts               Court[]
   districts            District[]
-  inssCases            INSSCase[]
+  // Orphans removed
   kanbanColumns        KanbanColumn[]
   
   responsibleProcesses Process[]      @relation("ResponsibleLawyer")
@@ -226,6 +225,7 @@ model TaskCard {
   @@index([phase])
   @@index([responsibleLawyerId])
   @@index([columnId, position])
+  @@index([workspaceId, columnId])
 }
 
 model ChecklistItem {
@@ -250,6 +250,8 @@ model Tag {
   workspace   Workspace? @relation(fields: [workspaceId], references: [id])
   
   tasks      TaskCard[] @relation("TagToTaskCard")
+  
+  @@index([workspaceId])
 }
 
 // --- OTHER DOMAIN ENTITIES (With Workspace Hooks) ---
@@ -352,72 +354,12 @@ model Process {
 
 // ... Rest of the models unchanged or minimally adapted ...
 
-model CaseCard {
-  id            String              @id @default(uuid())
-  clientName    String
-  defendantName String?
-  deadline      DateTime?
-  description   String?
-  isArchived    Boolean             @default(false)
-  userId        String
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
-  practiceArea  String              @default("OTHER")
-  phase         String              @default("NEW_LEAD")
-  user          User                @relation(fields: [userId], references: [id])
-  checklist     CaseChecklistItem[]
-
-  @@index([userId])
-  @@index([phase])
-  @@index([deadline])
-}
-
-model CaseChecklistItem {
-  id          String   @id @default(uuid())
-  title       String
-  isCompleted Boolean  @default(false)
-  caseId      String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  case        CaseCard @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  @@index([caseId])
-}
-
-model INSSCase {
-  id          String              @id @default(uuid())
-  clientName  String
-  clientCpf   String?
-  govPassword String?
-  deadline    DateTime?
-  description String?
-  isArchived  Boolean             @default(false)
-  userId      String
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-  actionType  String              @default("OTHER")
-  phase       String              @default("NEW_CASE")
-  user        User                @relation(fields: [userId], references: [id])
-  checklist   INSSChecklistItem[]
-
-  @@index([userId])
-  @@index([phase])
-  @@index([deadline])
-}
-
-model INSSChecklistItem {
-  id          String   @id @default(uuid())
-  title       String
-  isCompleted Boolean  @default(false)
-  inssId      String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  inssCase    INSSCase @relation(fields: [inssId], references: [id], onDelete: Cascade)
-  @@index([inssId])
-}
+// DEPRECATED ORPHAN MODELS REMOVED
+// CaseCard, INSSCase, CaseChecklistItem, INSSChecklistItem migrated to TaskCard
 
 model FinancialRecord {
-  id            String    @id @default(uuid())
-  type          String
+  id            String        @id @default(uuid())
+  type          FinancialType
   amount        Decimal
   dueDate       DateTime
   paidAt        DateTime?
@@ -425,12 +367,16 @@ model FinancialRecord {
   clientId      String
   processId     String?
   userId        String
-  createdAt     DateTime  @default(now())
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @default(now()) @updatedAt
   installment   String?
   paymentMethod String?
   
-  client        Client    @relation(fields: [clientId], references: [id])
-  process       Process?  @relation(fields: [processId], references: [id])
+  client        Client        @relation(fields: [clientId], references: [id])
+  process       Process?      @relation(fields: [processId], references: [id])
+
+  @@index([clientId])
+  @@index([userId])
 }
 
 model Appointment {
@@ -452,6 +398,7 @@ model Appointment {
 
   @@index([userId])
   @@index([startAt])
+  @@index([clientId])
 }
 
 model ProcessAuthor {
@@ -580,6 +527,12 @@ enum AppointmentType {
 enum DaysType {
   BUSINESS
   CALENDAR
+}
+
+
+enum FinancialType {
+  INCOME
+  EXPENSE
 }
 
 enum PracticeArea {
