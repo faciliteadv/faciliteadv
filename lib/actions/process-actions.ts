@@ -1,7 +1,9 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { FinancialType } from "@prisma/client"
 import { createClient } from "@/utils/supabase/server"
+import { ensureUserExists } from "@/lib/auth/ensure-user"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { sanitizeFormData, sanitizeRelations, sanitizeNumeric, prepareForPrisma } from "@/lib/utils/data-sanitizer"
@@ -420,7 +422,7 @@ export async function createFinancialRecordAction(rawData: unknown) {
 
         const record = await db.financialRecord.create({
             data: {
-                type: sanitized.type || 'INCOME',
+                type: (sanitized.type as FinancialType) || 'INCOME',
                 amount: amount || 0,
                 dueDate: sanitized.dueDate ? new Date(sanitized.dueDate) : new Date(),
                 paidAt: sanitized.paidAt ? new Date(sanitized.paidAt) : null,
@@ -446,3 +448,4 @@ export async function createFinancialRecordAction(rawData: unknown) {
         throw new Error(error.message || "Falha ao criar registro financeiro")
     }
 }
+ 

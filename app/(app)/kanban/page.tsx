@@ -5,7 +5,6 @@ import { db } from "@/lib/db"
 import { ensureUserExists } from "@/lib/auth/ensure-user"
 import { WorkspaceService } from "@/lib/services/workspace-service"
 import { KanbanService } from "@/lib/services/kanban-service"
-import { CRMService } from "@/lib/services/crm-service"
 
 export const dynamic = 'force-dynamic'
 
@@ -49,13 +48,12 @@ export default async function KanbanPage({
     }
 
     // 4. Load data in parallel
-    const [rawTasks, processes, cases, columns, users, clients] = await Promise.all([
+    const [rawTasks, processes, columns, users, clients] = await Promise.all([
         activePipelineId ? KanbanService.getTasksByPipeline(activePipelineId) : Promise.resolve([]),
         db.process.findMany({
             where: { userId: user.id, deletedAt: null },
             select: { id: true, number: true, folderName: true }
         }),
-        CRMService.getCases(user.id),
         activePipelineId
             ? db.kanbanColumn.findMany({
                 where: { pipelineId: activePipelineId },
@@ -86,7 +84,6 @@ export default async function KanbanPage({
             pipelines={pipelines as any}
             activePipelineId={activePipelineId}
             processes={processes}
-            cases={cases as any}
             users={users}
             clients={clients}
         />

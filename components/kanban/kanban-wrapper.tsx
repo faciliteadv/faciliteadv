@@ -3,7 +3,6 @@
 import { useState, useCallback } from "react"
 import { KanbanBoard } from "./board"
 import { TaskModal } from "./task-modal"
-import { CaseModal } from "./case-modal"
 import { ColumnModal } from "./column-modal"
 import { useEsteiraModal } from "@/components/providers/esteira-modal-provider"
 import { Plus } from "lucide-react"
@@ -38,11 +37,6 @@ type ExtendedTask = {
     [key: string]: any
 }
 
-type ExtendedCase = {
-    id: string
-    [key: string]: any
-}
-
 type ProcessOption = {
     id: string
     number: string
@@ -63,7 +57,6 @@ type Props = {
     pipelines: Pipeline[]
     activePipelineId: string | null
     processes: ProcessOption[]
-    cases: ExtendedCase[]
     users: { id: string; name: string | null; email: string | null }[]
     clients: { id: string; name: string }[]
 }
@@ -74,7 +67,6 @@ export function KanbanWrapper({
     pipelines,
     activePipelineId,
     processes,
-    cases,
     users,
     clients
 }: Props) {
@@ -107,7 +99,6 @@ export function KanbanWrapper({
 
     // UI State
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false)
-    const [isCaseModalOpen, setIsCaseModalOpen] = useState(false)
     const [isColumnModalOpen, setIsColumnModalOpen] = useState(false)
     const [selectedPhase, setSelectedPhase] = useState<string | undefined>(undefined)
 
@@ -144,7 +135,6 @@ export function KanbanWrapper({
                 onTaskCreated={handleTaskCreated}
                 defaultPhase={selectedPhase}
             />
-            <CaseModal isOpen={isCaseModalOpen} onClose={() => setIsCaseModalOpen(false)} />
             <ColumnModal
                 isOpen={isColumnModalOpen}
                 onClose={() => setIsColumnModalOpen(false)}

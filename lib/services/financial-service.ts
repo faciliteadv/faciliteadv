@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { FinancialType } from "@prisma/client"
 
 export const FinancialService = {
     // List all financial records for a user with related data
@@ -74,7 +75,7 @@ export const FinancialService = {
 
         const record = await db.financialRecord.create({
             data: {
-                type: data.type,
+                type: data.type as FinancialType,
                 amount: data.amount,
                 dueDate: data.dueDate,
                 description: data.description,
