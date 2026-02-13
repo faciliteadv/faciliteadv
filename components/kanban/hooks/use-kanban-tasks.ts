@@ -109,7 +109,13 @@ export function useKanbanTasks(pipelineId: string | null, initialTasks: Task[] =
 
             return { snapshot }
         },
-        onError: (_err, _vars, context) => {
+        onError: (err, vars, context) => {
+            console.error('[Kanban] Falha ao mover card:', {
+                error: err,
+                cardId: vars.cardId,
+                targetColumnId: vars.targetColumnId,
+                targetPosition: vars.targetPosition,
+            })
             // Rollback on failure
             if (context?.snapshot) {
                 queryClient.setQueryData(QUERY_KEY, context.snapshot)

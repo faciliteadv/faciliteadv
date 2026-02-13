@@ -13,7 +13,9 @@ import {
     defaultDropAnimationSideEffects,
     DropAnimation,
     DragOverEvent,
-    closestCorners,
+    pointerWithin,
+    closestCenter,
+    CollisionDetection,
     PointerSensor,
     MeasuringStrategy
 } from "@dnd-kit/core"
@@ -43,6 +45,17 @@ import {
 } from "@/components/ui/alert-dialog"
 import { DeleteDialog } from "./delete-dialog"
 import { useDraggableScroll } from "./hooks/use-draggable-scroll"
+
+/**
+ * Zoom-resistant collision detection.
+ * pointerWithin uses event.clientX/Y (viewport-absolute, unaffected by CSS zoom).
+ * closestCenter is the fallback for empty columns where the pointer isn't "within" any card.
+ */
+const zoomSafeCollision: CollisionDetection = (args) => {
+    const pointerCollisions = pointerWithin(args)
+    if (pointerCollisions.length > 0) return pointerCollisions
+    return closestCenter(args)
+}
 
 
 // Helper functions for User UI
@@ -328,7 +341,7 @@ export function KanbanBoard({
                 sensors={sensors}
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
-                collisionDetection={closestCorners}
+                collisionDetection={zoomSafeCollision}
                 measuring={{
                     droppable: {
                         strategy: MeasuringStrategy.Always,
