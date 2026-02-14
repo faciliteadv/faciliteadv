@@ -98,7 +98,7 @@ type ExtendedTask = {
     publicationDate: string | null
     protocolDate: string | null
     client?: Pick<Client, 'id' | 'name'> | null
-    process?: { id: string; number: string; folderName: string | null } | null
+    process?: { id: string; number: string | null; folderName: string | null } | null
     responsibleLawyer?: { id: string; name: string | null } | null
     tags?: Tag[]
     checklist?: { id: string; title: string; isCompleted: boolean }[]
@@ -112,7 +112,7 @@ type BoardProps = {
     onOpenAddTask?: (phase: string) => void
     users: { id: string; name: string | null; email: string | null }[]
     clients: { id: string; name: string }[]
-    processes: { id: string; number: string; folderName: string | null }[]
+    processes: { id: string; number: string | null; folderName: string | null }[]
     onMoveTask: (cardId: string, targetColumnId: string, targetPosition: number) => void
     onDeleteTask: (taskId: string) => void
     onColumnAdded?: (column: KanbanColumn) => void

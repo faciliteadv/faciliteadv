@@ -45,7 +45,7 @@ type ExtendedTask = Omit<TaskCard, 'phase' | 'createdAt' | 'updatedAt' | 'fatalD
     publicationDate: string | null
     protocolDate: string | null
     client?: { id: string; name: string } | null
-    process?: { id: string; number: string; folderName: string | null; type?: string | null } | null
+    process?: { id: string; number: string | null; folderName: string | null; type?: string | null } | null
     responsibleLawyer?: { id: string; name: string | null } | null
     tags?: TagType[]
     checklist?: { id: string; title: string; isCompleted: boolean }[]
@@ -57,7 +57,7 @@ interface TaskDetailModalProps {
     onClose: () => void
     users?: { id: string; name: string | null; email: string | null }[]
     clients?: { id: string; name: string }[]
-    processes?: { id: string; number: string; folderName: string | null; type?: string | null }[]
+    processes?: { id: string; number: string | null; folderName: string | null; type?: string | null }[]
 }
 
 const PRACTICE_AREA_LABELS: Record<string, string> = {

@@ -11,7 +11,7 @@ import { Combobox } from "@/components/ui/combobox"
 
 type ProcessOption = {
     id: string
-    number: string
+    number: string | null
     folderName: string | null
     type?: string | null
 }
