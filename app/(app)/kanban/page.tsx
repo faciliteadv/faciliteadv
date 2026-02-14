@@ -52,7 +52,7 @@ export default async function KanbanPage({
         activePipelineId ? KanbanService.getTasksByPipeline(activePipelineId) : Promise.resolve([]),
         db.process.findMany({
             where: { userId: user.id, deletedAt: null },
-            select: { id: true, number: true, folderName: true }
+            select: { id: true, number: true, folderName: true, type: true }
         }),
         activePipelineId
             ? db.kanbanColumn.findMany({

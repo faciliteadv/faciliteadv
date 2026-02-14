@@ -28,8 +28,10 @@ import {
     Briefcase,
     Hash,
     Save,
-    Pencil
+    Pencil,
+    Scale
 } from "lucide-react"
+import { Combobox } from "@/components/ui/combobox"
 import { cn } from "@/lib/utils"
 import { TaskCard, Tag as TagType } from "@prisma/client"
 import { toggleChecklistItemAction } from "@/lib/actions/kanban-actions"
@@ -43,7 +45,7 @@ type ExtendedTask = Omit<TaskCard, 'phase' | 'createdAt' | 'updatedAt' | 'fatalD
     publicationDate: string | null
     protocolDate: string | null
     client?: { id: string; name: string } | null
-    process?: { id: string; number: string; folderName: string | null } | null
+    process?: { id: string; number: string; folderName: string | null; type?: string | null } | null
     responsibleLawyer?: { id: string; name: string | null } | null
     tags?: TagType[]
     checklist?: { id: string; title: string; isCompleted: boolean }[]
@@ -55,7 +57,7 @@ interface TaskDetailModalProps {
     onClose: () => void
     users?: { id: string; name: string | null; email: string | null }[]
     clients?: { id: string; name: string }[]
-    processes?: { id: string; number: string; folderName: string | null }[]
+    processes?: { id: string; number: string; folderName: string | null; type?: string | null }[]
 }
 
 const PRACTICE_AREA_LABELS: Record<string, string> = {
@@ -346,47 +348,43 @@ export function TaskDetailModal({ task, isOpen, onClose, users, clients, process
                                 {/* Client */}
                                 <div className="space-y-1.5">
                                     <label className="text-xs font-semibold text-slate-500">Cliente</label>
-                                    <Select
-                                        value={editForm.clientId || undefined}
-                                        onValueChange={(val) => setEditForm(prev => ({ ...prev, clientId: val }))}
-                                    >
-                                        <SelectTrigger className="h-9 text-sm">
-                                            <span className="truncate">
-                                                {clients?.find(c => c.id === editForm.clientId)?.name || 'Selecionar...'}
-                                            </span>
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {clients && clients.map(c => (
-                                                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                    <Combobox
+                                        value={editForm.clientId || ""}
+                                        onValueChange={(val) => setEditForm(prev => ({ ...prev, clientId: val || null }))}
+                                        options={clients?.map(c => ({ value: c.id, label: c.name })) || []}
+                                        placeholder="Selecione..."
+                                        searchPlaceholder="Buscar cliente..."
+                                        className="h-9 text-sm"
+                                    />
                                 </div>
 
                                 {/* Process */}
                                 <div className="col-span-2 space-y-1.5">
-                                    <label className="text-xs font-semibold text-slate-500">Processo</label>
-                                    <Select
-                                        value={editForm.processId || undefined}
-                                        onValueChange={(val) => setEditForm(prev => ({ ...prev, processId: val }))}
-                                    >
-                                        <SelectTrigger className="h-9 text-sm">
-                                            <span className="truncate">
-                                                {(() => {
-                                                    const p = processes?.find(p => p.id === editForm.processId)
-                                                    if (!p) return 'Vincular processo...'
-                                                    return p.folderName ? `${p.folderName} (${p.number})` : `Processo: ${p.number}`
-                                                })()}
-                                            </span>
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {processes && processes.map(p => (
-                                                <SelectItem key={p.id} value={p.id}>
-                                                    {p.folderName ? `${p.folderName} (${p.number})` : `Processo: ${p.number}`}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                    <label className="text-xs font-semibold text-slate-500">Processo / Caso</label>
+                                    <Combobox
+                                        value={editForm.processId || ""}
+                                        onValueChange={(val) => setEditForm(prev => ({ ...prev, processId: val || null }))}
+                                        options={processes?.map(p => ({
+                                            value: p.id,
+                                            label: p.folderName ? `${p.folderName} (${p.number || 'S/N'})` : `Processo: ${p.number || 'S/N'}`
+                                        })) || []}
+                                        placeholder="Vincular processo..."
+                                        searchPlaceholder="Buscar processo..."
+                                        className="h-9 text-sm"
+                                        renderItem={(op) => {
+                                            const proc = processes?.find(p => p.id === op.value)
+                                            const isCase = proc?.type === 'CASE'
+                                            return (
+                                                <div className="flex flex-col py-1">
+                                                    <span className="font-medium text-sm">{op.label}</span>
+                                                    <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                                        {isCase ? <Briefcase className="w-3 h-3" /> : <Scale className="w-3 h-3" />}
+                                                        {isCase ? "Caso / Consultivo" : "Processo Judicial"}
+                                                    </span>
+                                                </div>
+                                            )
+                                        }}
+                                    />
                                 </div>
                             </div>
 
@@ -571,17 +569,23 @@ export function TaskDetailModal({ task, isOpen, onClose, users, clients, process
                             {task.process && (
                                 <div className="space-y-2">
                                     <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                                        <FileText className="w-4 h-4 text-blue-600" />
-                                        Processo Vinculado
+                                        {task.process.type === 'CASE' ? <Briefcase className="w-4 h-4 text-emerald-600" /> : <Scale className="w-4 h-4 text-blue-600" />}
+                                        {task.process.type === 'CASE' ? 'Caso Vinculado' : 'Processo Vinculado'}
                                     </label>
                                     <Button
                                         onClick={handleProcessClick}
                                         variant="outline"
-                                        className="w-full justify-between gap-3 p-4 h-auto hover:bg-gradient-to-r hover:from-blue-50 hover:to-transparent hover:border-blue-300 transition-all group rounded-xl"
+                                        className={cn(
+                                            "w-full justify-between gap-3 p-4 h-auto hover:bg-gradient-to-r hover:to-transparent transition-all group rounded-xl",
+                                            task.process.type === 'CASE' ? "hover:from-emerald-50 hover:border-emerald-300" : "hover:from-blue-50 hover:border-blue-300"
+                                        )}
                                     >
                                         <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-sm">
-                                                <FileText className="w-5 h-5 text-white" />
+                                            <div className={cn(
+                                                "w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center shadow-sm",
+                                                task.process.type === 'CASE' ? "from-emerald-500 to-emerald-600" : "from-blue-500 to-blue-600"
+                                            )}>
+                                                {task.process.type === 'CASE' ? <Briefcase className="w-5 h-5 text-white" /> : <Scale className="w-5 h-5 text-white" />}
                                             </div>
                                             <div className="text-left">
                                                 <p className="text-sm font-semibold text-slate-800">

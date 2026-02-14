@@ -3,21 +3,28 @@
 import { useState, useEffect } from "react"
 import { createTaskAction } from "@/lib/actions/kanban-actions"
 import { getUsersForResponsibleSelect } from "@/lib/actions/process-actions"
-import { X, Plus, Trash2 } from "lucide-react"
+import { X, Plus, Trash2, Briefcase, Scale } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
+import { Combobox } from "@/components/ui/combobox"
 
 type ProcessOption = {
     id: string
     number: string
     folderName: string | null
+    type?: string | null
 }
 
 type UserOption = {
     id: string
     name: string | null
     email: string
+}
+
+type ClientOption = {
+    id: string
+    name: string
 }
 
 type ColumnOption = {
@@ -30,6 +37,7 @@ type Props = {
     onClose: () => void
     processes: ProcessOption[]
     columns: ColumnOption[]
+    clients?: ClientOption[]
     onTaskCreated?: () => void
     defaultProcessId?: string
     defaultPhase?: string
@@ -47,13 +55,14 @@ const PRACTICE_AREAS = [
     { value: 'OTHER', label: 'Outro' }
 ]
 
-export function TaskModal({ isOpen, onClose, processes, columns, onTaskCreated, defaultProcessId, defaultPhase }: Props) {
+export function TaskModal({ isOpen, onClose, processes, columns, clients, onTaskCreated, defaultProcessId, defaultPhase }: Props) {
     const [loading, setLoading] = useState(false)
     const [users, setUsers] = useState<UserOption[]>([])
     const [checklist, setChecklist] = useState<string[]>([])
     const [newChecklistItem, setNewChecklistItem] = useState("")
 
     const [processId, setProcessId] = useState<string>("")
+    const [clientId, setClientId] = useState<string>("")
     const [columnId, setColumnId] = useState<string>(columns.length > 0 ? columns[0].id : "")
     const [practiceArea, setPracticeArea] = useState<string>("")
     const [responsibleLawyerId, setResponsibleLawyerId] = useState<string>("")
@@ -124,6 +133,7 @@ export function TaskModal({ isOpen, onClose, processes, columns, onTaskCreated, 
             getUsersForResponsibleSelect().then(setUsers)
             // Reset to defaults
             setProcessId("")
+            setClientId("")
             setColumnId(defaultPhase ? (columns.find(c => c.name === defaultPhase)?.id || columns[0]?.id || "") : (columns.length > 0 ? columns[0].id : ""))
             setPracticeArea("")
             setResponsibleLawyerId("")
@@ -158,6 +168,7 @@ export function TaskModal({ isOpen, onClose, processes, columns, onTaskCreated, 
             phase: selectedColumn?.name || 'A Fazer',
             practiceArea: practiceArea || undefined,
             processId: (processId && processId !== 'NONE') ? processId : undefined,
+            clientId: (clientId && clientId !== 'NONE') ? clientId : undefined,
             publicationDate: publicationDate ? new Date(publicationDate) : undefined,
             daysCount: daysCount ? parseInt(daysCount) : undefined,
             daysType: (daysCount && daysType) ? daysType as 'BUSINESS' | 'CALENDAR' : undefined,
@@ -175,6 +186,7 @@ export function TaskModal({ isOpen, onClose, processes, columns, onTaskCreated, 
             setChecklist([])
 
             setProcessId('')
+            setClientId('')
             setPracticeArea('')
             setResponsibleLawyerId('')
             setPoints(0)
@@ -261,20 +273,41 @@ export function TaskModal({ isOpen, onClose, processes, columns, onTaskCreated, 
                     {/* Processo e Advogado Responsável */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
+                            <Label className="block text-sm font-medium text-slate-700 mb-1.5">Cliente</Label>
+                            <Combobox
+                                value={clientId}
+                                onValueChange={setClientId}
+                                options={clients?.map(c => ({ value: c.id, label: c.name })) || []}
+                                placeholder="Selecione..."
+                                searchPlaceholder="Buscar cliente..."
+                            />
+                        </div>
+
+                        <div>
                             <Label className="block text-sm font-medium text-slate-700 mb-1.5">Processo Vinculado</Label>
-                            <Select value={processId} onValueChange={setProcessId}>
-                                <SelectTrigger className="w-full">
-                                    <SelectValue placeholder="Selecione" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="NONE">Sem vínculo</SelectItem>
-                                    {processes.map(p => (
-                                        <SelectItem key={p.id} value={p.id}>
-                                            {p.folderName || p.number}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <Combobox
+                                value={processId}
+                                onValueChange={setProcessId}
+                                options={processes.map(p => ({
+                                    value: p.id,
+                                    label: p.folderName ? `${p.folderName} (${p.number || 'S/N'})` : `Processo: ${p.number || 'S/N'}`
+                                }))}
+                                placeholder="Selecione..."
+                                searchPlaceholder="Buscar processo..."
+                                renderItem={(op) => {
+                                    const proc = processes.find(p => p.id === op.value)
+                                    const isCase = proc?.type === 'CASE'
+                                    return (
+                                        <div className="flex flex-col py-1">
+                                            <span className="font-medium text-sm">{op.label}</span>
+                                            <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                                {isCase ? <Briefcase className="w-3 h-3" /> : <Scale className="w-3 h-3" />}
+                                                {isCase ? "Caso / Consultivo" : "Processo Judicial"}
+                                            </span>
+                                        </div>
+                                    )
+                                }}
+                            />
                         </div>
 
                         <div>

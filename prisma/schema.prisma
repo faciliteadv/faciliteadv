@@ -309,7 +309,8 @@ model Client {
 model Process {
   id                  String            @id @default(uuid())
   folderName          String?
-  number              String
+  number              String?
+  type                ProcessType       @default(PROCESS)
   area                String
   courtLink           String?
   status              ProcessStatus     @default(ACTIVE)
@@ -495,6 +496,11 @@ enum ClientStatus {
   CONVERTED
   ACTIVE
   INACTIVE
+}
+
+enum ProcessType {
+  CASE
+  PROCESS
 }
 
 enum ProcessStatus {

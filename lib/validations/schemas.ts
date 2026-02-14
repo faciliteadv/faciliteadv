@@ -21,9 +21,12 @@ const ProcessOpponentInput = z.object({
 // ═══════════════════════════════════════════════════════════
 
 export const CreateProcessSchema = z.object({
+    // Tipo: CASE (caso) ou PROCESS (processo judicial)
+    type: z.enum(["CASE", "PROCESS"]).default("PROCESS"),
+
     // Obrigatórios
-    number: z.string().min(1, "Número do processo é obrigatório"),
-    clientId: z.string().uuid("ID do cliente deve ser um UUID válido"),
+    number: z.string().nullable().optional(),
+    clientId: z.string().min(1, "Cliente é obrigatório").uuid("Cliente inválido"),
     area: z.string().min(1, "Área de atuação é obrigatória"),
 
     // Opcionais
@@ -36,11 +39,19 @@ export const CreateProcessSchema = z.object({
     court: z.string().nullable().optional(),
     link: z.string().nullable().optional(),
     claimValue: z.union([z.number(), z.string(), z.null()]).optional(),
-    responsibleLawyerId: z.string().uuid().nullable().optional(),
+    responsibleLawyerId: z.string().uuid("Selecione um advogado responsável válido").nullable().optional(),
 
     // Relações
     authors: z.array(ProcessAuthorInput).optional().default([]),
     opponents: z.array(ProcessOpponentInput).optional().default([]),
+}).superRefine((data, ctx) => {
+    if (data.type === "PROCESS" && (!data.number || data.number.trim() === "")) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Por favor, informe o número do processo.",
+            path: ["number"],
+        })
+    }
 })
 
 export type CreateProcessInput = z.infer<typeof CreateProcessSchema>
@@ -50,7 +61,8 @@ export type CreateProcessInput = z.infer<typeof CreateProcessSchema>
 // ═══════════════════════════════════════════════════════════
 
 export const UpdateProcessSchema = z.object({
-    number: z.string().min(1, "Número do processo é obrigatório").optional(),
+    type: z.enum(["CASE", "PROCESS"]).optional(),
+    number: z.string().nullable().optional(),
     area: z.string().nullable().optional(),
     actionType: z.string().nullable().optional(),
     folderName: z.string().nullable().optional(),
@@ -65,6 +77,14 @@ export const UpdateProcessSchema = z.object({
 
     authors: z.array(ProcessAuthorInput).optional().default([]),
     opponents: z.array(ProcessOpponentInput).optional().default([]),
+}).superRefine((data, ctx) => {
+    if (data.type === "PROCESS" && data.number !== undefined && (!data.number || data.number.trim() === "")) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Número do processo é obrigatório para processos judiciais",
+            path: ["number"],
+        })
+    }
 })
 
 export type UpdateProcessInput = z.infer<typeof UpdateProcessSchema>

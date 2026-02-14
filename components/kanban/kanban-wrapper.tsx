@@ -132,6 +132,7 @@ export function KanbanWrapper({
                 onClose={() => { setIsTaskModalOpen(false); setSelectedPhase(undefined) }}
                 processes={processes}
                 columns={columns.map(col => ({ id: col.id, name: col.name }))}
+                clients={clients}
                 onTaskCreated={handleTaskCreated}
                 defaultPhase={selectedPhase}
             />

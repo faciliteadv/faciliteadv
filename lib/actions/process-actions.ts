@@ -10,6 +10,7 @@ import { sanitizeFormData, sanitizeRelations, sanitizeNumeric, prepareForPrisma 
 import { recordAuditLog } from "@/lib/utils/audit"
 import { CreateProcessSchema, UpdateProcessSchema, CreateFinancialRecordSchema } from "@/lib/validations/schemas"
 import { withAuth } from "@/lib/auth/with-auth"
+import { z } from "zod"
 
 // Simple fetch for select
 // Simple fetch for select
@@ -160,7 +161,8 @@ export async function createProcess(rawData: unknown) {
 
             const result = await db.$transaction(async (tx) => {
                 const processData = prepareForPrisma({
-                    number: sanitized.number,
+                    number: sanitized.number || null,
+                    type: sanitized.type || 'PROCESS',
                     area: sanitized.area || null,
                     actionType: sanitized.actionType || null,
                     folderName: sanitized.folderName || null,
@@ -247,7 +249,11 @@ export async function createProcess(rawData: unknown) {
             return { success: true, message: "Processo criado com sucesso", id: result.id }
         } catch (error: any) {
             console.error("Error creating process:", error)
-            throw new Error(error.message || "Falha ao criar processo.")
+            // Return structured error instead of throwing
+            if (error instanceof z.ZodError) {
+                return { success: false, error: "Erro de validação: Verifique os campos preenchidos." }
+            }
+            return { success: false, error: error.message || "Falha ao criar processo." }
         }
     })
 }
@@ -271,7 +277,8 @@ export async function updateProcessAction(processId: string, rawData: unknown) {
             })
 
             const processData = prepareForPrisma({
-                number: sanitized.number,
+                number: sanitized.number || null,
+                type: sanitized.type,
                 area: sanitized.area || null,
                 actionType: sanitized.actionType || null,
                 folderName: sanitized.folderName || null,
@@ -448,4 +455,4 @@ export async function createFinancialRecordAction(rawData: unknown) {
         throw new Error(error.message || "Falha ao criar registro financeiro")
     }
 }
- 
+

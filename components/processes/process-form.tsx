@@ -10,7 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { Check, ChevronsUpDown, Loader2, Plus, Trash2, UserPlus } from "lucide-react"
+import { Combobox } from "@/components/ui/combobox"
+import { Check, ChevronsUpDown, Loader2, Plus, Trash2, UserPlus, Scale, Briefcase } from "lucide-react"
 import { createProcess, updateProcessAction, getClientsForSelect, getActionTypes, createActionType, getUsersForResponsibleSelect, getCourts, getDistricts, createCourt, createDistrict } from "@/lib/actions/process-actions"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
@@ -68,9 +69,12 @@ const PROCESS_UI_CONFIG = {
 interface ProcessFormProps {
     initialData?: any
     isEditing?: boolean
+    initialClientId?: string
+    initialType?: string
+    currentUserId?: string
 }
 
-export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps) {
+export function ProcessForm({ initialData, isEditing = false, initialClientId, initialType, currentUserId }: ProcessFormProps) {
     const router = useRouter()
     const { toast } = useToast()
     const [loading, setLoading] = useState(false)
@@ -88,10 +92,11 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
     // Form Data
     const [formData, setFormData] = useState({
         number: "",
+        type: ((initialType === 'CASE' || initialType === 'PROCESS') ? initialType : "PROCESS") as "CASE" | "PROCESS",
         area: "",
         actionType: "",
         folderName: "",
-        clientId: "",
+        clientId: initialClientId || "",
         status: "ACTIVE",
         position: "", // Primary Client Position
         opponent: "", // Primary Opponent ID
@@ -100,7 +105,7 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
         court: "",
         link: "",
         claimValue: "",
-        responsibleLawyerId: ""
+        responsibleLawyerId: currentUserId || ""
     })
     const [searchTerm, setSearchTerm] = useState("")
 
@@ -144,9 +149,11 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                 return match || val
             }
 
-            setFormData({
-                number: initialData.number || "",
-                area: normalize(initialData.area, "AREA"),
+            setFormData(prev => ({
+                ...prev,
+                number: initialData.number || "", // Handle null number
+                type: initialData.type || "PROCESS",
+                area: initialData.area,
                 actionType: initialData.actionType || "",
                 folderName: initialData.folderName || "",
                 clientId: initialData.clientId || "",
@@ -159,7 +166,7 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                 link: initialData.link || "",
                 claimValue: initialData.claimValue?.toString() || "",
                 responsibleLawyerId: initialData.responsibleLawyerId || ""
-            })
+            }))
 
 
             // Load additional parties if they exist
@@ -255,13 +262,17 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
 
         // Validation
         const errors = []
-        if (!formData.number.trim()) errors.push("Número do processo é obrigatório")
+        if (formData.type === 'PROCESS' && !formData.number.trim()) errors.push("Número do processo é obrigatório")
         if (!formData.clientId) errors.push("Cliente é obrigatório")
         if (!formData.area) errors.push("Área de atuação é obrigatória")
 
         if (errors.length > 0) {
             setFormErrors(errors)
-            toast({ title: "Campos obrigatórios", description: "Verifique os campos obrigatórios (*) em vermelho.", type: "error" })
+            toast({
+                title: "Campos obrigatórios",
+                description: "Por favor, preencha todos os campos obrigatórios antes de salvar.",
+                type: "error"
+            })
             return
         }
 
@@ -308,7 +319,7 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
             router.refresh()
         } catch (error: any) {
             console.error(error)
-            toast({ title: "Erro ao salvar", description: error.message, type: "error" })
+            toast({ title: "Erro ao salvar", description: error.message || "Ocorreu um erro inesperado.", type: "error" })
         } finally {
             setLoading(false)
         }
@@ -322,9 +333,83 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                 onSuccess={handleOpponentCreated}
             />
 
+            {/* Process Type Selection - Only on Creation */}
+            {!isEditing && (
+                <Card className="border-none shadow-md">
+                    <CardHeader>
+                        <CardTitle>Tipo de Cadastro</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <button
+                                type="button"
+                                onClick={() => setFormData(prev => ({ ...prev, type: "PROCESS" }))}
+                                className={cn(
+                                    "relative flex items-center gap-4 p-6 border rounded-xl transition-all text-left group hover:shadow-md",
+                                    formData.type === "PROCESS"
+                                        ? "border-blue-600 bg-blue-50/50 shadow-sm ring-1 ring-blue-600"
+                                        : "border-slate-200 hover:border-blue-300 bg-white"
+                                )}
+                            >
+                                <div className={cn(
+                                    "p-3 rounded-full transition-colors",
+                                    formData.type === "PROCESS" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-500 group-hover:bg-blue-50 group-hover:text-blue-600"
+                                )}>
+                                    <Scale className="w-6 h-6" />
+                                </div>
+                                <div className="flex-1">
+                                    <h3 className={cn("font-semibold mb-1", formData.type === "PROCESS" ? "text-blue-900" : "text-slate-900")}>Processo Judicial</h3>
+                                    <p className="text-sm text-slate-500 leading-snug">
+                                        Controle de processos com numeração oficial, andamentos e publicações.
+                                    </p>
+                                </div>
+                                {formData.type === "PROCESS" && (
+                                    <div className="absolute top-4 right-4">
+                                        <div className="w-4 h-4 bg-blue-600 rounded-full flex items-center justify-center">
+                                            <Check className="w-3 h-3 text-white" />
+                                        </div>
+                                    </div>
+                                )}
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setFormData(prev => ({ ...prev, type: "CASE" }))}
+                                className={cn(
+                                    "relative flex items-center gap-4 p-6 border rounded-xl transition-all text-left group hover:shadow-md",
+                                    formData.type === "CASE"
+                                        ? "border-emerald-600 bg-emerald-50/50 shadow-sm ring-1 ring-emerald-600"
+                                        : "border-slate-200 hover:border-emerald-300 bg-white"
+                                )}
+                            >
+                                <div className={cn(
+                                    "p-3 rounded-full transition-colors",
+                                    formData.type === "CASE" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500 group-hover:bg-emerald-50 group-hover:text-emerald-600"
+                                )}>
+                                    <Briefcase className="w-6 h-6" />
+                                </div>
+                                <div className="flex-1">
+                                    <h3 className={cn("font-semibold mb-1", formData.type === "CASE" ? "text-emerald-900" : "text-slate-900")}>Caso / Consultivo</h3>
+                                    <p className="text-sm text-slate-500 leading-snug">
+                                        Gestão de demandas internas, consultorias e administrativo (sem numeração obrigatória).
+                                    </p>
+                                </div>
+                                {formData.type === "CASE" && (
+                                    <div className="absolute top-4 right-4">
+                                        <div className="w-4 h-4 bg-emerald-600 rounded-full flex items-center justify-center">
+                                            <Check className="w-3 h-3 text-white" />
+                                        </div>
+                                    </div>
+                                )}
+                            </button>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
             <Card className="border-none shadow-md">
                 <CardHeader>
-                    <CardTitle>{isEditing ? "Editar Processo" : "Novo Processo"}</CardTitle>
+                    <CardTitle>{isEditing ? "Editar Processo" : "Dados Principais"}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     {/* Row 1 */}
@@ -361,7 +446,7 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                     {/* Row 2: Client */}
                     <div className="grid md:grid-cols-2 gap-4">
                         <div className="space-y-2 flex flex-col">
-                            <Label className={cn(formErrors.includes("Cliente é obrigatório") && "text-red-500")}>Cliente *</Label>
+                            <Label className={cn(formErrors.includes("Cliente é obrigatório") && "text-destructive")}>Cliente *</Label>
                             <Combobox
                                 value={formData.clientId}
                                 onValueChange={(v) => {
@@ -371,7 +456,7 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                                 options={clients.map(c => ({ value: c.id, label: c.name, search: `${c.name} ${c.cpfCnpj || ""}` }))}
                                 placeholder="Selecione..."
                                 searchPlaceholder="Buscar cliente por nome ou CPF..."
-                                className={cn(!formData.clientId && formErrors.includes("Cliente é obrigatório") && "border-2 border-red-500")}
+                                className={cn(!formData.clientId && formErrors.includes("Cliente é obrigatório") && "border-destructive ring-destructive")}
                                 fallbackLabel={initialData?.client?.name}
                             />
                         </div>
@@ -540,19 +625,24 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
 
                     {/* Row 4: Details */}
                     <div className="grid md:grid-cols-3 gap-4">
-                        <div className="space-y-2">
-                            <Label className={cn(formErrors.includes("Número do processo é obrigatório") && "text-red-500")}>Número do processo *</Label>
-                            <Input
-                                value={formData.number}
-                                onChange={(e) => {
-                                    handleChange("number", e.target.value)
-                                    if (e.target.value.trim()) setFormErrors(prev => prev.filter(e => e !== "Número do processo é obrigatório"))
-                                }}
-                                className={cn("bg-gray-100 text-black border-none focus-visible:ring-1", !formData.number && formErrors.includes("Número do processo é obrigatório") && "border-2 border-red-500")}
-                            />
-                        </div>
+                        {/* Number - Conditional */}
+                        {formData.type === 'PROCESS' && (
+                            <div className="space-y-2">
+                                <Label htmlFor="number" className={cn(formErrors.includes("Número do processo é obrigatório") && "text-destructive")}>Número do Processo <span className="text-destructive">*</span></Label>
+                                <Input
+                                    id="number"
+                                    placeholder="0000000-00.0000.0.00.0000"
+                                    value={formData.number}
+                                    onChange={(e) => {
+                                        setFormData({ ...formData, number: e.target.value })
+                                        if (e.target.value.trim()) setFormErrors(prev => prev.filter(e => e !== "Número do processo é obrigatório"))
+                                    }}
+                                    className={cn("bg-gray-100 text-black border-none focus-visible:ring-1", !formData.number && formErrors.includes("Número do processo é obrigatório") && "ring-1 ring-destructive")}
+                                />
+                            </div>
+                        )}
                         <div className="space-y-2 flex flex-col">
-                            <Label className={cn(formErrors.includes("Área de atuação é obrigatória") && "text-red-500")}>Área de atuação *</Label>
+                            <Label className={cn(formErrors.includes("Área de atuação é obrigatória") && "text-destructive")}>Área de atuação *</Label>
                             <Combobox
                                 value={formData.area}
                                 onValueChange={(v) => {
@@ -563,7 +653,7 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                                 placeholder="Selecione ou digite..."
                                 showAddCustom={true}
                                 searchPlaceholder="Buscar ou adicionar área..."
-                                className={cn(!formData.area && formErrors.includes("Área de atuação é obrigatória") && "border-2 border-red-500")}
+                                className={cn(!formData.area && formErrors.includes("Área de atuação é obrigatória") && "border-destructive ring-destructive")}
                             />
                         </div>
                         <div className="space-y-2 flex flex-col">
@@ -639,113 +729,5 @@ export function ProcessForm({ initialData, isEditing = false }: ProcessFormProps
                 </CardContent >
             </Card >
         </form >
-    )
-}
-
-interface ComboboxProps {
-    value: string
-    onValueChange: (val: string) => void
-    options: { value: string, label: string, search?: string }[]
-    placeholder?: string
-    searchPlaceholder?: string
-    className?: string
-    renderItem?: (option: { value: string, label: string, search?: string }) => React.ReactNode
-    showAddCustom?: boolean
-    customEmpty?: (search: string) => React.ReactNode
-    fallbackLabel?: string
-}
-
-function Combobox({
-    value,
-    onValueChange,
-    options,
-    placeholder,
-    searchPlaceholder,
-    className,
-    renderItem,
-    showAddCustom = true,
-    customEmpty,
-    fallbackLabel
-}: ComboboxProps) {
-    const [open, setOpen] = useState(false)
-    const [searchTerm, setSearchTerm] = useState("")
-
-    const selectedOption = options.find((op) => op.value === value)
-
-    return (
-        <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-                <Button
-                    variant="outline"
-                    role="combobox"
-                    className={cn("w-full justify-between bg-gray-100 text-black border-none hover:bg-gray-200 h-10", className)}
-                >
-                    <div className="flex items-center gap-2 truncate">
-                        {selectedOption ? (
-                            renderItem ? renderItem(selectedOption) : <span>{selectedOption.label}</span>
-                        ) : (
-                            value ? <span>{fallbackLabel || (value.length === 36 ? "Item não encontrado" : value)}</span> : <span className="text-muted-foreground">{placeholder || "Selecione..."}</span>
-                        )}
-                    </div>
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-            </PopoverTrigger>
-            <PopoverContent
-                className="w-[var(--radix-popover-trigger-width)] p-0 shadow-2xl"
-                align="start"
-                // Isso evita que o foco volte de forma estranha pro botão
-                onCloseAutoFocus={(e) => e.preventDefault()}
-            >
-                <Command shouldFilter={true}>
-                    <CommandInput
-                        placeholder={searchPlaceholder || "Buscar..."}
-                        value={searchTerm}
-                        onValueChange={setSearchTerm}
-                    />
-                    <CommandList>
-                        <CommandEmpty>
-                            {customEmpty ? customEmpty(searchTerm) : (
-                                showAddCustom && searchTerm ? (
-                                    <div className="p-2">
-                                        <Button
-                                            size="sm"
-                                            variant="secondary"
-                                            className="w-full"
-                                            onPointerDown={(e) => e.preventDefault()}
-                                            onClick={() => {
-                                                onValueChange(searchTerm)
-                                                setOpen(false)
-                                                setSearchTerm("")
-                                            }}
-                                        >
-                                            <Plus className="mr-2 h-3 w-3" /> Usar "{searchTerm}"
-                                        </Button>
-                                    </div>
-                                ) : <div className="p-4 text-center text-sm text-muted-foreground">Nenhum resultado.</div>
-                            )}
-                        </CommandEmpty>
-                        <CommandGroup>
-                            {options.map((op) => (
-                                <CommandItem
-                                    key={op.value}
-                                    value={op.search || op.label}
-                                    onSelect={() => {
-                                        onValueChange(op.value);
-                                        setOpen(false);
-                                        setSearchTerm("");
-                                    }}
-                                    className="cursor-pointer"
-                                >
-                                    <Check className={cn("mr-2 h-4 w-4", value === op.value ? "opacity-100" : "opacity-0")} />
-                                    <div className="flex-1 truncate">
-                                        {renderItem ? renderItem(op) : op.label}
-                                    </div>
-                                </CommandItem>
-                            ))}
-                        </CommandGroup>
-                    </CommandList>
-                </Command>
-            </PopoverContent>
-        </Popover>
     )
 }

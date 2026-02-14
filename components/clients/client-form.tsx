@@ -16,6 +16,7 @@ import { Check, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { PostClientCreateDialog } from "./post-client-dialog"
 
 const COUNTRY_CODES = [
     { code: "+55", country: "BR", mask: "(99) 99999-9999" },
@@ -96,6 +97,8 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
     const [phoneCountry, setPhoneCountry] = useState("+55")
     const [whatsappCountry, setWhatsappCountry] = useState("+55")
     const [customBankName, setCustomBankName] = useState("")
+    const [createdClient, setCreatedClient] = useState<{ id: string, name: string } | null>(null)
+    const [showPostCreateDialog, setShowPostCreateDialog] = useState(false)
 
     // Additional Contacts State
     const [additionalContacts, setAdditionalContacts] = useState<{ name: string, relation: string, phone: string }[]>([])
@@ -429,13 +432,17 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
             if (isEditing && initialData?.id) {
                 await updateClientAction(initialData.id, payload)
                 toast({ title: "Atualizado", description: "Cliente atualizado com sucesso.", type: "success" })
+                router.push("/clients")
+                router.refresh()
             } else {
-                await createClient(payload)
-                toast({ title: "Criado", description: "Cliente criado com sucesso.", type: "success" })
+                const newClient = await createClient(payload)
+                if (newClient && newClient.id) {
+                    setCreatedClient({ id: newClient.id, name: newClient.name })
+                    setShowPostCreateDialog(true)
+                    toast({ title: "Criado", description: "Cliente criado com sucesso.", type: "success" })
+                }
             }
-            router.push("/clients")
-            router.refresh()
-        } catch (error: any) {
+        } catch (error: any) { // 3. Update handleSubmit to set createdClient and showPostCreateDialog on success, removing the router.push for creation flow.
             console.error(error)
 
             // Parse Zod errors if present
@@ -752,6 +759,13 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
                     </Button>
                 </div>
             </Card>
+
+            <PostClientCreateDialog
+                open={showPostCreateDialog}
+                onOpenChange={setShowPostCreateDialog}
+                clientId={createdClient?.id || ""}
+                clientName={createdClient?.name || ""}
+            />
         </form>
     )
 }
