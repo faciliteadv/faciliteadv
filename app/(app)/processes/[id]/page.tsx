@@ -31,6 +31,7 @@ import { ProcessDeadlineTab } from "@/components/processes/process-deadline-tab"
 import { getColumnsByPipeline } from "@/lib/actions/column-actions"
 import { WorkspaceService } from "@/lib/services/workspace-service"
 import { PageContainer } from "@/components/layout/page-container"
+import { PromoteProcessModal } from "@/components/processes/promote-process-modal"
 
 interface PageProps {
     params: Promise<{ id: string }>
@@ -166,6 +167,12 @@ export default async function ProcessDetailPage({ params }: PageProps) {
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
+                        {process.type === 'CASE' && (
+                            <PromoteProcessModal
+                                processId={id}
+                                currentDistrict={process.district}
+                            />
+                        )}
                         <Link href={`/processes/${id}/edit`}>
                             <Button className="gap-2">
                                 <Edit2 className="h-4 w-4" />

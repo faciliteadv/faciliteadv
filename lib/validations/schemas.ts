@@ -136,3 +136,16 @@ export const CreateFinancialRecordSchema = z.object({
 })
 
 export type CreateFinancialRecordInput = z.infer<typeof CreateFinancialRecordSchema>
+
+// ═══════════════════════════════════════════════════════════
+// 5. promoteProcess
+// ═══════════════════════════════════════════════════════════
+
+export const PromoteProcessSchema = z.object({
+    number: z.string().min(1, "Número do processo é obrigatório"),
+    court: z.string().min(1, "Vara/Tribunal é obrigatório"),
+    link: z.string().nullable().optional(),
+    district: z.string().optional(), // Comarca is optional as per requirements, but good to have if user wants
+})
+
+export type PromoteProcessInput = z.infer<typeof PromoteProcessSchema>

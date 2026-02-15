@@ -456,3 +456,54 @@ export async function createFinancialRecordAction(rawData: unknown) {
     }
 }
 
+export async function promoteCaseToProcess(processId: string, rawData: unknown) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error("Não autorizado")
+
+    try {
+        const { PromoteProcessSchema } = await import("@/lib/validations/schemas")
+        const parsed = PromoteProcessSchema.parse(rawData)
+
+        await db.$transaction(async (tx) => {
+            const oldProcess = await tx.process.findUnique({
+                where: { id: processId },
+            })
+
+            if (!oldProcess) throw new Error("Caso não encontrado")
+            if (oldProcess.type === 'PROCESS') throw new Error("Este registro já é um processo")
+
+            const updatedProcess = await tx.process.update({
+                where: { id: processId, userId: user.id },
+                data: {
+                    type: 'PROCESS',
+                    number: parsed.number,
+                    court: parsed.court,
+                    link: parsed.link || null,
+                    // If district is provided in the future, we can add it here.
+                    // For now, preserving existing data + new mandatory fields
+                }
+            })
+
+            // Record Audit Log
+            await recordAuditLog({
+                userId: user.id,
+                entityId: processId,
+                entityType: 'PROCESS',
+                action: 'PROMOTE',
+                oldData: oldProcess,
+                newData: updatedProcess
+            })
+        })
+
+        revalidatePath("/processes")
+        revalidatePath(`/processes/${processId}`)
+        return { success: true, message: "Caso promovido para Processo com sucesso!" }
+    } catch (error: any) {
+        console.error("Error promoting process:", error)
+        if (error instanceof z.ZodError) {
+            return { success: false, error: "Erro de validação: Verifique os dados." }
+        }
+        return { success: false, error: error.message || "Falha ao promover caso." }
+    }
+}

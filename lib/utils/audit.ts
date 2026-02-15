@@ -1,6 +1,6 @@
 import { db } from "@/lib/db"
 
-export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE'
+export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'PROMOTE'
 
 interface AuditParams {
     userId: string
