@@ -11,7 +11,6 @@ import { Tag, Client, KanbanColumn } from "@prisma/client"
 import { cn } from "@/lib/utils"
 import { useKanbanTasks } from "./hooks/use-kanban-tasks"
 import { useKanbanColumns } from "./hooks/use-kanban-columns"
-import { useRouter } from "next/navigation"
 
 // Define proper extended types for data with relations
 type ExtendedTask = {
@@ -61,6 +60,17 @@ type Props = {
     clients: { id: string; name: string }[]
 }
 
+/**
+ * KanbanWrapper — Orchestrator component.
+ *
+ * ARCHITECTURE:
+ * - selectedPipelineId drives which React Query caches are active.
+ * - initialData is ONLY injected when selectedPipelineId === activePipelineId (SSR match).
+ * - Pipeline switching is 100% client-side (no SSR re-render).
+ * - URL is updated via window.history.replaceState (no soft navigation).
+ * - All column mutations are delegated to the useKanbanColumns hook.
+ * - KanbanBoard is a PURE RENDER component — no local column/task state.
+ */
 export function KanbanWrapper({
     initialTasks,
     initialColumns,
@@ -70,11 +80,14 @@ export function KanbanWrapper({
     users,
     clients
 }: Props) {
-    const router = useRouter()
     const { openModal: openEsteiraModal } = useEsteiraModal()
 
-    // Pipeline selection
+    // Pipeline selection — the single driver of all query scoping
     const [selectedPipelineId, setSelectedPipelineId] = useState(activePipelineId)
+
+    // CRITICAL FIX: Only inject SSR data when viewing the server-rendered pipeline.
+    // Without this guard, Pipeline A's data would pollute Pipeline B's cache.
+    const shouldInjectInitialData = selectedPipelineId === activePipelineId
 
     // Kanban tasks hook — scoped to active pipeline
     const {
@@ -84,30 +97,36 @@ export function KanbanWrapper({
         addTask,
         deleteTask,
         refetch: refetchTasks,
-    } = useKanbanTasks(selectedPipelineId, initialTasks)
+    } = useKanbanTasks(
+        selectedPipelineId,
+        shouldInjectInitialData ? initialTasks : []   // FIX BUG #1: No poisoning
+    )
 
     // Kanban columns hook — Single Source of Truth
-    // Replaces manual useState + useEffect sync
-    // CRITICAL FIX: Only use initialColumns if we are viewing the server-rendered pipeline.
-    // Otherwise, we must fetch fresh data to avoid showing Pipeline A's columns for Pipeline B.
-    const shouldInjectInitialData = selectedPipelineId === activePipelineId
     const {
         columns,
         reorderColumns,
+        addColumn,
+        deleteColumn,
+        renameColumn,
         refetch: refetchColumns
-    } = useKanbanColumns(selectedPipelineId, shouldInjectInitialData ? initialColumns : [])
+    } = useKanbanColumns(
+        selectedPipelineId,
+        shouldInjectInitialData ? initialColumns : []
+    )
 
     // UI State
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false)
     const [isColumnModalOpen, setIsColumnModalOpen] = useState(false)
     const [selectedPhase, setSelectedPhase] = useState<string | undefined>(undefined)
 
-    // Pipeline switch handler
+    // FIX BUG #2: Pipeline switch is 100% client-side.
+    // window.history.replaceState updates URL for bookmarking/refresh
+    // WITHOUT triggering SSR soft navigation (no race condition).
     const handlePipelineSwitch = useCallback((pipelineId: string) => {
         setSelectedPipelineId(pipelineId)
-        // Update URL without full page reload
-        router.push(`/kanban?pipeline=${pipelineId}`, { scroll: false })
-    }, [router])
+        window.history.replaceState(null, '', `/kanban?pipeline=${pipelineId}`)
+    }, [])
 
     // Handlers
     const handleTaskCreated = () => {
@@ -119,10 +138,22 @@ export function KanbanWrapper({
         setIsTaskModalOpen(true)
     }
 
-    // Handled by React Query now
-    const handleColumnAdded = useCallback((column: KanbanColumn) => {
-        refetchColumns()
-    }, [refetchColumns])
+    // Column callbacks — delegated to React Query hook (no local state in board)
+    const handleColumnsReordered = useCallback((newOrder: KanbanColumn[]) => {
+        reorderColumns(newOrder)
+    }, [reorderColumns])
+
+    const handleAddColumn = useCallback((name: string) => {
+        addColumn({ name, color: '#64748b' })
+    }, [addColumn])
+
+    const handleDeleteColumn = useCallback((columnId: string) => {
+        deleteColumn(columnId)
+    }, [deleteColumn])
+
+    const handleRenameColumn = useCallback((columnId: string, name: string, color: string) => {
+        renameColumn({ columnId, name, color })
+    }, [renameColumn])
 
     return (
         <>
@@ -213,8 +244,8 @@ export function KanbanWrapper({
                     ) : (
                         <div
                             className="flex-1 overflow-hidden relative"
-                            // KEY PROP IS CRITICAL for strict isolation.
-                            // Forces complete remount of board when pipeline changes.
+                            // KEY PROP: Forces complete remount of board when pipeline changes.
+                            // This ensures DnD context, local UI state (active drag, modals) are fresh.
                             key={selectedPipelineId}
                         >
                             <KanbanBoard
@@ -225,12 +256,12 @@ export function KanbanWrapper({
                                 users={users}
                                 clients={clients}
                                 processes={processes}
-                                // @ts-ignore
                                 onMoveTask={moveTask}
                                 onDeleteTask={deleteTask}
-                                // Now handled via query invalidation in modal/hook
-                                onColumnAdded={handleColumnAdded}
-                                onColumnsChanged={() => { }} // Optimistic handled in hook
+                                onColumnsReordered={handleColumnsReordered}
+                                onAddColumn={handleAddColumn}
+                                onDeleteColumn={handleDeleteColumn}
+                                onRenameColumn={handleRenameColumn}
                             />
                         </div>
                     )}

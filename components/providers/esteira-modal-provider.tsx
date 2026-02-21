@@ -42,10 +42,9 @@ export function EsteiraModalProvider({ children }: EsteiraModalProviderProps) {
     }
 
     const handleEsteiraCreated = (esteira: { id: string; name: string }) => {
-        console.log('[EsteiraModalProvider] Esteira created:', esteira.name)
         closeModal()
-        // Safe refresh AFTER modal is closed
-        router.refresh()
+        // Navigate to the newly created pipeline
+        router.push(`/kanban?pipeline=${esteira.id}`)
     }
 
     return (

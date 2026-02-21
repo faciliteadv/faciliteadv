@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import {
     DndContext,
     DragEndEvent,
@@ -28,8 +28,7 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { Tag, KanbanColumn, Client } from "@prisma/client"
-import { moveCardAction, deleteTaskAction, quickCreateTaskAction } from "@/lib/actions/kanban-actions"
-import { reorderColumnsAction, updateColumnAction, createColumnAction, deleteColumnAction } from "@/lib/actions/column-actions"
+import { updateColumnAction } from "@/lib/actions/column-actions"
 import { AlertCircle, FileText, MoreHorizontal, Trash2, GripVertical, Calendar, Plus, Pencil, Check, X, LayoutDashboard } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { TaskDetailModal } from "./task-detail-modal"
@@ -105,6 +104,16 @@ type ExtendedTask = {
     [key: string]: any
 }
 
+/**
+ * BoardProps — PURE RENDER contract.
+ *
+ * ARCHITECTURE:
+ * - `tasks` and `columns` are READ-ONLY props from React Query (via KanbanWrapper).
+ * - ALL mutations go through callbacks that update React Query,
+ *   which re-renders this component with new props.
+ * - Board has NO useState for tasks or columns.
+ * - Board manages ONLY ephemeral UI state (active drag, modals, delete confirmations).
+ */
 type BoardProps = {
     tasks: ExtendedTask[]
     columns: KanbanColumn[]
@@ -115,8 +124,11 @@ type BoardProps = {
     processes: { id: string; number: string | null; folderName: string | null }[]
     onMoveTask: (cardId: string, targetColumnId: string, targetPosition: number) => void
     onDeleteTask: (taskId: string) => void
-    onColumnAdded?: (column: KanbanColumn) => void
-    onColumnsChanged?: (columns: KanbanColumn[]) => void
+    // Column mutation callbacks — all go through React Query hook
+    onColumnsReordered: (columns: KanbanColumn[]) => void
+    onAddColumn: (name: string) => void
+    onDeleteColumn: (columnId: string) => void
+    onRenameColumn: (columnId: string, name: string, color: string) => void
 }
 
 type DragData = {
@@ -135,9 +147,17 @@ const dropAnimation: DropAnimation = {
     }),
 };
 
+/**
+ * KanbanBoard — PURE RENDER component.
+ *
+ * ZERO local state for tasks or columns.
+ * All data comes from props (React Query via KanbanWrapper).
+ * All mutations go through callback props.
+ * Local state is ONLY for ephemeral UI: active drag ID, delete confirmations.
+ */
 export function KanbanBoard({
     tasks,
-    columns: initialColumns,
+    columns,
     pipelineId,
     onOpenAddTask,
     users,
@@ -145,22 +165,17 @@ export function KanbanBoard({
     processes,
     onMoveTask,
     onDeleteTask,
-    onColumnAdded,
-    onColumnsChanged
+    onColumnsReordered,
+    onAddColumn,
+    onDeleteColumn,
+    onRenameColumn,
 }: BoardProps) {
-    // REMOVED: const [tasks, setTasks] = useState(initialTasks)
-    // REMOVED: useEffect sync
-
-    // Kept for Column reordering (for now, as it wasn't prioritized in "Split State" audit, 
-    // but ideally should be lifted too. User said "KanbanWrapper and ALL components below it".
-    // I will leave columns local for this specific step to minimize blast radius, 
-    // focusing on TASKS as the primary data integrity risk).
-    const [columns, setColumns] = useState(initialColumns)
+    // EPHEMERAL UI STATE ONLY — no data state
     const [activeId, setActiveId] = useState<string | null>(null)
     const [activeType, setActiveType] = useState<'column' | 'card' | null>(null)
     const [selectedTask, setSelectedTask] = useState<ExtendedTask | null>(null)
 
-    // Delete States
+    // Delete States (UI-only)
     const [columnToDelete, setColumnToDelete] = useState<{ id: string, name: string } | null>(null)
     const [columnWarning, setColumnWarning] = useState<{ id: string, name: string, count: number } | null>(null)
     const [taskToDelete, setTaskToDelete] = useState<{ id: string, title: string } | null>(null)
@@ -184,7 +199,6 @@ export function KanbanBoard({
         const { active } = event
         setActiveId(active.id as string)
 
-        // Determine if dragging a column or a card
         const isColumn = columns.some(col => col.id === active.id)
         setActiveType(isColumn ? 'column' : 'card')
     }
@@ -202,7 +216,6 @@ export function KanbanBoard({
                 const oldIndex = columns.findIndex(col => col.id === active.id)
                 let newIndex = columns.findIndex(col => col.id === over.id)
 
-                // FIX: If over.id is NOT a column, check if it's a card and find its column
                 if (newIndex === -1) {
                     const overCard = tasks.find(t => t.id === over.id)
                     if (overCard && overCard.columnId) {
@@ -212,11 +225,8 @@ export function KanbanBoard({
 
                 if (newIndex !== -1) {
                     const reorderedColumns = arrayMove(columns, oldIndex, newIndex)
-                    setColumns(reorderedColumns)
-                    onColumnsChanged?.(reorderedColumns)
-
-                    // Persist to server — scoped to this pipeline
-                    await reorderColumnsAction(pipelineId, reorderedColumns.map(col => col.id))
+                    // Delegate to React Query hook — optimistic update happens there
+                    onColumnsReordered(reorderedColumns)
                 }
             }
             return
@@ -231,15 +241,12 @@ export function KanbanBoard({
             let targetColumnId: string | null = null
             let targetPosition: number = 0
 
-            // Check if dropped directly on a column (empty column or column header)
             const targetColumn = columns.find(col => col.id === over.id)
             if (targetColumn) {
                 targetColumnId = targetColumn.id
-                // Dropped on column itself = append at end
                 const columnTasks = tasks.filter(t => t.columnId === targetColumnId && t.id !== cardId)
                 targetPosition = columnTasks.length
             } else {
-                // Dropped on another card - find that card's column + compute position
                 const overCard = tasks.find(t => t.id === over.id)
                 if (overCard) {
                     targetColumnId = overCard.columnId
@@ -247,7 +254,6 @@ export function KanbanBoard({
                         .filter(t => t.columnId === targetColumnId && t.id !== cardId)
                         .sort((a, b) => a.position - b.position)
 
-                    // Find the position of the card we dropped onto
                     const overIndex = columnTasks.findIndex(t => t.id === overCard.id)
                     targetPosition = overIndex !== -1 ? overIndex : columnTasks.length
                 }
@@ -271,16 +277,10 @@ export function KanbanBoard({
 
         setIsDeleting(true)
         try {
-            // Optimistic Update
-            setColumns(prev => prev.filter(c => c.id !== columnToDelete.id))
-
-            await deleteColumnAction(columnToDelete.id)
+            // Delegate to React Query hook — optimistic update happens there
+            onDeleteColumn(columnToDelete.id)
         } catch (error) {
             console.error(error)
-            // Rollback could be added here if needed, but for columns it's rare to fail
-            // Ideally re-fetch or rollback state
-            setColumns(initialColumns) // Simple rollback
-            alert("Erro ao excluir lista")
         } finally {
             setIsDeleting(false)
             setColumnToDelete(null)
@@ -290,15 +290,11 @@ export function KanbanBoard({
     const confirmDeleteTask = async () => {
         if (!taskToDelete) return
 
-        // Delegate to Parent / Hook
-        // Note: The UI for the dialog stays here, but the Confirm Action calls the prop
         setIsDeleting(true)
         try {
             await onDeleteTask(taskToDelete.id)
-            // Dialog close is handled by finally
         } catch (error) {
             console.error(error)
-            // The hook handles alerts, but we should ensure UI state resets
         } finally {
             setIsDeleting(false)
             setTaskToDelete(null)
@@ -322,18 +318,13 @@ export function KanbanBoard({
                     </p>
 
                     <AddListButton onAddList={async (name) => {
-                        const result = await createColumnAction(pipelineId, name, '#64748b')
-                        if (result.success && result.column) {
-                            setColumns(prev => [...prev, result.column])
-                            if (onColumnAdded) onColumnAdded(result.column)
-                        }
+                        onAddColumn(name)
                     }} />
                 </div>
             </div>
         )
     }
 
-    // ... Render (Keep rest same, but now using `tasks` prop) ...
     return (
         <>
             <DndContext
@@ -368,7 +359,8 @@ export function KanbanBoard({
                                         onTaskCreated={() => { }}
                                         onOpenAddTask={onOpenAddTask}
                                         onColumnRenamed={(id: string, name: string) => {
-                                            setColumns(prev => prev.map(c => c.id === id ? { ...c, name } : c))
+                                            // Delegate to React Query hook — optimistic update
+                                            onRenameColumn(id, name, col.color)
                                         }}
                                         onRequestDeleteColumn={(id, name) => {
                                             const count = tasks.filter(t => t.columnId === id).length
@@ -383,11 +375,7 @@ export function KanbanBoard({
                                 ))}
                             </SortableContext>
                             <AddListButton onAddList={async (name) => {
-                                const result = await createColumnAction(pipelineId, name, '#64748b')
-                                if (result.success && result.column) {
-                                    setColumns(prev => [...prev, result.column])
-                                    if (onColumnAdded) onColumnAdded(result.column)
-                                }
+                                onAddColumn(name)
                             }} />
                         </div>
                     </div>
@@ -570,16 +558,10 @@ function Column({
     onRequestDeleteColumn?: (columnId: string, name: string) => void
     onRequestDeleteTask?: (taskId: string, title: string) => void
 }) {
-    // REMOVED useSortable from here to avoid conflict with SortableColumn
     const [isEditing, setIsEditing] = useState(false)
     const [editName, setEditName] = useState(title)
     const [isSaving, setIsSaving] = useState(false)
     const [menuOpen, setMenuOpen] = useState(false)
-
-    // Update local state if title prop changes (e.g. from parent state update)
-    useEffect(() => {
-        setEditName(title)
-    }, [title])
 
     const handleRename = async () => {
         if (!editName.trim() || editName === title) {
@@ -590,8 +572,7 @@ function Column({
 
         setIsSaving(true)
         try {
-            // Note: Optimistic update is handled by parent, we just trigger action
-            await updateColumnAction(id, editName.trim(), accent)
+            // Delegate rename to parent callback — optimistic update in React Query
             if (onColumnRenamed) {
                 onColumnRenamed(id, editName.trim())
             }
@@ -627,10 +608,8 @@ function Column({
 
     return (
         <div
-            // ref={setNodeRef} // Removed ref from here, it's on the wrapper in SortableColumn
             className={cn(
                 "rounded-xl border border-slate-200/60 bg-[#ebecf0] flex flex-col max-h-full w-[280px] flex-shrink-0 shadow-sm transition-all",
-                // isOver ? 'ring-2 ring-blue-500/30' : ''
             )}
         >
             {/* Column Header */}
@@ -835,15 +814,12 @@ function TaskCardItem({
 
     const handleDelete = async () => {
         setMenuOpen(false)
-        // Decouple dialog opening from event handling to prevent focus freeze
-        // This allows the menu to close and focus to reset before the dialog tries to open
         setTimeout(() => {
             onRequestDelete?.(task.id, task.title)
         }, 10)
     }
 
     const handleCardClick = (e: React.MouseEvent) => {
-        // Don't trigger if clicking on menu button or menu items
         if ((e.target as HTMLElement).closest('button')) return
         onCardClick?.(task)
     }
