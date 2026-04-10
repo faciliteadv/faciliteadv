@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## Setup local
 
-## Getting Started
+1. Instale as dependências:
 
-First, run the development server:
+```bash
+npm ci
+```
+
+2. Crie um arquivo `.env.local` com base no `.env.example`.
+
+Variáveis obrigatórias:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+DATABASE_URL=
+DIRECT_URL=
+```
+
+3. Rode o projeto:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+4. Abra:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```txt
+http://localhost:3000/processes
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Onde encontrar as chaves
 
-## Learn More
+- `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY`: painel do Supabase > Project Settings > API
+- `DATABASE_URL` e `DIRECT_URL`: painel do Supabase > Connect
 
-To learn more about Next.js, take a look at the following resources:
+Use de preferência a string pronta do Supabase para Prisma/session pooler.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Observações
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Sem as variáveis do Supabase, as rotas protegidas como `/processes` não abrem.
+- O aviso sobre `middleware` estar depreciado no Next.js não é o erro que está bloqueando o teste local.

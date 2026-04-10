@@ -1,15 +1,41 @@
-import { Prisma } from "@prisma/client"
+import { Prisma, ProcessStatus } from "@prisma/client"
 import { db } from "@/lib/db"
+
+type ProcessListRecord = Prisma.ProcessGetPayload<{
+    include: {
+        client: {
+            select: {
+                name: true
+                type: true
+            }
+        }
+    }
+}>
+
+type SerializedProcessListRecord = Omit<
+    ProcessListRecord,
+    "claimValue" | "createdAt" | "updatedAt" | "deletedAt" | "distributionDate"
+> & {
+    claimValue: number | null
+    createdAt: string
+    updatedAt: string
+    deletedAt: string | null
+    distributionDate: string | null
+    opponentName: string | null
+}
 
 export const ProcessService = {
     // LIST with Hierarchy Logic
     // In the DB we store flat records, but in UI we group them.
     // This service returns the flat list optimized for grouping.
-    listProcesses: async (userId: string, search?: string) => {
+    listProcesses: async (userId: string, search?: string, statuses?: ProcessStatus[]): Promise<SerializedProcessListRecord[]> => {
         const processes = await db.process.findMany({
             where: {
                 userId,
                 deletedAt: null,
+                ...(statuses?.length && {
+                    status: { in: statuses }
+                }),
                 ...(search && {
                     OR: [
                         { number: { contains: search, mode: 'insensitive' } },
@@ -49,9 +75,9 @@ export const ProcessService = {
                 deletedAt: p.deletedAt?.toISOString() || null,
                 distributionDate: p.distributionDate?.toISOString() || null,
                 opponentName: p.opponent && opponentMap.has(p.opponent)
-                    ? opponentMap.get(p.opponent)
-                    : (p.opponent && p.opponent.length === 36 ? null : p.opponent)
-            })) as any
+                    ? opponentMap.get(p.opponent) ?? null
+                    : (p.opponent && p.opponent.length === 36 ? null : p.opponent || null)
+            }))
         }
 
         return processes.map(p => ({
@@ -63,8 +89,33 @@ export const ProcessService = {
             updatedAt: p.updatedAt.toISOString(),
             deletedAt: p.deletedAt?.toISOString() || null,
             distributionDate: p.distributionDate?.toISOString() || null,
-            opponentName: p.opponent
-        })) as any
+            opponentName: p.opponent || null
+        }))
+    },
+
+    listStatusCounts: async (userId: string, search?: string) => {
+        const counts = await db.process.groupBy({
+            by: ['status'],
+            where: {
+                userId,
+                deletedAt: null,
+                ...(search && {
+                    OR: [
+                        { number: { contains: search, mode: 'insensitive' } },
+                        { folderName: { contains: search, mode: 'insensitive' } },
+                        { actionType: { contains: search, mode: 'insensitive' } }
+                    ]
+                })
+            },
+            _count: {
+                _all: true
+            }
+        })
+
+        return counts.map(item => ({
+            status: item.status,
+            count: item._count._all
+        }))
     },
 
     create: async (userId: string, data: Omit<Prisma.ProcessUncheckedCreateInput, 'userId'>) => {
