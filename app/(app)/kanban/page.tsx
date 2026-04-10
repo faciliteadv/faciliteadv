@@ -71,6 +71,7 @@ export default async function KanbanPage({
         position: t.position ?? 0,
         createdAt: t.createdAt?.toISOString?.() ?? t.createdAt,
         updatedAt: t.updatedAt?.toISOString?.() ?? t.updatedAt,
+        completedAt: t.completedAt?.toISOString?.() ?? t.completedAt ?? null,
         fatalDate: t.fatalDate?.toISOString?.() ?? t.fatalDate ?? null,
         endDate: t.endDate?.toISOString?.() ?? t.endDate ?? null,
         publicationDate: t.publicationDate?.toISOString?.() ?? t.publicationDate ?? null,

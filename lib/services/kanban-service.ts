@@ -1,5 +1,5 @@
 import { db } from "@/lib/db"
-import { TaskType } from "@prisma/client"
+import { DaysType, PracticeArea, TaskType } from "@prisma/client"
 
 export const KanbanService = {
     /**
@@ -32,7 +32,8 @@ export const KanbanService = {
                     select: {
                         id: true,
                         number: true,
-                        folderName: true
+                        folderName: true,
+                        type: true
                     }
                 },
                 responsibleLawyer: {
@@ -64,6 +65,7 @@ export const KanbanService = {
             ...task,
             createdAt: task.createdAt.toISOString(),
             updatedAt: task.updatedAt.toISOString(),
+            completedAt: task.completedAt ? task.completedAt.toISOString() : null,
             fatalDate: task.fatalDate ? task.fatalDate.toISOString() : null,
             endDate: task.endDate ? task.endDate.toISOString() : null,
             publicationDate: task.publicationDate ? task.publicationDate.toISOString() : null,
@@ -202,8 +204,8 @@ export const KanbanService = {
                 columnId,
                 position: (maxPosition._max.position ?? -1) + 1,
                 phase: column?.name || 'A Fazer',
-                practiceArea: practiceArea as any,
-                daysType: daysType as any,
+                practiceArea: practiceArea as PracticeArea | undefined,
+                daysType: daysType as DaysType | undefined,
                 tags: tags && tags.length > 0 ? {
                     connect: tags.map(id => ({ id }))
                 } : undefined,
@@ -230,6 +232,8 @@ export const KanbanService = {
         responsibleLawyerId: string | null
         points: number
         tags: string[]
+        completedAt: Date | null
+        completedById: string | null
     }>) => {
         const { tags, practiceArea, daysType, ...taskData } = data
 
@@ -237,8 +241,8 @@ export const KanbanService = {
             where: { id: taskId, userId },
             data: {
                 ...taskData,
-                practiceArea: practiceArea as any,
-                daysType: daysType as any,
+                practiceArea: practiceArea as PracticeArea | undefined,
+                daysType: daysType as DaysType | undefined,
                 tags: tags ? {
                     set: [],
                     connect: tags.map(id => ({ id }))

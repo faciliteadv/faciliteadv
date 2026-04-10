@@ -6,6 +6,7 @@ import { TaskType } from "@prisma/client"
 import { db } from "@/lib/db"
 import { UpdateTaskSchema } from "@/lib/validations/schemas"
 import { withAuth } from "@/lib/auth/with-auth"
+import { parseDateInputToDate } from "@/lib/utils/kanban"
 
 /**
  * Fetch board tasks for a specific pipeline.
@@ -59,7 +60,7 @@ export async function createTaskAction(data: {
             where: { id: task.id },
             include: {
                 client: { select: { id: true, name: true } },
-                process: { select: { id: true, number: true, folderName: true } },
+                process: { select: { id: true, number: true, folderName: true, type: true } },
                 responsibleLawyer: { select: { id: true, name: true } },
                 tags: true,
                 checklist: { orderBy: { createdAt: 'asc' } }
@@ -74,6 +75,7 @@ export async function createTaskAction(data: {
                 ...fullTask,
                 createdAt: fullTask.createdAt.toISOString(),
                 updatedAt: fullTask.updatedAt.toISOString(),
+                completedAt: fullTask.completedAt ? fullTask.completedAt.toISOString() : null,
                 fatalDate: fullTask.fatalDate ? fullTask.fatalDate.toISOString() : null,
                 endDate: fullTask.endDate ? fullTask.endDate.toISOString() : null,
                 publicationDate: fullTask.publicationDate ? fullTask.publicationDate.toISOString() : null,
@@ -108,7 +110,7 @@ export async function quickCreateTaskAction(title: string, columnId: string) {
             where: { id: task.id },
             include: {
                 client: { select: { id: true, name: true } },
-                process: { select: { id: true, number: true, folderName: true } },
+                process: { select: { id: true, number: true, folderName: true, type: true } },
                 responsibleLawyer: { select: { id: true, name: true } },
                 tags: true,
                 checklist: { orderBy: { createdAt: 'asc' } }
@@ -123,6 +125,7 @@ export async function quickCreateTaskAction(title: string, columnId: string) {
                 ...fullTask,
                 createdAt: fullTask.createdAt.toISOString(),
                 updatedAt: fullTask.updatedAt.toISOString(),
+                completedAt: fullTask.completedAt ? fullTask.completedAt.toISOString() : null,
                 fatalDate: fullTask.fatalDate ? fullTask.fatalDate.toISOString() : null,
                 endDate: fullTask.endDate ? fullTask.endDate.toISOString() : null,
                 publicationDate: fullTask.publicationDate ? fullTask.publicationDate.toISOString() : null,
@@ -141,7 +144,7 @@ export async function quickCreateTaskAction(title: string, columnId: string) {
  * NO revalidatePath — React Query manages client state via optimistic updates.
  */
 export async function moveCardAction(cardId: string, targetColumnId: string, targetPosition: number) {
-    return withAuth(async ({ userId }) => {
+    return withAuth(async () => {
         try {
             await KanbanService.moveCard(cardId, targetColumnId, targetPosition)
             return { success: true }
@@ -237,10 +240,11 @@ export async function updateTaskAction(taskId: string, rawData: unknown) {
     const data = UpdateTaskSchema.parse(rawData)
     const sanitizedData = {
         ...data,
-        fatalDate: data.fatalDate ? new Date(data.fatalDate) : null,
-        endDate: data.endDate ? new Date(data.endDate) : null,
-        publicationDate: data.publicationDate ? new Date(data.publicationDate) : null,
-        protocolDate: data.protocolDate ? new Date(data.protocolDate) : null,
+        fatalDate: data.fatalDate ? parseDateInputToDate(data.fatalDate) : null,
+        endDate: data.endDate ? parseDateInputToDate(data.endDate) : null,
+        publicationDate: data.publicationDate ? parseDateInputToDate(data.publicationDate) : null,
+        protocolDate: data.protocolDate ? parseDateInputToDate(data.protocolDate) : null,
+        completedAt: data.completedAt ? parseDateInputToDate(data.completedAt) : null,
     }
 
     try {
@@ -249,5 +253,29 @@ export async function updateTaskAction(taskId: string, rawData: unknown) {
     } catch (error) {
         console.error('Erro detalhado ao atualizar tarefa:', error)
         throw new Error(`Erro ao atualizar tarefa: ${(error as Error).message}`)
+    }
+}
+
+export async function toggleTaskCompletedAction(taskId: string, completed: boolean) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+        throw new Error("NÃ£o autorizado")
+    }
+
+    try {
+        await db.taskCard.update({
+            where: { id: taskId, userId: user.id },
+            data: {
+                completedAt: completed ? new Date() : null,
+                completedById: completed ? user.id : null,
+            }
+        })
+
+        return { success: true }
+    } catch (error) {
+        console.error("Erro ao marcar tarefa como concluÃ­da:", error)
+        throw new Error("Erro ao atualizar status da tarefa.")
     }
 }

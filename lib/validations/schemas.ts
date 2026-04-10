@@ -112,6 +112,8 @@ export const UpdateTaskSchema = z.object({
     responsibleLawyerId: z.string().uuid().nullish().transform(v => v ?? undefined),
     points: z.number().int().nonnegative().nullish().transform(v => v ?? undefined),
     tags: z.array(z.string().uuid()).optional(),
+    completedAt: z.union([z.string(), z.null()]).optional(),
+    completedById: z.string().uuid().nullish().transform(v => v ?? undefined),
 })
 
 export type UpdateTaskInput = z.infer<typeof UpdateTaskSchema>

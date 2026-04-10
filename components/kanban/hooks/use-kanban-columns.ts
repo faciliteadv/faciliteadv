@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react'
+import { useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { getColumnsByPipeline, createColumnAction, updateColumnAction, deleteColumnAction, reorderColumnsAction } from '@/lib/actions/column-actions'
 import { KanbanColumn } from '@prisma/client'
@@ -66,10 +66,10 @@ export function useKanbanColumns(pipelineId: string | null, initialColumns: Kanb
 
     // 4. Delete Column (Optimistic — removes instantly, rollback on failure)
     const { mutate: deleteColumn } = useMutation({
-        mutationFn: async (columnId: string) => {
-            await deleteColumnAction(columnId)
+        mutationFn: async ({ columnId, targetColumnId }: { columnId: string; targetColumnId?: string }) => {
+            await deleteColumnAction(columnId, targetColumnId)
         },
-        onMutate: async (columnId) => {
+        onMutate: async ({ columnId }) => {
             await queryClient.cancelQueries({ queryKey: QUERY_KEY })
             const snapshot = queryClient.getQueryData<KanbanColumn[]>(QUERY_KEY)
             queryClient.setQueryData<KanbanColumn[]>(QUERY_KEY, (old = []) =>
@@ -77,11 +77,12 @@ export function useKanbanColumns(pipelineId: string | null, initialColumns: Kanb
             )
             return { snapshot }
         },
-        onError: (_err, _columnId, context) => {
+        onError: (_err, _vars, context) => {
             queryClient.setQueryData(QUERY_KEY, context?.snapshot)
         },
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: QUERY_KEY })
+            queryClient.invalidateQueries({ queryKey: ['kanban-tasks', pipelineId] })
         }
     })
 

@@ -10,12 +10,10 @@ import {
     SelectContent,
     SelectItem,
     SelectTrigger,
-    SelectValue,
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import {
-    FileText,
     Calendar as CalendarIcon,
     AlertCircle,
     CheckSquare,
@@ -23,7 +21,6 @@ import {
     ExternalLink,
     User,
     Tag,
-    Clock,
     Star,
     Briefcase,
     Hash,
@@ -35,6 +32,7 @@ import { Combobox } from "@/components/ui/combobox"
 import { cn } from "@/lib/utils"
 import { TaskCard, Tag as TagType } from "@prisma/client"
 import { toggleChecklistItemAction } from "@/lib/actions/kanban-actions"
+import { formatKanbanDate } from "@/lib/utils/kanban"
 
 type ExtendedTask = Omit<TaskCard, 'phase' | 'createdAt' | 'updatedAt' | 'fatalDate' | 'endDate' | 'publicationDate' | 'protocolDate'> & {
     phase: string
@@ -81,6 +79,15 @@ const TASK_TYPE_LABELS: Record<string, string> = {
     'DEADLINE': 'Prazo',
     'HEARING': 'Audiência',
     'MEETING': 'Reunião'
+}
+
+function toDateTimeLocalValue(value: string | null | undefined) {
+    if (!value) return ''
+
+    const [datePart, timePart] = value.split('T')
+    const normalizedTime = timePart?.slice(0, 5) || '12:00'
+
+    return `${datePart}T${normalizedTime}`
 }
 
 export function TaskDetailModal({ task, isOpen, onClose, users, clients, processes }: TaskDetailModalProps) {
@@ -136,15 +143,15 @@ export function TaskDetailModal({ task, isOpen, onClose, users, clients, process
         try {
             await import('@/lib/actions/kanban-actions').then(mod => mod.updateTaskAction(task.id, {
                 ...editForm,
-                fatalDate: editForm.fatalDate ? new Date(editForm.fatalDate).toISOString() : null,
-                endDate: editForm.endDate ? new Date(editForm.endDate).toISOString() : null,
-                protocolDate: editForm.protocolDate ? new Date(editForm.protocolDate).toISOString() : null,
-                publicationDate: editForm.publicationDate ? new Date(editForm.publicationDate).toISOString() : null,
+                fatalDate: editForm.fatalDate || null,
+                endDate: editForm.endDate || null,
+                protocolDate: editForm.protocolDate || null,
+                publicationDate: editForm.publicationDate || null,
             }))
             setIsEditing(false)
             onClose()
-        } catch (error) {
-            console.error('Failed to update task', error)
+        } catch {
+            console.error('Failed to update task')
         }
     }
 
@@ -170,7 +177,7 @@ export function TaskDetailModal({ task, isOpen, onClose, users, clients, process
 
         try {
             await toggleChecklistItemAction(itemId)
-        } catch (error) {
+        } catch {
             // Revert on error
             setChecklistItems(prev =>
                 prev.map(item =>
@@ -285,7 +292,7 @@ export function TaskDetailModal({ task, isOpen, onClose, users, clients, process
                                     <label className="text-xs font-semibold text-slate-500">Prazo Fatal</label>
                                     <Input
                                         type="datetime-local"
-                                        value={editForm.fatalDate ? new Date(editForm.fatalDate).toISOString().slice(0, 16) : ''}
+                                        value={toDateTimeLocalValue(editForm.fatalDate)}
                                         onChange={e => setEditForm(prev => ({ ...prev, fatalDate: e.target.value || null }))}
                                         className="h-9 text-sm"
                                     />
@@ -294,7 +301,7 @@ export function TaskDetailModal({ task, isOpen, onClose, users, clients, process
                                     <label className="text-xs font-semibold text-slate-500">Data Final</label>
                                     <Input
                                         type="datetime-local"
-                                        value={editForm.endDate ? new Date(editForm.endDate).toISOString().slice(0, 16) : ''}
+                                        value={toDateTimeLocalValue(editForm.endDate)}
                                         onChange={e => setEditForm(prev => ({ ...prev, endDate: e.target.value || null }))}
                                         className="h-9 text-sm"
                                     />
@@ -303,7 +310,7 @@ export function TaskDetailModal({ task, isOpen, onClose, users, clients, process
                                     <label className="text-xs font-semibold text-slate-500">Data Publicação</label>
                                     <Input
                                         type="datetime-local"
-                                        value={editForm.publicationDate ? new Date(editForm.publicationDate).toISOString().slice(0, 16) : ''}
+                                        value={toDateTimeLocalValue(editForm.publicationDate)}
                                         onChange={e => setEditForm(prev => ({ ...prev, publicationDate: e.target.value || null }))}
                                         className="h-9 text-sm"
                                     />
@@ -312,7 +319,7 @@ export function TaskDetailModal({ task, isOpen, onClose, users, clients, process
                                     <label className="text-xs font-semibold text-slate-500">Data Protocolo</label>
                                     <Input
                                         type="datetime-local"
-                                        value={editForm.protocolDate ? new Date(editForm.protocolDate).toISOString().slice(0, 16) : ''}
+                                        value={toDateTimeLocalValue(editForm.protocolDate)}
                                         onChange={e => setEditForm(prev => ({ ...prev, protocolDate: e.target.value || null }))}
                                         className="h-9 text-sm"
                                     />
@@ -459,7 +466,7 @@ export function TaskDetailModal({ task, isOpen, onClose, users, clients, process
                                             "text-lg font-bold",
                                             isLate ? "text-red-700" : isDueSoon ? "text-yellow-700" : "text-blue-700"
                                         )}>
-                                            {new Date(task.fatalDate).toLocaleDateString('pt-BR', {
+                                            {formatKanbanDate(task.fatalDate, {
                                                 weekday: 'long',
                                                 day: '2-digit',
                                                 month: 'long',
@@ -533,7 +540,7 @@ export function TaskDetailModal({ task, isOpen, onClose, users, clients, process
                                             <span className="text-xs font-medium text-slate-500">Data Final</span>
                                         </div>
                                         <p className="text-sm font-semibold text-slate-700">
-                                            {new Date(task.endDate).toLocaleDateString('pt-BR')}
+                                            {formatKanbanDate(task.endDate)}
                                         </p>
                                     </div>
                                 )}
@@ -546,7 +553,7 @@ export function TaskDetailModal({ task, isOpen, onClose, users, clients, process
                                             <span className="text-xs font-medium text-slate-500">Data Publicação</span>
                                         </div>
                                         <p className="text-sm font-semibold text-slate-700">
-                                            {new Date(task.publicationDate).toLocaleDateString('pt-BR')}
+                                            {formatKanbanDate(task.publicationDate)}
                                         </p>
                                     </div>
                                 )}
@@ -559,7 +566,7 @@ export function TaskDetailModal({ task, isOpen, onClose, users, clients, process
                                             <span className="text-xs font-medium text-slate-500">Data Protocolo</span>
                                         </div>
                                         <p className="text-sm font-semibold text-slate-700">
-                                            {new Date(task.protocolDate).toLocaleDateString('pt-BR')}
+                                            {formatKanbanDate(task.protocolDate)}
                                         </p>
                                     </div>
                                 )}

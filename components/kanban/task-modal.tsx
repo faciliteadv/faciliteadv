@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Combobox } from "@/components/ui/combobox"
+import { parseDateInputToDate } from "@/lib/utils/kanban"
 
 type ProcessOption = {
     id: string
@@ -132,7 +133,7 @@ export function TaskModal({ isOpen, onClose, processes, columns, clients, onTask
         if (isOpen) {
             getUsersForResponsibleSelect().then(setUsers)
             // Reset to defaults
-            setProcessId("")
+            setProcessId(defaultProcessId || "")
             setClientId("")
             setColumnId(defaultPhase ? (columns.find(c => c.name === defaultPhase)?.id || columns[0]?.id || "") : (columns.length > 0 ? columns[0].id : ""))
             setPracticeArea("")
@@ -148,7 +149,7 @@ export function TaskModal({ isOpen, onClose, processes, columns, clients, onTask
             setEndDate("")
             setProtocolDate("")
         }
-    }, [isOpen, defaultPhase, columns])
+    }, [isOpen, defaultPhase, defaultProcessId, columns])
 
     if (!isOpen) return null
 
@@ -169,12 +170,12 @@ export function TaskModal({ isOpen, onClose, processes, columns, clients, onTask
             practiceArea: practiceArea || undefined,
             processId: (processId && processId !== 'NONE') ? processId : undefined,
             clientId: (clientId && clientId !== 'NONE') ? clientId : undefined,
-            publicationDate: publicationDate ? new Date(publicationDate) : undefined,
+            publicationDate: publicationDate ? parseDateInputToDate(publicationDate) ?? undefined : undefined,
             daysCount: daysCount ? parseInt(daysCount) : undefined,
             daysType: (daysCount && daysType) ? daysType as 'BUSINESS' | 'CALENDAR' : undefined,
-            endDate: endDate ? new Date(endDate) : undefined,
-            fatalDate: fatalDate ? new Date(fatalDate) : undefined,
-            protocolDate: protocolDate ? new Date(protocolDate) : undefined,
+            endDate: endDate ? parseDateInputToDate(endDate) ?? undefined : undefined,
+            fatalDate: fatalDate ? parseDateInputToDate(fatalDate) ?? undefined : undefined,
+            protocolDate: protocolDate ? parseDateInputToDate(protocolDate) ?? undefined : undefined,
             responsibleLawyerId: responsibleLawyerId || undefined,
             points: points > 0 ? points : undefined,
             checklist: checklist.length > 0 ? checklist : undefined

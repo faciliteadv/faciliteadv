@@ -6,7 +6,7 @@ import { withAuth } from "@/lib/auth/with-auth"
 
 /**
  * Get columns for a specific pipeline, ordered by position.
- * PURE READ — does NOT create anything.
+ * PURE READ â€” does NOT create anything.
  */
 export async function getColumnsByPipeline(pipelineId: string) {
     const columns = await db.kanbanColumn.findMany({
@@ -25,9 +25,8 @@ export async function getColumnsByPipeline(pipelineId: string) {
 export async function createColumnAction(pipelineId: string, name: string, color: string) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Não autorizado')
+    if (!user) throw new Error('NÃ£o autorizado')
 
-    // Get max position
     const maxPos = await db.kanbanColumn.aggregate({
         where: { pipelineId },
         _max: { position: true }
@@ -51,13 +50,13 @@ export async function createColumnAction(pipelineId: string, name: string, color
  * Also updates the `phase` field on all tasks in this column for legacy compat.
  */
 export async function updateColumnAction(columnId: string, name: string, color: string) {
-    return withAuth(async ({ userId }) => {
+    return withAuth(async () => {
         return await db.$transaction(async (tx) => {
             const currentColumn = await tx.kanbanColumn.findUnique({
                 where: { id: columnId }
             })
 
-            if (!currentColumn) throw new Error('Coluna não encontrada')
+            if (!currentColumn) throw new Error('Coluna nÃ£o encontrada')
 
             const oldName = currentColumn.name
 
@@ -66,7 +65,6 @@ export async function updateColumnAction(columnId: string, name: string, color: 
                 data: { name, color }
             })
 
-            // Sync phase field on tasks if column was renamed
             if (oldName !== name) {
                 await tx.taskCard.updateMany({
                     where: { columnId },
@@ -81,20 +79,82 @@ export async function updateColumnAction(columnId: string, name: string, color: 
 
 /**
  * Delete a column.
+ * If the column still has cards, a destination column must be provided.
  */
-export async function deleteColumnAction(columnId: string) {
+export async function deleteColumnAction(columnId: string, targetColumnId?: string) {
     return withAuth(async () => {
-        // Safety check: Don't delete if has cards
-        const cardsCount = await db.taskCard.count({
-            where: { columnId }
-        })
+        await db.$transaction(async (tx) => {
+            const column = await tx.kanbanColumn.findUnique({
+                where: { id: columnId },
+                select: { id: true, pipelineId: true, position: true }
+            })
 
-        if (cardsCount > 0) {
-            throw new Error("Não é possível excluir uma coluna com cards. Mova ou arquive os cards primeiro.")
-        }
+            if (!column) {
+                throw new Error("Coluna nÃ£o encontrada.")
+            }
 
-        await db.kanbanColumn.delete({
-            where: { id: columnId }
+            const cardsCount = await tx.taskCard.count({
+                where: { columnId }
+            })
+
+            if (cardsCount > 0) {
+                if (!targetColumnId) {
+                    throw new Error("Selecione uma fila de destino para mover os cards antes de excluir.")
+                }
+
+                const targetColumn = await tx.kanbanColumn.findFirst({
+                    where: {
+                        id: targetColumnId,
+                        pipelineId: column.pipelineId
+                    },
+                    select: {
+                        id: true,
+                        name: true
+                    }
+                })
+
+                if (!targetColumn) {
+                    throw new Error("Fila de destino nÃ£o encontrada.")
+                }
+
+                const targetMaxPosition = await tx.taskCard.aggregate({
+                    where: { columnId: targetColumnId },
+                    _max: { position: true }
+                })
+
+                const tasksToMove = await tx.taskCard.findMany({
+                    where: { columnId },
+                    orderBy: { position: "asc" },
+                    select: { id: true }
+                })
+
+                await Promise.all(
+                    tasksToMove.map((task, index) =>
+                        tx.taskCard.update({
+                            where: { id: task.id },
+                            data: {
+                                columnId: targetColumnId,
+                                position: (targetMaxPosition._max.position ?? -1) + 1 + index,
+                                phase: targetColumn.name
+                            }
+                        })
+                    )
+                )
+            }
+
+            await tx.kanbanColumn.delete({
+                where: { id: columnId }
+            })
+
+            await tx.kanbanColumn.updateMany({
+                where: {
+                    pipelineId: column.pipelineId,
+                    position: { gt: column.position }
+                },
+                data: {
+                    position: { decrement: 1 }
+                }
+            })
         })
 
         return { success: true }
@@ -109,9 +169,8 @@ export async function deleteColumnAction(columnId: string) {
 export async function reorderColumnsAction(pipelineId: string, columnIds: string[]) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Não autorizado')
+    if (!user) throw new Error('NÃ£o autorizado')
 
-    // Only update columns that belong to this pipeline
     await Promise.all(
         columnIds.map((id, index) =>
             db.kanbanColumn.updateMany({

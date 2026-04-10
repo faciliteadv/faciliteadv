@@ -2,9 +2,32 @@
 
 import { useCallback, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
-import { fetchBoardAction, moveCardAction, deleteTaskAction } from '@/lib/actions/kanban-actions'
+import { fetchBoardAction, moveCardAction, deleteTaskAction, toggleTaskCompletedAction } from '@/lib/actions/kanban-actions'
+import { Tag } from '@prisma/client'
 
-type Task = any // Will be typed from the full TaskCard with relations
+type Task = {
+    id: string
+    title: string
+    description?: string | null
+    type?: string
+    phase: string
+    columnId: string
+    position: number
+    isArchived: boolean
+    createdAt: string
+    updatedAt: string
+    completedAt?: string | null
+    fatalDate?: string | null
+    endDate?: string | null
+    publicationDate?: string | null
+    protocolDate?: string | null
+    client?: { id: string; name: string } | null
+    process?: { id: string; number: string | null; folderName: string | null; type?: string | null } | null
+    responsibleLawyer?: { id: string; name: string | null } | null
+    tags?: Tag[]
+    checklist?: { id: string; title: string; isCompleted: boolean }[]
+    [key: string]: unknown
+}
 
 /**
  * useKanbanTasks — Single Source of Truth for task data.
@@ -23,7 +46,7 @@ export function useKanbanTasks(pipelineId: string | null, initialTasks: Task[] =
     const QUERY_KEY = useMemo(() => ['kanban-tasks', pipelineId] as const, [pipelineId])
 
     // Fetch tasks for the active pipeline
-    const { data: tasks = [], isLoading, refetch } = useQuery({
+    const { data: tasks = [], isLoading, refetch } = useQuery<Task[]>({
         queryKey: QUERY_KEY,
         queryFn: async () => {
             if (!pipelineId) return []
@@ -137,6 +160,32 @@ export function useKanbanTasks(pipelineId: string | null, initialTasks: Task[] =
         },
     })
 
+    // === TOGGLE COMPLETED (Optimistic) ===
+    const { mutate: toggleTaskCompletedMutation } = useMutation({
+        mutationFn: async ({ taskId, completed }: { taskId: string; completed: boolean }) => {
+            await toggleTaskCompletedAction(taskId, completed)
+        },
+        onMutate: async ({ taskId, completed }) => {
+            await queryClient.cancelQueries({ queryKey: QUERY_KEY })
+            const snapshot = queryClient.getQueryData<Task[]>(QUERY_KEY)
+
+            queryClient.setQueryData<Task[]>(QUERY_KEY, (old = []) =>
+                old.map((task) =>
+                    task.id === taskId
+                        ? { ...task, completedAt: completed ? new Date().toISOString() : null }
+                        : task
+                )
+            )
+
+            return { snapshot }
+        },
+        onError: (_err, _vars, context) => {
+            if (context?.snapshot) {
+                queryClient.setQueryData(QUERY_KEY, context.snapshot)
+            }
+        },
+    })
+
     // === ADD TASK (directly to cache) ===
     const addTask = useCallback((task: Task) => {
         queryClient.setQueryData<Task[]>(QUERY_KEY, (old = []) => {
@@ -153,12 +202,17 @@ export function useKanbanTasks(pipelineId: string | null, initialTasks: Task[] =
         deleteTaskMutation(taskId)
     }, [deleteTaskMutation])
 
+    const toggleTaskCompleted = useCallback((taskId: string, completed: boolean) => {
+        toggleTaskCompletedMutation({ taskId, completed })
+    }, [toggleTaskCompletedMutation])
+
     return {
         tasks,
         isLoading,
         moveTask,
         addTask,
         deleteTask,
+        toggleTaskCompleted,
         refetch,
     }
 }

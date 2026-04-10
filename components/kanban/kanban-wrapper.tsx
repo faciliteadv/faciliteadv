@@ -1,18 +1,21 @@
 'use client'
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useMemo } from "react"
 import { KanbanBoard } from "./board"
 import { TaskModal } from "./task-modal"
 import { ColumnModal } from "./column-modal"
 import { useEsteiraModal } from "@/components/providers/esteira-modal-provider"
-import { Plus } from "lucide-react"
+import { Plus, Search, SlidersHorizontal } from "lucide-react"
 import { PipelineActionsMenu } from "./pipeline-actions-menu"
 import { Tag, Client, KanbanColumn } from "@prisma/client"
 import { cn } from "@/lib/utils"
 import { useKanbanTasks } from "./hooks/use-kanban-tasks"
 import { useKanbanColumns } from "./hooks/use-kanban-columns"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
+import { KanbanSortMode, matchesKanbanSearch, sortKanbanTasks } from "@/lib/utils/kanban"
 
-// Define proper extended types for data with relations
 type ExtendedTask = {
     id: string
     title: string
@@ -24,22 +27,24 @@ type ExtendedTask = {
     isArchived: boolean
     createdAt: string
     updatedAt: string
+    completedAt: string | null
     fatalDate: string | null
     endDate: string | null
     publicationDate: string | null
     protocolDate: string | null
     client?: Pick<Client, 'id' | 'name'> | null
-    process?: { id: string; number: string | null; folderName: string | null } | null
+    process?: { id: string; number: string | null; folderName: string | null; type?: string | null } | null
     responsibleLawyer?: { id: string; name: string | null } | null
     tags?: Tag[]
     checklist?: { id: string; title: string; isCompleted: boolean }[]
-    [key: string]: any
+    [key: string]: unknown
 }
 
 type ProcessOption = {
     id: string
     number: string | null
     folderName: string | null
+    type?: string | null
 }
 
 type Pipeline = {
@@ -60,17 +65,16 @@ type Props = {
     clients: { id: string; name: string }[]
 }
 
-/**
- * KanbanWrapper — Orchestrator component.
- *
- * ARCHITECTURE:
- * - selectedPipelineId drives which React Query caches are active.
- * - initialData is ONLY injected when selectedPipelineId === activePipelineId (SSR match).
- * - Pipeline switching is 100% client-side (no SSR re-render).
- * - URL is updated via window.history.replaceState (no soft navigation).
- * - All column mutations are delegated to the useKanbanColumns hook.
- * - KanbanBoard is a PURE RENDER component — no local column/task state.
- */
+const SORT_OPTIONS: { value: KanbanSortMode; label: string }[] = [
+    { value: "manual", label: "Manual" },
+    { value: "fatalDateAsc", label: "Prazo fatal mais prÃ³ximo" },
+    { value: "fatalDateDesc", label: "Prazo fatal mais distante" },
+    { value: "titleAsc", label: "TÃ­tulo A-Z" },
+    { value: "clientAsc", label: "Cliente A-Z" },
+    { value: "responsibleAsc", label: "ResponsÃ¡vel A-Z" },
+    { value: "createdDesc", label: "Mais recentes" },
+]
+
 export function KanbanWrapper({
     initialTasks,
     initialColumns,
@@ -82,53 +86,45 @@ export function KanbanWrapper({
 }: Props) {
     const { openModal: openEsteiraModal } = useEsteiraModal()
 
-    // Pipeline selection — the single driver of all query scoping
     const [selectedPipelineId, setSelectedPipelineId] = useState(activePipelineId)
+    const [isTaskModalOpen, setIsTaskModalOpen] = useState(false)
+    const [isColumnModalOpen, setIsColumnModalOpen] = useState(false)
+    const [selectedPhase, setSelectedPhase] = useState<string | undefined>(undefined)
+    const [searchQuery, setSearchQuery] = useState("")
+    const [selectedProcessId, setSelectedProcessId] = useState("")
+    const [selectedClientId, setSelectedClientId] = useState("")
+    const [selectedResponsibleId, setSelectedResponsibleId] = useState("")
+    const [sortMode, setSortMode] = useState<KanbanSortMode>("manual")
 
-    // CRITICAL FIX: Only inject SSR data when viewing the server-rendered pipeline.
-    // Without this guard, Pipeline A's data would pollute Pipeline B's cache.
     const shouldInjectInitialData = selectedPipelineId === activePipelineId
 
-    // Kanban tasks hook — scoped to active pipeline
     const {
         tasks,
-        isLoading: isLoadingTasks,
         moveTask,
-        addTask,
         deleteTask,
+        toggleTaskCompleted,
         refetch: refetchTasks,
     } = useKanbanTasks(
         selectedPipelineId,
-        shouldInjectInitialData ? initialTasks : []   // FIX BUG #1: No poisoning
+        shouldInjectInitialData ? initialTasks : []
     )
 
-    // Kanban columns hook — Single Source of Truth
     const {
         columns,
         reorderColumns,
         addColumn,
         deleteColumn,
         renameColumn,
-        refetch: refetchColumns
     } = useKanbanColumns(
         selectedPipelineId,
         shouldInjectInitialData ? initialColumns : []
     )
 
-    // UI State
-    const [isTaskModalOpen, setIsTaskModalOpen] = useState(false)
-    const [isColumnModalOpen, setIsColumnModalOpen] = useState(false)
-    const [selectedPhase, setSelectedPhase] = useState<string | undefined>(undefined)
-
-    // FIX BUG #2: Pipeline switch is 100% client-side.
-    // window.history.replaceState updates URL for bookmarking/refresh
-    // WITHOUT triggering SSR soft navigation (no race condition).
     const handlePipelineSwitch = useCallback((pipelineId: string) => {
         setSelectedPipelineId(pipelineId)
         window.history.replaceState(null, '', `/kanban?pipeline=${pipelineId}`)
     }, [])
 
-    // Handlers
     const handleTaskCreated = () => {
         refetchTasks()
     }
@@ -138,7 +134,6 @@ export function KanbanWrapper({
         setIsTaskModalOpen(true)
     }
 
-    // Column callbacks — delegated to React Query hook (no local state in board)
     const handleColumnsReordered = useCallback((newOrder: KanbanColumn[]) => {
         reorderColumns(newOrder)
     }, [reorderColumns])
@@ -147,17 +142,49 @@ export function KanbanWrapper({
         addColumn({ name, color: '#64748b' })
     }, [addColumn])
 
-    const handleDeleteColumn = useCallback((columnId: string) => {
-        deleteColumn(columnId)
+    const handleDeleteColumn = useCallback((columnId: string, targetColumnId?: string) => {
+        deleteColumn({ columnId, targetColumnId })
     }, [deleteColumn])
 
     const handleRenameColumn = useCallback((columnId: string, name: string, color: string) => {
         renameColumn({ columnId, name, color })
     }, [renameColumn])
 
+    const filteredTasks = useMemo<ExtendedTask[]>(() => {
+        const searched = tasks.filter((task) => {
+            if (!matchesKanbanSearch(task, searchQuery)) return false
+            if (selectedProcessId && task.process?.id !== selectedProcessId) return false
+            if (selectedClientId && task.client?.id !== selectedClientId) return false
+            if (selectedResponsibleId && task.responsibleLawyer?.id !== selectedResponsibleId) return false
+            return true
+        })
+
+        return sortKanbanTasks(searched, sortMode) as ExtendedTask[]
+    }, [tasks, searchQuery, selectedProcessId, selectedClientId, selectedResponsibleId, sortMode])
+
+    const hasActiveTaskFilters = Boolean(
+        searchQuery.trim() ||
+        selectedProcessId ||
+        selectedClientId ||
+        selectedResponsibleId
+    )
+
+    const dragDisabled = hasActiveTaskFilters || sortMode !== "manual"
+
+    const processOptions = useMemo(() => processes.map((process) => ({
+        value: process.id,
+        label: process.folderName ? `${process.folderName} (${process.number || "S/N"})` : `Processo: ${process.number || "S/N"}`,
+        search: `${process.folderName || ""} ${process.number || ""}`.trim(),
+    })), [processes])
+
+    const clientOptions = useMemo(() => clients.map((client) => ({
+        value: client.id,
+        label: client.name,
+        search: client.name,
+    })), [clients])
+
     return (
         <>
-            {/* Modals */}
             <TaskModal
                 isOpen={isTaskModalOpen}
                 onClose={() => { setIsTaskModalOpen(false); setSelectedPhase(undefined) }}
@@ -167,33 +194,30 @@ export function KanbanWrapper({
                 onTaskCreated={handleTaskCreated}
                 defaultPhase={selectedPhase}
             />
+
             <ColumnModal
                 isOpen={isColumnModalOpen}
                 onClose={() => setIsColumnModalOpen(false)}
                 pipelineId={selectedPipelineId || ''}
             />
 
-            {/* Main Content */}
-            <div className="flex flex-col h-full">
-                {/* Pipeline Selector — Full-Width Horizontal Strip */}
-                <div className="bg-white border-b border-slate-200 px-4 py-3 shrink-0">
+            <div className="flex h-full flex-col">
+                <div className="shrink-0 border-b border-slate-200 bg-white px-4 py-3">
                     <div className="flex items-center gap-4">
-                        {/* Pipeline Tabs — scrollable when overflowing */}
-                        <div className="flex-1 flex items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent pb-0.5">
+                        <div className="flex flex-1 items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent pb-0.5">
                             {pipelines.map(pipeline => (
                                 <div
                                     role="button"
                                     key={pipeline.id}
                                     onClick={() => handlePipelineSwitch(pipeline.id)}
                                     className={cn(
-                                        "flex items-center justify-center whitespace-nowrap py-2.5 px-6 rounded-lg text-sm font-semibold transition-all min-w-fit cursor-pointer select-none",
+                                        "flex min-w-fit cursor-pointer select-none items-center justify-center whitespace-nowrap rounded-lg px-6 py-2.5 text-sm font-semibold transition-all",
                                         selectedPipelineId === pipeline.id
                                             ? "bg-blue-600 text-white shadow-md shadow-blue-200/50"
-                                            : "text-slate-500 hover:text-slate-800 hover:bg-slate-100 bg-slate-50"
+                                            : "bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
                                     )}
                                 >
                                     {pipeline.name}
-                                    {/* Action Menu - Only visible on hover or if active */}
                                     <div onClick={(e) => e.stopPropagation()} className="ml-1">
                                         <PipelineActionsMenu
                                             pipelineId={pipeline.id}
@@ -204,10 +228,9 @@ export function KanbanWrapper({
                                 </div>
                             ))}
 
-                            {/* "+" Button — Create New Pipeline */}
                             <button
                                 onClick={openEsteiraModal}
-                                className="flex items-center justify-center gap-1.5 whitespace-nowrap py-2.5 px-4 rounded-lg text-sm font-medium transition-all min-w-fit border-2 border-dashed border-slate-300 text-slate-400 hover:text-blue-600 hover:border-blue-400 hover:bg-blue-50"
+                                className="flex min-w-fit items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border-2 border-dashed border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-400 transition-all hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600"
                                 title="Criar nova esteira"
                             >
                                 <Plus className="w-4 h-4" />
@@ -215,27 +238,98 @@ export function KanbanWrapper({
                             </button>
                         </div>
 
-                        {/* Right Side — New Task Button */}
                         <button
                             onClick={() => setIsTaskModalOpen(true)}
-                            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors shadow-md bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200/50 shrink-0"
+                            className="shrink-0 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-200/50 transition-colors hover:bg-blue-700"
                         >
-                            <Plus className="w-4 h-4" />
-                            Nova Tarefa
+                            <span className="flex items-center gap-2">
+                                <Plus className="w-4 h-4" />
+                                Nova Tarefa
+                            </span>
                         </button>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(220px,1.2fr)_minmax(220px,1fr)_minmax(220px,1fr)_minmax(220px,1fr)_220px]">
+                        <div className="relative">
+                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                            <Input
+                                value={searchQuery}
+                                onChange={(event) => setSearchQuery(event.target.value)}
+                                placeholder="Filtrar por tarefa, processo, cliente ou palavra..."
+                                className="pl-9"
+                            />
+                        </div>
+
+                        <Combobox
+                            value={selectedProcessId}
+                            onValueChange={setSelectedProcessId}
+                            options={processOptions}
+                            placeholder="Filtrar por processo"
+                            searchPlaceholder="Buscar processo..."
+                            showAddCustom={false}
+                        />
+
+                        <Combobox
+                            value={selectedClientId}
+                            onValueChange={setSelectedClientId}
+                            options={clientOptions}
+                            placeholder="Filtrar por cliente"
+                            searchPlaceholder="Buscar cliente..."
+                            showAddCustom={false}
+                        />
+
+                        <Select value={selectedResponsibleId || "ALL"} onValueChange={(value) => setSelectedResponsibleId(value === "ALL" ? "" : value)}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Filtrar por colaborador" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="ALL">Todos os colaboradores</SelectItem>
+                                {users.map((user) => (
+                                    <SelectItem key={user.id} value={user.id}>
+                                        {user.name || user.email || "Sem nome"}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+
+                        <Select value={sortMode} onValueChange={(value) => setSortMode(value as KanbanSortMode)}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Ordenar fila" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {SORT_OPTIONS.map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                        {option.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+                        <div className="flex items-center gap-2">
+                            <SlidersHorizontal className="h-3.5 w-3.5" />
+                            <span>
+                                Exibindo <strong className="text-slate-700">{filteredTasks.length}</strong> de <strong className="text-slate-700">{tasks.length}</strong> cards
+                            </span>
+                        </div>
+
+                        {dragDisabled && (
+                            <span className="rounded-full bg-amber-50 px-3 py-1 font-medium text-amber-700">
+                                Arrastar fica desativado enquanto houver filtro ativo ou ordenaÃ§Ã£o visual.
+                            </span>
+                        )}
                     </div>
                 </div>
 
-                {/* Content Area */}
-                <div className="flex-1 flex flex-col overflow-hidden bg-slate-50/50">
+                <div className="flex flex-1 flex-col overflow-hidden bg-slate-50/50">
                     {pipelines.length === 0 ? (
-                        /* No pipelines — prompt to create */
-                        <div className="flex items-center justify-center h-full">
-                            <div className="text-center space-y-4">
-                                <p className="text-slate-500 text-lg">Nenhuma esteira encontrada</p>
+                        <div className="flex h-full items-center justify-center">
+                            <div className="space-y-4 text-center">
+                                <p className="text-lg text-slate-500">Nenhuma esteira encontrada</p>
                                 <button
                                     onClick={openEsteiraModal}
-                                    className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                                    className="rounded-lg bg-blue-600 px-6 py-3 font-medium text-white transition-colors hover:bg-blue-700"
                                 >
                                     Criar Primeira Esteira
                                 </button>
@@ -243,13 +337,12 @@ export function KanbanWrapper({
                         </div>
                     ) : (
                         <div
-                            className="flex-1 overflow-hidden relative"
-                            // KEY PROP: Forces complete remount of board when pipeline changes.
-                            // This ensures DnD context, local UI state (active drag, modals) are fresh.
+                            className="relative flex-1 overflow-hidden"
                             key={selectedPipelineId}
                         >
                             <KanbanBoard
-                                tasks={tasks}
+                                tasks={filteredTasks}
+                                allColumns={columns}
                                 columns={columns}
                                 pipelineId={selectedPipelineId || ''}
                                 onOpenAddTask={handleOpenAddTask}
@@ -258,10 +351,12 @@ export function KanbanWrapper({
                                 processes={processes}
                                 onMoveTask={moveTask}
                                 onDeleteTask={deleteTask}
+                                onToggleTaskCompleted={toggleTaskCompleted}
                                 onColumnsReordered={handleColumnsReordered}
                                 onAddColumn={handleAddColumn}
                                 onDeleteColumn={handleDeleteColumn}
                                 onRenameColumn={handleRenameColumn}
+                                dragDisabled={dragDisabled}
                             />
                         </div>
                     )}
