@@ -1,19 +1,21 @@
 'use client'
 
 import { useState, useCallback, useMemo } from "react"
+import { Tag, Client, KanbanColumn } from "@prisma/client"
+import { Plus, Search, SlidersHorizontal } from "lucide-react"
+
+import { cn } from "@/lib/utils"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
+import { useEsteiraModal } from "@/components/providers/esteira-modal-provider"
+
 import { KanbanBoard } from "./board"
 import { TaskModal } from "./task-modal"
 import { ColumnModal } from "./column-modal"
-import { useEsteiraModal } from "@/components/providers/esteira-modal-provider"
-import { Plus, Search, SlidersHorizontal } from "lucide-react"
 import { PipelineActionsMenu } from "./pipeline-actions-menu"
-import { Tag, Client, KanbanColumn } from "@prisma/client"
-import { cn } from "@/lib/utils"
 import { useKanbanTasks } from "./hooks/use-kanban-tasks"
 import { useKanbanColumns } from "./hooks/use-kanban-columns"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Combobox } from "@/components/ui/combobox"
 import { KanbanSortMode, matchesKanbanSearch, sortKanbanTasks } from "@/lib/utils/kanban"
 
 type ExtendedTask = {
@@ -32,7 +34,7 @@ type ExtendedTask = {
     endDate: string | null
     publicationDate: string | null
     protocolDate: string | null
-    client?: Pick<Client, 'id' | 'name'> | null
+    client?: Pick<Client, "id" | "name"> | null
     process?: { id: string; number: string | null; folderName: string | null; type?: string | null } | null
     responsibleLawyer?: { id: string; name: string | null } | null
     tags?: Tag[]
@@ -67,13 +69,15 @@ type Props = {
 
 const SORT_OPTIONS: { value: KanbanSortMode; label: string }[] = [
     { value: "manual", label: "Manual" },
-    { value: "fatalDateAsc", label: "Prazo fatal mais prÃ³ximo" },
+    { value: "fatalDateAsc", label: "Prazo fatal mais proximo" },
     { value: "fatalDateDesc", label: "Prazo fatal mais distante" },
-    { value: "titleAsc", label: "TÃ­tulo A-Z" },
+    { value: "titleAsc", label: "Titulo A-Z" },
     { value: "clientAsc", label: "Cliente A-Z" },
-    { value: "responsibleAsc", label: "ResponsÃ¡vel A-Z" },
+    { value: "responsibleAsc", label: "Responsavel A-Z" },
     { value: "createdDesc", label: "Mais recentes" },
 ]
+
+const RESPONSIBLE_FILTER_ALL = "__all__"
 
 export function KanbanWrapper({
     initialTasks,
@@ -82,7 +86,7 @@ export function KanbanWrapper({
     activePipelineId,
     processes,
     users,
-    clients
+    clients,
 }: Props) {
     const { openModal: openEsteiraModal } = useEsteiraModal()
 
@@ -122,24 +126,24 @@ export function KanbanWrapper({
 
     const handlePipelineSwitch = useCallback((pipelineId: string) => {
         setSelectedPipelineId(pipelineId)
-        window.history.replaceState(null, '', `/kanban?pipeline=${pipelineId}`)
+        window.history.replaceState(null, "", `/kanban?pipeline=${pipelineId}`)
     }, [])
 
-    const handleTaskCreated = () => {
+    const handleTaskCreated = useCallback(() => {
         refetchTasks()
-    }
+    }, [refetchTasks])
 
-    const handleOpenAddTask = (phase: string) => {
+    const handleOpenAddTask = useCallback((phase: string) => {
         setSelectedPhase(phase)
         setIsTaskModalOpen(true)
-    }
+    }, [])
 
     const handleColumnsReordered = useCallback((newOrder: KanbanColumn[]) => {
         reorderColumns(newOrder)
     }, [reorderColumns])
 
     const handleAddColumn = useCallback((name: string) => {
-        addColumn({ name, color: '#64748b' })
+        addColumn({ name, color: "#64748b" })
     }, [addColumn])
 
     const handleDeleteColumn = useCallback((columnId: string, targetColumnId?: string) => {
@@ -162,15 +166,6 @@ export function KanbanWrapper({
         return sortKanbanTasks(searched, sortMode) as ExtendedTask[]
     }, [tasks, searchQuery, selectedProcessId, selectedClientId, selectedResponsibleId, sortMode])
 
-    const hasActiveTaskFilters = Boolean(
-        searchQuery.trim() ||
-        selectedProcessId ||
-        selectedClientId ||
-        selectedResponsibleId
-    )
-
-    const dragDisabled = hasActiveTaskFilters || sortMode !== "manual"
-
     const processOptions = useMemo(() => processes.map((process) => ({
         value: process.id,
         label: process.folderName ? `${process.folderName} (${process.number || "S/N"})` : `Processo: ${process.number || "S/N"}`,
@@ -183,13 +178,23 @@ export function KanbanWrapper({
         search: client.name,
     })), [clients])
 
+    const selectedResponsibleLabel = useMemo(() => {
+        if (!selectedResponsibleId) return "Todos os colaboradores"
+
+        const selectedUser = users.find((user) => user.id === selectedResponsibleId)
+        return selectedUser?.name || selectedUser?.email || "Colaborador"
+    }, [selectedResponsibleId, users])
+
     return (
         <>
             <TaskModal
                 isOpen={isTaskModalOpen}
-                onClose={() => { setIsTaskModalOpen(false); setSelectedPhase(undefined) }}
+                onClose={() => {
+                    setIsTaskModalOpen(false)
+                    setSelectedPhase(undefined)
+                }}
                 processes={processes}
-                columns={columns.map(col => ({ id: col.id, name: col.name }))}
+                columns={columns.map((column) => ({ id: column.id, name: column.name }))}
                 clients={clients}
                 onTaskCreated={handleTaskCreated}
                 defaultPhase={selectedPhase}
@@ -198,14 +203,14 @@ export function KanbanWrapper({
             <ColumnModal
                 isOpen={isColumnModalOpen}
                 onClose={() => setIsColumnModalOpen(false)}
-                pipelineId={selectedPipelineId || ''}
+                pipelineId={selectedPipelineId || ""}
             />
 
             <div className="flex h-full flex-col">
                 <div className="shrink-0 border-b border-slate-200 bg-white px-4 py-3">
                     <div className="flex items-center gap-4">
                         <div className="flex flex-1 items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent pb-0.5">
-                            {pipelines.map(pipeline => (
+                            {pipelines.map((pipeline) => (
                                 <div
                                     role="button"
                                     key={pipeline.id}
@@ -218,7 +223,7 @@ export function KanbanWrapper({
                                     )}
                                 >
                                     {pipeline.name}
-                                    <div onClick={(e) => e.stopPropagation()} className="ml-1">
+                                    <div onClick={(event) => event.stopPropagation()} className="ml-1">
                                         <PipelineActionsMenu
                                             pipelineId={pipeline.id}
                                             pipelineName={pipeline.name}
@@ -233,7 +238,7 @@ export function KanbanWrapper({
                                 className="flex min-w-fit items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border-2 border-dashed border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-400 transition-all hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600"
                                 title="Criar nova esteira"
                             >
-                                <Plus className="w-4 h-4" />
+                                <Plus className="h-4 w-4" />
                                 <span className="hidden sm:inline">Nova Esteira</span>
                             </button>
                         </div>
@@ -243,7 +248,7 @@ export function KanbanWrapper({
                             className="shrink-0 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-200/50 transition-colors hover:bg-blue-700"
                         >
                             <span className="flex items-center gap-2">
-                                <Plus className="w-4 h-4" />
+                                <Plus className="h-4 w-4" />
                                 Nova Tarefa
                             </span>
                         </button>
@@ -278,12 +283,17 @@ export function KanbanWrapper({
                             showAddCustom={false}
                         />
 
-                        <Select value={selectedResponsibleId || "ALL"} onValueChange={(value) => setSelectedResponsibleId(value === "ALL" ? "" : value)}>
+                        <Select
+                            value={selectedResponsibleId || RESPONSIBLE_FILTER_ALL}
+                            onValueChange={(value) => setSelectedResponsibleId(value === RESPONSIBLE_FILTER_ALL ? "" : value)}
+                        >
                             <SelectTrigger>
-                                <SelectValue placeholder="Filtrar por colaborador" />
+                                <span className="truncate text-left">
+                                    {selectedResponsibleLabel}
+                                </span>
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="ALL">Todos os colaboradores</SelectItem>
+                                <SelectItem value={RESPONSIBLE_FILTER_ALL}>Todos os colaboradores</SelectItem>
                                 {users.map((user) => (
                                     <SelectItem key={user.id} value={user.id}>
                                         {user.name || user.email || "Sem nome"}
@@ -294,7 +304,9 @@ export function KanbanWrapper({
 
                         <Select value={sortMode} onValueChange={(value) => setSortMode(value as KanbanSortMode)}>
                             <SelectTrigger>
-                                <SelectValue placeholder="Ordenar fila" />
+                                <span className="truncate text-left">
+                                    {SORT_OPTIONS.find((option) => option.value === sortMode)?.label || "Ordenar fila"}
+                                </span>
                             </SelectTrigger>
                             <SelectContent>
                                 {SORT_OPTIONS.map((option) => (
@@ -314,11 +326,6 @@ export function KanbanWrapper({
                             </span>
                         </div>
 
-                        {dragDisabled && (
-                            <span className="rounded-full bg-amber-50 px-3 py-1 font-medium text-amber-700">
-                                Arrastar fica desativado enquanto houver filtro ativo ou ordenaÃ§Ã£o visual.
-                            </span>
-                        )}
                     </div>
                 </div>
 
@@ -336,15 +343,13 @@ export function KanbanWrapper({
                             </div>
                         </div>
                     ) : (
-                        <div
-                            className="relative flex-1 overflow-hidden"
-                            key={selectedPipelineId}
-                        >
+                        <div className="relative flex-1 overflow-hidden" key={selectedPipelineId}>
                             <KanbanBoard
                                 tasks={filteredTasks}
+                                allTasks={tasks as ExtendedTask[]}
                                 allColumns={columns}
                                 columns={columns}
-                                pipelineId={selectedPipelineId || ''}
+                                pipelineId={selectedPipelineId || ""}
                                 onOpenAddTask={handleOpenAddTask}
                                 users={users}
                                 clients={clients}
@@ -356,7 +361,6 @@ export function KanbanWrapper({
                                 onAddColumn={handleAddColumn}
                                 onDeleteColumn={handleDeleteColumn}
                                 onRenameColumn={handleRenameColumn}
-                                dragDisabled={dragDisabled}
                             />
                         </div>
                     )}

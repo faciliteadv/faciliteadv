@@ -261,7 +261,7 @@ export async function toggleTaskCompletedAction(taskId: string, completed: boole
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
-        throw new Error("NÃ£o autorizado")
+        throw new Error("Nao autorizado")
     }
 
     try {
@@ -275,7 +275,7 @@ export async function toggleTaskCompletedAction(taskId: string, completed: boole
 
         return { success: true }
     } catch (error) {
-        console.error("Erro ao marcar tarefa como concluÃ­da:", error)
+        console.error("Erro ao marcar tarefa como concluida:", error)
         throw new Error("Erro ao atualizar status da tarefa.")
     }
 }

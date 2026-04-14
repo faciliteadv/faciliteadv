@@ -113,6 +113,7 @@ type ExtendedTask = {
 
 type BoardProps = {
     tasks: ExtendedTask[]
+    allTasks: ExtendedTask[]
     columns: KanbanColumn[]
     allColumns: KanbanColumn[]
     pipelineId: string
@@ -127,7 +128,6 @@ type BoardProps = {
     onAddColumn: (name: string) => void
     onDeleteColumn: (columnId: string, targetColumnId?: string) => void
     onRenameColumn: (columnId: string, name: string, color: string) => void
-    dragDisabled?: boolean
 }
 
 type DragData = {
@@ -146,6 +146,7 @@ const dropAnimation: DropAnimation = {
 
 export function KanbanBoard({
     tasks,
+    allTasks,
     columns,
     allColumns,
     onOpenAddTask,
@@ -159,7 +160,6 @@ export function KanbanBoard({
     onAddColumn,
     onDeleteColumn,
     onRenameColumn,
-    dragDisabled = false,
 }: BoardProps) {
     const [activeId, setActiveId] = useState<string | null>(null)
     const [activeType, setActiveType] = useState<"column" | "card" | null>(null)
@@ -191,20 +191,12 @@ export function KanbanBoard({
     )
 
     function handleDragStart(event: DragStartEvent) {
-        if (dragDisabled) return
-
         const { active } = event
         setActiveId(active.id as string)
         setActiveType(columns.some((column) => column.id === active.id) ? "column" : "card")
     }
 
     function handleDragEnd(event: DragEndEvent) {
-        if (dragDisabled) {
-            setActiveId(null)
-            setActiveType(null)
-            return
-        }
-
         const { active, over } = event
         setActiveId(null)
         setActiveType(null)
@@ -234,7 +226,7 @@ export function KanbanBoard({
         if (activeType !== "card") return
 
         const cardId = active.id as string
-        const activeCard = tasks.find((task) => task.id === cardId)
+        const activeCard = allTasks.find((task) => task.id === cardId)
         if (!activeCard) return
 
         let nextColumnId: string | null = null
@@ -243,12 +235,12 @@ export function KanbanBoard({
         const targetColumn = columns.find((column) => column.id === over.id)
         if (targetColumn) {
             nextColumnId = targetColumn.id
-            nextPosition = tasks.filter((task) => task.columnId === targetColumn.id && task.id !== cardId).length
+            nextPosition = allTasks.filter((task) => task.columnId === targetColumn.id && task.id !== cardId).length
         } else {
-            const overCard = tasks.find((task) => task.id === over.id)
+            const overCard = allTasks.find((task) => task.id === over.id)
             if (overCard) {
                 nextColumnId = overCard.columnId
-                const orderedColumnTasks = tasks
+                const orderedColumnTasks = allTasks
                     .filter((task) => task.columnId === nextColumnId && task.id !== cardId)
                     .sort((first, second) => first.position - second.position)
                 const overIndex = orderedColumnTasks.findIndex((task) => task.id === overCard.id)
@@ -262,7 +254,7 @@ export function KanbanBoard({
     }
 
     function openDeleteColumnDialog(columnId: string, name: string) {
-        const count = tasks.filter((task) => task.columnId === columnId).length
+        const count = allTasks.filter((task) => task.columnId === columnId).length
         const firstTarget = allColumns.find((column) => column.id !== columnId)
         setColumnToDelete({ id: columnId, name, count })
         setTargetColumnId(firstTarget?.id || "")
@@ -298,7 +290,7 @@ export function KanbanBoard({
         ? columns.find((column) => column.id === activeId) ?? null
         : null
     const activeTask = activeType === "card" && activeId
-        ? tasks.find((task) => task.id === activeId) ?? null
+        ? allTasks.find((task) => task.id === activeId) ?? null
         : null
 
     if (columns.length === 0) {
@@ -322,7 +314,7 @@ export function KanbanBoard({
         <>
             <DndContext
                 id="kanban-dnd-context"
-                sensors={dragDisabled ? undefined : sensors}
+                sensors={sensors}
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
                 collisionDetection={zoomSafeCollision}
@@ -347,7 +339,6 @@ export function KanbanBoard({
                                         key={column.id}
                                         column={column}
                                         tasks={tasks.filter((task) => task.columnId === column.id)}
-                                        dragDisabled={dragDisabled}
                                         onCardClick={setSelectedTask}
                                         onOpenAddTask={onOpenAddTask}
                                         onColumnRenamed={(columnId, name) => onRenameColumn(columnId, name, column.color)}
@@ -460,7 +451,6 @@ export function KanbanBoard({
 function SortableColumn({
     column,
     tasks,
-    dragDisabled,
     onCardClick,
     onOpenAddTask,
     onColumnRenamed,
@@ -470,7 +460,6 @@ function SortableColumn({
 }: {
     column: KanbanColumn
     tasks: ExtendedTask[]
-    dragDisabled: boolean
     onCardClick: (task: ExtendedTask) => void
     onOpenAddTask?: (phase: string) => void
     onColumnRenamed?: (columnId: string, newName: string) => void
@@ -488,7 +477,6 @@ function SortableColumn({
     } = useSortable({
         id: column.id,
         data: { type: "column" } as DragData,
-        disabled: dragDisabled,
     })
 
     return (
@@ -506,8 +494,7 @@ function SortableColumn({
                 title={column.name}
                 accent={column.color}
                 tasks={tasks}
-                dragDisabled={dragDisabled}
-                dragHandleProps={dragDisabled ? undefined : { ...attributes, ...listeners }}
+                dragHandleProps={{ ...attributes, ...listeners }}
                 onCardClick={onCardClick}
                 onOpenAddTask={onOpenAddTask}
                 onColumnRenamed={onColumnRenamed}
@@ -524,7 +511,6 @@ function Column({
     title,
     accent,
     tasks,
-    dragDisabled,
     dragHandleProps,
     onCardClick,
     onOpenAddTask,
@@ -537,7 +523,6 @@ function Column({
     title: string
     accent: string
     tasks: ExtendedTask[]
-    dragDisabled: boolean
     dragHandleProps?: HTMLAttributes<HTMLDivElement>
     onCardClick?: (task: ExtendedTask) => void
     onOpenAddTask?: (phase: string) => void
@@ -571,10 +556,7 @@ function Column({
     return (
         <div className="flex max-h-full w-[280px] flex-shrink-0 flex-col rounded-xl border border-slate-200/60 bg-[#ebecf0] shadow-sm transition-all">
             <div
-                className={cn(
-                    "flex items-center justify-between p-3 pl-4",
-                    dragDisabled ? "cursor-default" : "cursor-grab active:cursor-grabbing"
-                )}
+                className="flex items-center justify-between p-3 pl-4 cursor-grab active:cursor-grabbing"
                 {...dragHandleProps}
                 data-no-drag-scroll="true"
             >
@@ -664,7 +646,6 @@ function Column({
                             <DraggableCard
                                 key={task.id}
                                 task={task}
-                                dragDisabled={dragDisabled}
                                 onCardClick={onCardClick}
                                 onRequestDelete={onRequestDeleteTask}
                                 onToggleCompleted={onToggleTaskCompleted}
@@ -751,13 +732,11 @@ function AddListButton({ onAddList }: { onAddList: (name: string) => void | Prom
 
 function DraggableCard({
     task,
-    dragDisabled,
     onCardClick,
     onRequestDelete,
     onToggleCompleted,
 }: {
     task: ExtendedTask
-    dragDisabled: boolean
     onCardClick?: (task: ExtendedTask) => void
     onRequestDelete?: (taskId: string, title: string) => void
     onToggleCompleted: (taskId: string, completed: boolean) => void
@@ -772,7 +751,6 @@ function DraggableCard({
     } = useSortable({
         id: task.id,
         data: { type: "card" } as DragData,
-        disabled: dragDisabled,
     })
 
     return (
@@ -783,12 +761,9 @@ function DraggableCard({
                 transition,
                 opacity: isDragging ? 0 : 1,
             }}
-            {...(dragDisabled ? {} : listeners)}
-            {...(dragDisabled ? {} : attributes)}
-            className={cn(
-                "touch-none",
-                dragDisabled ? "cursor-default" : "cursor-grab active:cursor-grabbing"
-            )}
+            {...listeners}
+            {...attributes}
+            className="touch-none cursor-grab active:cursor-grabbing"
             data-no-drag-scroll="true"
         >
             <TaskCardItem
