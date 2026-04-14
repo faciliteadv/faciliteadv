@@ -33,6 +33,7 @@ import {
     FileText,
     GripVertical,
     LayoutDashboard,
+    MessageSquareMore,
     MoreHorizontal,
     Pencil,
     Plus,
@@ -55,6 +56,7 @@ import {
 import { DeleteDialog } from "./delete-dialog"
 import { useDraggableScroll } from "./hooks/use-draggable-scroll"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { formatKanbanDate, isKanbanTaskCompleted, normalizeKanbanDate } from "@/lib/utils/kanban"
 
 const zoomSafeCollision: CollisionDetection = (args) => {
@@ -96,6 +98,7 @@ type ExtendedTask = {
     columnId: string
     position: number
     isArchived: boolean
+    practiceArea?: string | null
     createdAt: string
     updatedAt: string
     completedAt: string | null
@@ -108,6 +111,8 @@ type ExtendedTask = {
     responsibleLawyer?: { id: string; name: string | null } | null
     tags?: Tag[]
     checklist?: { id: string; title: string; isCompleted: boolean }[]
+    commentsCount?: number
+    hasUnreadComments?: boolean
     [key: string]: unknown
 }
 
@@ -124,6 +129,8 @@ type BoardProps = {
     onMoveTask: (cardId: string, targetColumnId: string, targetPosition: number) => void
     onDeleteTask: (taskId: string) => void
     onToggleTaskCompleted: (taskId: string, completed: boolean) => void
+    onQuickAssignResponsible: (taskId: string, responsibleLawyerId: string | null) => Promise<void>
+    onTaskChanged: () => void | Promise<void>
     onColumnsReordered: (columns: KanbanColumn[]) => void
     onAddColumn: (name: string) => void
     onDeleteColumn: (columnId: string, targetColumnId?: string) => void
@@ -156,6 +163,8 @@ export function KanbanBoard({
     onMoveTask,
     onDeleteTask,
     onToggleTaskCompleted,
+    onQuickAssignResponsible,
+    onTaskChanged,
     onColumnsReordered,
     onAddColumn,
     onDeleteColumn,
@@ -163,7 +172,8 @@ export function KanbanBoard({
 }: BoardProps) {
     const [activeId, setActiveId] = useState<string | null>(null)
     const [activeType, setActiveType] = useState<"column" | "card" | null>(null)
-    const [selectedTask, setSelectedTask] = useState<ExtendedTask | null>(null)
+    const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+    const [taskModalMode, setTaskModalMode] = useState<"view" | "edit">("view")
     const [columnToDelete, setColumnToDelete] = useState<{ id: string; name: string; count: number } | null>(null)
     const [targetColumnId, setTargetColumnId] = useState<string>("")
     const [taskToDelete, setTaskToDelete] = useState<{ id: string; title: string } | null>(null)
@@ -292,6 +302,9 @@ export function KanbanBoard({
     const activeTask = activeType === "card" && activeId
         ? allTasks.find((task) => task.id === activeId) ?? null
         : null
+    const selectedTask = selectedTaskId
+        ? allTasks.find((task) => task.id === selectedTaskId) ?? null
+        : null
 
     if (columns.length === 0) {
         return (
@@ -339,12 +352,21 @@ export function KanbanBoard({
                                         key={column.id}
                                         column={column}
                                         tasks={tasks.filter((task) => task.columnId === column.id)}
-                                        onCardClick={setSelectedTask}
+                                        users={users}
+                                        onCardClick={(task) => {
+                                            setTaskModalMode("view")
+                                            setSelectedTaskId(task.id)
+                                        }}
+                                        onEditTask={(task) => {
+                                            setTaskModalMode("edit")
+                                            setSelectedTaskId(task.id)
+                                        }}
                                         onOpenAddTask={onOpenAddTask}
                                         onColumnRenamed={(columnId, name) => onRenameColumn(columnId, name, column.color)}
                                         onRequestDeleteColumn={openDeleteColumnDialog}
                                         onRequestDeleteTask={(id, title) => setTaskToDelete({ id, title })}
                                         onToggleTaskCompleted={onToggleTaskCompleted}
+                                        onQuickAssignResponsible={onQuickAssignResponsible}
                                     />
                                 ))}
                             </SortableContext>
@@ -365,10 +387,15 @@ export function KanbanBoard({
                 <TaskDetailModal
                     task={selectedTask as ComponentProps<typeof TaskDetailModal>["task"]}
                     isOpen={selectedTask !== null}
-                    onClose={() => setSelectedTask(null)}
+                    initialMode={taskModalMode}
+                    onClose={() => {
+                        setSelectedTaskId(null)
+                        setTaskModalMode("view")
+                    }}
                     users={users}
                     clients={clients}
                     processes={processes}
+                    onTaskChanged={onTaskChanged}
                 />
             </DndContext>
 
@@ -451,21 +478,27 @@ export function KanbanBoard({
 function SortableColumn({
     column,
     tasks,
+    users,
     onCardClick,
+    onEditTask,
     onOpenAddTask,
     onColumnRenamed,
     onRequestDeleteColumn,
     onRequestDeleteTask,
     onToggleTaskCompleted,
+    onQuickAssignResponsible,
 }: {
     column: KanbanColumn
     tasks: ExtendedTask[]
+    users: { id: string; name: string | null; email: string | null }[]
     onCardClick: (task: ExtendedTask) => void
+    onEditTask: (task: ExtendedTask) => void
     onOpenAddTask?: (phase: string) => void
     onColumnRenamed?: (columnId: string, newName: string) => void
     onRequestDeleteColumn?: (columnId: string, name: string) => void
     onRequestDeleteTask?: (taskId: string, title: string) => void
     onToggleTaskCompleted: (taskId: string, completed: boolean) => void
+    onQuickAssignResponsible: (taskId: string, responsibleLawyerId: string | null) => Promise<void>
 }) {
     const {
         attributes,
@@ -494,13 +527,16 @@ function SortableColumn({
                 title={column.name}
                 accent={column.color}
                 tasks={tasks}
+                users={users}
                 dragHandleProps={{ ...attributes, ...listeners }}
                 onCardClick={onCardClick}
+                onEditTask={onEditTask}
                 onOpenAddTask={onOpenAddTask}
                 onColumnRenamed={onColumnRenamed}
                 onRequestDeleteColumn={onRequestDeleteColumn}
                 onRequestDeleteTask={onRequestDeleteTask}
                 onToggleTaskCompleted={onToggleTaskCompleted}
+                onQuickAssignResponsible={onQuickAssignResponsible}
             />
         </div>
     )
@@ -511,25 +547,31 @@ function Column({
     title,
     accent,
     tasks,
+    users,
     dragHandleProps,
     onCardClick,
+    onEditTask,
     onOpenAddTask,
     onColumnRenamed,
     onRequestDeleteColumn,
     onRequestDeleteTask,
     onToggleTaskCompleted,
+    onQuickAssignResponsible,
 }: {
     id: string
     title: string
     accent: string
     tasks: ExtendedTask[]
+    users: { id: string; name: string | null; email: string | null }[]
     dragHandleProps?: HTMLAttributes<HTMLDivElement>
     onCardClick?: (task: ExtendedTask) => void
+    onEditTask?: (task: ExtendedTask) => void
     onOpenAddTask?: (phase: string) => void
     onColumnRenamed?: (columnId: string, newName: string) => void
     onRequestDeleteColumn?: (columnId: string, name: string) => void
     onRequestDeleteTask?: (taskId: string, title: string) => void
     onToggleTaskCompleted: (taskId: string, completed: boolean) => void
+    onQuickAssignResponsible: (taskId: string, responsibleLawyerId: string | null) => Promise<void>
 }) {
     const [isEditing, setIsEditing] = useState(false)
     const [editName, setEditName] = useState(title)
@@ -646,9 +688,12 @@ function Column({
                             <DraggableCard
                                 key={task.id}
                                 task={task}
+                                users={users}
                                 onCardClick={onCardClick}
+                                onEditTask={onEditTask}
                                 onRequestDelete={onRequestDeleteTask}
                                 onToggleCompleted={onToggleTaskCompleted}
+                                onQuickAssignResponsible={onQuickAssignResponsible}
                             />
                         ))}
                     </SortableContext>
@@ -732,14 +777,20 @@ function AddListButton({ onAddList }: { onAddList: (name: string) => void | Prom
 
 function DraggableCard({
     task,
+    users,
     onCardClick,
+    onEditTask,
     onRequestDelete,
     onToggleCompleted,
+    onQuickAssignResponsible,
 }: {
     task: ExtendedTask
+    users: { id: string; name: string | null; email: string | null }[]
     onCardClick?: (task: ExtendedTask) => void
+    onEditTask?: (task: ExtendedTask) => void
     onRequestDelete?: (taskId: string, title: string) => void
     onToggleCompleted: (taskId: string, completed: boolean) => void
+    onQuickAssignResponsible: (taskId: string, responsibleLawyerId: string | null) => Promise<void>
 }) {
     const {
         attributes,
@@ -768,9 +819,12 @@ function DraggableCard({
         >
             <TaskCardItem
                 task={task}
+                users={users}
                 onCardClick={onCardClick}
+                onEditTask={onEditTask}
                 onRequestDelete={onRequestDelete}
                 onToggleCompleted={onToggleCompleted}
+                onQuickAssignResponsible={onQuickAssignResponsible}
             />
         </div>
     )
@@ -778,18 +832,25 @@ function DraggableCard({
 
 function TaskCardItem({
     task,
+    users,
     isOverlay,
     onRequestDelete,
     onCardClick,
+    onEditTask,
     onToggleCompleted,
+    onQuickAssignResponsible,
 }: {
     task: ExtendedTask
+    users?: { id: string; name: string | null; email: string | null }[]
     isOverlay?: boolean
     onRequestDelete?: (id: string, title: string) => void
     onCardClick?: (task: ExtendedTask) => void
+    onEditTask?: (task: ExtendedTask) => void
     onToggleCompleted?: (taskId: string, completed: boolean) => void
+    onQuickAssignResponsible?: (taskId: string, responsibleLawyerId: string | null) => Promise<void>
 }) {
     const [menuOpen, setMenuOpen] = useState(false)
+    const [assigneeMenuOpen, setAssigneeMenuOpen] = useState(false)
 
     const isCompleted = isKanbanTaskCompleted(task)
     const today = normalizeKanbanDate(new Date())
@@ -838,20 +899,20 @@ function TaskCardItem({
                 </h4>
             </div>
 
-            <div className="mb-3 flex flex-wrap gap-2">
+            <div className="mb-3 space-y-1.5">
                 {task.process ? (
-                    <div className="inline-flex max-w-full items-center gap-2 rounded-lg border border-blue-100 bg-gradient-to-r from-blue-50 to-slate-50 px-2.5 py-1.5">
+                    <div className="flex max-w-full items-center gap-2 text-xs text-slate-500">
                         <FileText className="h-3.5 w-3.5 shrink-0 text-blue-500" />
-                        <span className="truncate text-xs font-medium text-slate-700">
+                        <span className="truncate">
                             {task.process.folderName || task.process.number || "Processo vinculado"}
                         </span>
                     </div>
                 ) : null}
 
                 {task.client ? (
-                    <div className="inline-flex max-w-full items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-1.5">
-                        <UserRound className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
-                        <span className="truncate text-xs font-medium text-emerald-900">
+                    <div className="flex max-w-full items-center gap-2 text-xs text-slate-500">
+                        <UserRound className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        <span className="truncate">
                             {task.client.name}
                         </span>
                     </div>
@@ -883,28 +944,85 @@ function TaskCardItem({
                     )}
                 </div>
 
-                {task.responsibleLawyer?.name ? (
-                    <div
-                        className={cn(
-                            "flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold text-white shadow-sm ring-1 ring-white",
-                            getUserColor(task.responsibleLawyer.name)
-                        )}
-                        title={task.responsibleLawyer.name}
+                <Popover open={assigneeMenuOpen} onOpenChange={setAssigneeMenuOpen}>
+                    <PopoverTrigger asChild>
+                        <button
+                            type="button"
+                            onPointerDown={(event) => event.stopPropagation()}
+                            onClick={(event) => event.stopPropagation()}
+                            className="rounded-full"
+                            title={task.responsibleLawyer?.name || "Sem responsavel"}
+                        >
+                            {task.responsibleLawyer?.name ? (
+                                <div
+                                    className={cn(
+                                        "flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold text-white shadow-sm ring-1 ring-white",
+                                        getUserColor(task.responsibleLawyer.name)
+                                    )}
+                                >
+                                    {getUserInitials(task.responsibleLawyer.name)}
+                                </div>
+                            ) : (
+                                <div className="flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-slate-300 bg-slate-100 text-[11px] font-medium text-slate-400">
+                                    ?
+                                </div>
+                            )}
+                        </button>
+                    </PopoverTrigger>
+
+                    <PopoverContent
+                        align="end"
+                        side="bottom"
+                        sideOffset={8}
+                        className="z-[80] w-64 p-1"
+                        onOpenAutoFocus={(event) => event.preventDefault()}
+                        onPointerDownOutside={(event) => {
+                            const target = event.target as HTMLElement | null
+                            if (target?.closest("[data-no-drag-scroll='true']")) {
+                                event.preventDefault()
+                            }
+                        }}
                     >
-                        {getUserInitials(task.responsibleLawyer.name)}
-                    </div>
-                ) : (
-                    <div
-                        className="flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-slate-300 bg-slate-100 text-[11px] font-medium text-slate-400"
-                        title="Sem responsavel"
-                    >
-                        ?
-                    </div>
-                )}
+                        <div className="max-h-72 overflow-y-auto">
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    await onQuickAssignResponsible?.(task.id, null)
+                                    setAssigneeMenuOpen(false)
+                                }}
+                                className="w-full rounded-md px-3 py-2 text-left text-sm text-slate-600 transition hover:bg-slate-50"
+                            >
+                                Sem responsavel
+                            </button>
+                            {users?.map((user) => (
+                                <button
+                                    key={user.id}
+                                    type="button"
+                                    onClick={async () => {
+                                        await onQuickAssignResponsible?.(task.id, user.id)
+                                        setAssigneeMenuOpen(false)
+                                    }}
+                                    className="w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                                >
+                                    {user.name || user.email || "Sem nome"}
+                                </button>
+                            ))}
+                        </div>
+                    </PopoverContent>
+                </Popover>
             </div>
 
             {!isOverlay ? (
                 <div className="absolute right-2 top-2 flex items-center gap-1">
+                    {task.commentsCount ? (
+                        <div
+                            className="flex h-7 w-7 items-center justify-center rounded-full bg-red-50 text-red-600"
+                            title={task.hasUnreadComments ? "Comentario pendente" : "Comentarios"}
+                        >
+                            <MessageSquareMore className="h-4 w-4" />
+                        </div>
+                    ) : null}
+
                     <button
                         type="button"
                         onPointerDown={(event) => event.stopPropagation()}
@@ -921,6 +1039,19 @@ function TaskCardItem({
                         title={isCompleted ? "Desmarcar concluido" : "Marcar como concluido"}
                     >
                         {isCompleted ? <Check className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+                    </button>
+
+                    <button
+                        type="button"
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                            event.stopPropagation()
+                            onEditTask?.(task)
+                        }}
+                        className="rounded-md p-1 text-slate-400 opacity-0 transition hover:bg-slate-100 group-hover:opacity-100"
+                        title="Editar"
+                    >
+                        <Pencil className="h-4 w-4" />
                     </button>
 
                     <button

@@ -3,9 +3,11 @@ import assert from "node:assert/strict"
 
 import {
     formatKanbanDate,
+    getNextProtocolDate,
     isKanbanTaskCompleted,
     matchesKanbanSearch,
     normalizeKanbanDate,
+    parseKanbanCommentPayload,
     parseDateInputToDate,
     sortKanbanTasks,
 } from "../lib/utils/kanban.ts"
@@ -16,6 +18,7 @@ type TaskFixture = {
     createdAt?: string | null
     completedAt?: string | null
     fatalDate?: string | null
+    practiceArea?: string | null
     client?: { name?: string | null } | null
     process?: { folderName?: string | null; number?: string | null } | null
     responsibleLawyer?: { name?: string | null } | null
@@ -29,6 +32,7 @@ function makeTask(overrides: Partial<TaskFixture> = {}): TaskFixture {
         createdAt: "2026-04-01T10:00:00.000Z",
         completedAt: null,
         fatalDate: null,
+        practiceArea: null,
         client: null,
         process: null,
         responsibleLawyer: null,
@@ -77,6 +81,15 @@ test("matchesKanbanSearch encontra termo em titulo, cliente, processo e responsa
     assert.equal(matchesKanbanSearch(task, "inexistente"), false)
 })
 
+test("matchesKanbanSearch considera area de atuacao no filtro textual", () => {
+    const task = makeTask({
+        title: "Peticao inicial",
+        practiceArea: "TRABALHISTA",
+    })
+
+    assert.equal(matchesKanbanSearch(task, "trabalhista"), true)
+})
+
 test("sortKanbanTasks respeita ordenacao manual por posicao", () => {
     const tasks = [
         makeTask({ title: "B", position: 2 }),
@@ -117,4 +130,41 @@ test("sortKanbanTasks ordena por cliente e responsavel alfabeticamente", () => {
 test("isKanbanTaskCompleted reflete o estado concluido do card", () => {
     assert.equal(isKanbanTaskCompleted(makeTask({ completedAt: null })), false)
     assert.equal(isKanbanTaskCompleted(makeTask({ completedAt: "2026-04-10T14:00:00.000Z" })), true)
+})
+
+test("getNextProtocolDate fixa a data atual ao concluir e preserva a existente ao reabrir", () => {
+    const now = new Date("2026-04-14T15:30:00.000Z")
+
+    assert.equal(
+        getNextProtocolDate("2026-04-11T12:00:00.000Z", true, now),
+        "2026-04-14T15:30:00.000Z"
+    )
+    assert.equal(
+        getNextProtocolDate("2026-04-11T12:00:00.000Z", false, now),
+        "2026-04-11T12:00:00.000Z"
+    )
+})
+
+test("parseKanbanCommentPayload normaliza payload parcial de comentarios", () => {
+    assert.deepEqual(
+        parseKanbanCommentPayload({
+            message: "Preciso da sua revisao",
+            toUserId: "user-1",
+            toUserName: "Maria",
+            readAt: null,
+        }),
+        {
+            message: "Preciso da sua revisao",
+            toUserId: "user-1",
+            toUserName: "Maria",
+            readAt: null,
+        }
+    )
+
+    assert.deepEqual(parseKanbanCommentPayload(null), {
+        message: "",
+        toUserId: null,
+        toUserName: null,
+        readAt: null,
+    })
 })

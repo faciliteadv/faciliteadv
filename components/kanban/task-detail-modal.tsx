@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -19,6 +19,8 @@ import {
     CheckSquare,
     Square,
     ExternalLink,
+    MessageSquareMore,
+    Send,
     User,
     Tag,
     Star,
@@ -31,7 +33,7 @@ import {
 import { Combobox } from "@/components/ui/combobox"
 import { cn } from "@/lib/utils"
 import { TaskCard, Tag as TagType } from "@prisma/client"
-import { toggleChecklistItemAction } from "@/lib/actions/kanban-actions"
+import { addTaskCommentAction, getTaskCommentsAction, markTaskCommentsReadAction, toggleChecklistItemAction } from "@/lib/actions/kanban-actions"
 import { formatKanbanDate } from "@/lib/utils/kanban"
 
 type ExtendedTask = Omit<TaskCard, 'phase' | 'createdAt' | 'updatedAt' | 'fatalDate' | 'endDate' | 'publicationDate' | 'protocolDate'> & {
@@ -53,10 +55,15 @@ interface TaskDetailModalProps {
     task: ExtendedTask | null
     isOpen: boolean
     onClose: () => void
+    initialMode?: "view" | "edit"
     users?: { id: string; name: string | null; email: string | null }[]
     clients?: { id: string; name: string }[]
     processes?: { id: string; number: string | null; folderName: string | null; type?: string | null }[]
+    onTaskChanged?: () => void | Promise<void>
 }
+
+const RESPONSIBLE_NONE = "__none__"
+const COMMENT_RECIPIENT_NONE = "__none__"
 
 const PRACTICE_AREA_LABELS: Record<string, string> = {
     'CIVIL': 'Cível',
@@ -90,12 +97,26 @@ function toDateTimeLocalValue(value: string | null | undefined) {
     return `${datePart}T${normalizedTime}`
 }
 
-export function TaskDetailModal({ task, isOpen, onClose, users, clients, processes }: TaskDetailModalProps) {
+export function TaskDetailModal({ task, isOpen, onClose, initialMode = "view", users, clients, processes, onTaskChanged }: TaskDetailModalProps) {
     const router = useRouter()
 
     const [checklistItems, setChecklistItems] = useState<{ id: string; title: string; isCompleted: boolean }[]>([])
+    const [comments, setComments] = useState<Array<{
+        id: string
+        message: string
+        createdAt: string
+        toUserId: string | null
+        toUserName: string | null
+        author: { id: string; name: string | null; email: string | null }
+        isUnreadForCurrentUser: boolean
+    }>>([])
+    const [commentMessage, setCommentMessage] = useState("")
+    const [commentRecipientId, setCommentRecipientId] = useState("")
+    const [loadingComments, setLoadingComments] = useState(false)
+    const [submittingComment, setSubmittingComment] = useState(false)
+    const [isTogglingChecklist, setIsTogglingChecklist] = useState<string | null>(null)
 
-    const [isEditing, setIsEditing] = useState(false)
+    const [isEditing, setIsEditing] = useState(initialMode === "edit")
     const [editForm, setEditForm] = useState({
         title: '',
         description: '',
@@ -118,6 +139,7 @@ export function TaskDetailModal({ task, isOpen, onClose, users, clients, process
     useEffect(() => {
         if (task) {
             setChecklistItems(task.checklist || [])
+            setIsEditing(initialMode === "edit")
             setEditForm({
                 title: task.title,
                 description: task.description || '',
@@ -134,8 +156,28 @@ export function TaskDetailModal({ task, isOpen, onClose, users, clients, process
                 practiceArea: task.practiceArea || 'CIVIL',
                 tags: task.tags?.map(t => t.id) || []
             })
+            setCommentRecipientId("")
+            setCommentMessage("")
         }
-    }, [task])
+    }, [task, initialMode])
+
+    useEffect(() => {
+        async function loadComments() {
+            if (!isOpen || !task) return
+
+            setLoadingComments(true)
+            try {
+                const loadedComments = await getTaskCommentsAction(task.id)
+                setComments(loadedComments)
+                await markTaskCommentsReadAction(task.id)
+                await onTaskChanged?.()
+            } finally {
+                setLoadingComments(false)
+            }
+        }
+
+        loadComments()
+    }, [isOpen, task, onTaskChanged])
 
     if (!task) return null
 
@@ -148,8 +190,8 @@ export function TaskDetailModal({ task, isOpen, onClose, users, clients, process
                 protocolDate: editForm.protocolDate || null,
                 publicationDate: editForm.publicationDate || null,
             }))
+            await onTaskChanged?.()
             setIsEditing(false)
-            onClose()
         } catch {
             console.error('Failed to update task')
         }
@@ -166,6 +208,8 @@ export function TaskDetailModal({ task, isOpen, onClose, users, clients, process
     }
 
     const handleToggleChecklist = async (itemId: string) => {
+        setIsTogglingChecklist(itemId)
+
         // Optimistic update
         setChecklistItems(prev =>
             prev.map(item =>
@@ -176,7 +220,15 @@ export function TaskDetailModal({ task, isOpen, onClose, users, clients, process
         )
 
         try {
-            await toggleChecklistItemAction(itemId)
+            const response = await toggleChecklistItemAction(itemId)
+            setChecklistItems(prev =>
+                prev.map(item =>
+                    item.id === itemId
+                        ? { ...item, isCompleted: response.isCompleted }
+                        : item
+                )
+            )
+            await onTaskChanged?.()
         } catch {
             // Revert on error
             setChecklistItems(prev =>
@@ -186,6 +238,31 @@ export function TaskDetailModal({ task, isOpen, onClose, users, clients, process
                         : item
                 )
             )
+        } finally {
+            setIsTogglingChecklist(null)
+        }
+    }
+
+    const handleAddComment = async () => {
+        if (!task || !commentMessage.trim()) return
+
+        setSubmittingComment(true)
+        try {
+            const recipient = users?.find((user) => user.id === commentRecipientId)
+            await addTaskCommentAction(
+                task.id,
+                commentMessage,
+                commentRecipientId || null,
+                recipient?.name || recipient?.email || null
+            )
+
+            const loadedComments = await getTaskCommentsAction(task.id)
+            setComments(loadedComments)
+            setCommentMessage("")
+            setCommentRecipientId("")
+            await onTaskChanged?.()
+        } finally {
+            setSubmittingComment(false)
         }
     }
 
@@ -239,7 +316,6 @@ export function TaskDetailModal({ task, isOpen, onClose, users, clients, process
                                             ))}
                                         </SelectContent>
                                     </Select>
-
                                     <Select
                                         value={editForm.practiceArea}
                                         onValueChange={(val) => setEditForm(prev => ({ ...prev, practiceArea: val }))}
@@ -332,8 +408,11 @@ export function TaskDetailModal({ task, isOpen, onClose, users, clients, process
                                 <div className="space-y-1.5">
                                     <label className="text-xs font-semibold text-slate-500">Responsável</label>
                                     <Select
-                                        value={editForm.responsibleLawyerId || undefined}
-                                        onValueChange={(val) => setEditForm(prev => ({ ...prev, responsibleLawyerId: val }))}
+                                        value={editForm.responsibleLawyerId || RESPONSIBLE_NONE}
+                                        onValueChange={(val) => setEditForm(prev => ({
+                                            ...prev,
+                                            responsibleLawyerId: val === RESPONSIBLE_NONE ? null : val
+                                        }))}
                                     >
                                         <SelectTrigger className="h-9 text-sm">
                                             <span className="truncate">
@@ -343,6 +422,7 @@ export function TaskDetailModal({ task, isOpen, onClose, users, clients, process
                                             </span>
                                         </SelectTrigger>
                                         <SelectContent>
+                                            <SelectItem value={RESPONSIBLE_NONE}>Sem responsavel</SelectItem>
                                             {users && users.map(u => (
                                                 <SelectItem key={u.id} value={u.id}>
                                                     {u.name || u.email || 'Usuário sem nome'}
@@ -429,7 +509,7 @@ export function TaskDetailModal({ task, isOpen, onClose, users, clients, process
                                 <label className="text-xs font-semibold text-slate-500">Descrição</label>
                                 <Textarea
                                     value={editForm.description}
-                                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEditForm(prev => ({ ...prev, description: e.target.value }))}
+                                    onChange={(event) => setEditForm(prev => ({ ...prev, description: event.target.value }))}
                                     className="w-full min-h-[120px] p-3 text-sm border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 />
                             </div>
@@ -635,8 +715,10 @@ export function TaskDetailModal({ task, isOpen, onClose, users, clients, process
                                     <button
                                         key={item.id}
                                         onClick={() => handleToggleChecklist(item.id)}
+                                        disabled={isTogglingChecklist === item.id}
                                         className={cn(
                                             "flex items-center gap-3 p-3 rounded-lg border transition-all w-full text-left hover:shadow-sm",
+                                            isTogglingChecklist === item.id && "opacity-75",
                                             item.isCompleted
                                                 ? "bg-emerald-50/50 border-emerald-200 hover:border-emerald-300"
                                                 : "bg-slate-50 border-slate-200 hover:border-slate-300"
@@ -658,6 +740,84 @@ export function TaskDetailModal({ task, isOpen, onClose, users, clients, process
                             </div>
                         </div>
                     )}
+
+                    <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                            <MessageSquareMore className="w-4 h-4 text-red-500" />
+                            <label className="text-sm font-semibold text-slate-700">Comentarios</label>
+                        </div>
+
+                        <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                            <div className="grid gap-3 md:grid-cols-[1fr_220px_auto]">
+                                <Textarea
+                                    value={commentMessage}
+                                    onChange={(event) => setCommentMessage(event.target.value)}
+                                    placeholder="Deixe uma mensagem para outro usuario..."
+                                    className="min-h-[84px] bg-white"
+                                />
+
+                                <Select
+                                    value={commentRecipientId || COMMENT_RECIPIENT_NONE}
+                                    onValueChange={(value) => setCommentRecipientId(value === COMMENT_RECIPIENT_NONE ? "" : value)}
+                                >
+                                    <SelectTrigger className="bg-white">
+                                        <span className="truncate">
+                                            {commentRecipientId
+                                                ? users?.find((user) => user.id === commentRecipientId)?.name
+                                                    || users?.find((user) => user.id === commentRecipientId)?.email
+                                                    || "Destinatario"
+                                                : "Sem destinatario"}
+                                        </span>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value={COMMENT_RECIPIENT_NONE}>Sem destinatario</SelectItem>
+                                        {users?.map((user) => (
+                                            <SelectItem key={user.id} value={user.id}>
+                                                {user.name || user.email || "Sem nome"}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+
+                                <Button
+                                    type="button"
+                                    onClick={handleAddComment}
+                                    disabled={submittingComment || !commentMessage.trim()}
+                                    className="flex items-center gap-2"
+                                >
+                                    <Send className="w-4 h-4" />
+                                    Enviar
+                                </Button>
+                            </div>
+
+                            <div className="space-y-2">
+                                {loadingComments ? (
+                                    <p className="text-sm text-slate-500">Carregando comentarios...</p>
+                                ) : comments.length === 0 ? (
+                                    <p className="text-sm text-slate-500">Nenhum comentario ainda.</p>
+                                ) : (
+                                    comments.map((comment) => (
+                                        <div
+                                            key={comment.id}
+                                            className={cn(
+                                                "rounded-lg border p-3 text-sm",
+                                                comment.isUnreadForCurrentUser ? "border-red-200 bg-red-50/60" : "border-slate-200 bg-white"
+                                            )}
+                                        >
+                                            <div className="mb-1 flex items-center justify-between gap-3 text-xs text-slate-500">
+                                                <span>
+                                                    {comment.author.name || comment.author.email || "Usuario"}{" "}
+                                                    {comment.toUserName ? `para ${comment.toUserName}` : "comentou"}
+                                                </span>
+                                                <span>{formatKanbanDate(comment.createdAt, { day: "2-digit", month: "2-digit" })}</span>
+                                            </div>
+                                            <p className="text-sm text-slate-700 whitespace-pre-wrap">{comment.message}</p>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    </div>
 
                     {/* Tags */}
                     {task.tags && task.tags.length > 0 && (

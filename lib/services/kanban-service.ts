@@ -1,12 +1,13 @@
 import { db } from "@/lib/db"
 import { DaysType, PracticeArea, TaskType } from "@prisma/client"
+import { parseKanbanCommentPayload } from "@/lib/utils/kanban"
 
 export const KanbanService = {
     /**
      * Get all tasks for a specific pipeline, ordered by position within each column.
      * This is the ONLY way to fetch board tasks — always scoped to a pipeline.
      */
-    getTasksByPipeline: async (pipelineId: string) => {
+    getTasksByPipeline: async (pipelineId: string, currentUserId?: string) => {
         // Get column IDs for this pipeline
         const columns = await db.kanbanColumn.findMany({
             where: { pipelineId },
@@ -60,7 +61,38 @@ export const KanbanService = {
             ]
         })
 
-        // Serialize dates to avoid Next.js server component errors
+        const taskIds = tasks.map((task) => task.id)
+        const commentLogs = taskIds.length > 0
+            ? await db.auditLog.findMany({
+                where: {
+                    entityType: "TASK_CARD",
+                    action: "COMMENT",
+                    entityId: { in: taskIds },
+                },
+                select: {
+                    id: true,
+                    entityId: true,
+                    newData: true,
+                }
+            })
+            : []
+
+        const commentsByTaskId = commentLogs.reduce<Record<string, { count: number; hasUnread: boolean }>>((accumulator, log) => {
+            const payload = parseKanbanCommentPayload(log.newData)
+            const current = accumulator[log.entityId] || { count: 0, hasUnread: false }
+
+            accumulator[log.entityId] = {
+                count: current.count + 1,
+                hasUnread: current.hasUnread || Boolean(
+                    currentUserId &&
+                    payload.toUserId === currentUserId &&
+                    !payload.readAt
+                ),
+            }
+
+            return accumulator
+        }, {})
+
         return tasks.map(task => ({
             ...task,
             createdAt: task.createdAt.toISOString(),
@@ -70,6 +102,8 @@ export const KanbanService = {
             endDate: task.endDate ? task.endDate.toISOString() : null,
             publicationDate: task.publicationDate ? task.publicationDate.toISOString() : null,
             protocolDate: task.protocolDate ? task.protocolDate.toISOString() : null,
+            commentsCount: commentsByTaskId[task.id]?.count ?? 0,
+            hasUnreadComments: commentsByTaskId[task.id]?.hasUnread ?? false,
         }))
     },
 

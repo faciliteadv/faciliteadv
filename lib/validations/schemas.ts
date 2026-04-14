@@ -105,7 +105,8 @@ export const UpdateTaskSchema = z.object({
     daysType: z.enum(["BUSINESS", "CALENDAR"]).nullish().transform(v => v ?? undefined),
     practiceArea: z.enum([
         "LABOR", "CIVIL", "FAMILY", "CRIMINAL",
-        "HEALTH", "CONSUMER", "TAX", "SOCIAL_SECURITY", "OTHER"
+        "HEALTH", "CONSUMER", "TAX", "SOCIAL_SECURITY",
+        "BUSINESS", "ADMINISTRATIVE", "OTHER"
     ]).nullish().transform(v => v ?? undefined),
     processId: z.string().uuid().nullish().transform(v => v ?? undefined),
     clientId: z.string().uuid().nullish().transform(v => v ?? undefined),

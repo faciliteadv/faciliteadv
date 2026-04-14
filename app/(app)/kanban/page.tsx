@@ -49,7 +49,7 @@ export default async function KanbanPage({
 
     // 4. Load data in parallel
     const [rawTasks, processes, columns, users, clients] = await Promise.all([
-        activePipelineId ? KanbanService.getTasksByPipeline(activePipelineId) : Promise.resolve([]),
+        activePipelineId ? KanbanService.getTasksByPipeline(activePipelineId, user.id) : Promise.resolve([]),
         db.process.findMany({
             where: { userId: user.id, deletedAt: null },
             select: { id: true, number: true, folderName: true, type: true }

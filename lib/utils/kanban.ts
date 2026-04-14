@@ -7,15 +7,55 @@ export type KanbanSortMode =
     | "responsibleAsc"
     | "createdDesc"
 
+export const KANBAN_PRACTICE_AREA_OPTIONS = [
+    { value: "ALL", label: "Todas as areas" },
+    { value: "CIVIL", label: "Civel" },
+    { value: "LABOR", label: "Trabalhista" },
+    { value: "CRIMINAL", label: "Criminal" },
+    { value: "FAMILY", label: "Familia" },
+    { value: "BUSINESS", label: "Empresarial" },
+    { value: "TAX", label: "Tributario" },
+    { value: "ADMINISTRATIVE", label: "Administrativo" },
+    { value: "OTHER", label: "Outro" },
+] as const
+
+export type KanbanCommentPayload = {
+    message: string
+    toUserId: string | null
+    toUserName: string | null
+    readAt: string | null
+}
+
 type TaskLike = {
     title: string
     description?: string | null
     createdAt?: string | null
     completedAt?: string | null
     fatalDate?: string | null
+    practiceArea?: string | null
     client?: { name?: string | null } | null
     process?: { folderName?: string | null; number?: string | null } | null
     responsibleLawyer?: { name?: string | null } | null
+}
+
+export function parseKanbanCommentPayload(value: unknown): KanbanCommentPayload {
+    if (!value || typeof value !== "object") {
+        return {
+            message: "",
+            toUserId: null,
+            toUserName: null,
+            readAt: null,
+        }
+    }
+
+    const payload = value as Record<string, unknown>
+
+    return {
+        message: typeof payload.message === "string" ? payload.message : "",
+        toUserId: typeof payload.toUserId === "string" ? payload.toUserId : null,
+        toUserName: typeof payload.toUserName === "string" ? payload.toUserName : null,
+        readAt: typeof payload.readAt === "string" ? payload.readAt : null,
+    }
 }
 
 export function parseDateInputToDate(value: string | null | undefined) {
@@ -63,6 +103,11 @@ export function isKanbanTaskCompleted(task: { completedAt?: string | null }) {
     return Boolean(task.completedAt)
 }
 
+export function getNextProtocolDate(currentProtocolDate: string | null | undefined, completed: boolean, now = new Date()) {
+    if (!completed) return currentProtocolDate ?? null
+    return now.toISOString()
+}
+
 export function matchesKanbanSearch(task: TaskLike, query: string) {
     const normalizedQuery = query.trim().toLowerCase()
     if (!normalizedQuery) return true
@@ -70,6 +115,7 @@ export function matchesKanbanSearch(task: TaskLike, query: string) {
     const haystack = [
         task.title,
         task.description,
+        task.practiceArea,
         task.client?.name,
         task.process?.folderName,
         task.process?.number,

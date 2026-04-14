@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useCallback, useMemo } from "react"
+import { startTransition, useState, useCallback, useMemo, useTransition } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { Tag, Client, KanbanColumn } from "@prisma/client"
 import { Plus, Search, SlidersHorizontal } from "lucide-react"
 
@@ -16,7 +17,9 @@ import { ColumnModal } from "./column-modal"
 import { PipelineActionsMenu } from "./pipeline-actions-menu"
 import { useKanbanTasks } from "./hooks/use-kanban-tasks"
 import { useKanbanColumns } from "./hooks/use-kanban-columns"
-import { KanbanSortMode, matchesKanbanSearch, sortKanbanTasks } from "@/lib/utils/kanban"
+import { KanbanSortMode, KANBAN_PRACTICE_AREA_OPTIONS, matchesKanbanSearch, sortKanbanTasks } from "@/lib/utils/kanban"
+import { fetchBoardAction, updateTaskAction } from "@/lib/actions/kanban-actions"
+import { getColumnsByPipeline } from "@/lib/actions/column-actions"
 
 type ExtendedTask = {
     id: string
@@ -89,6 +92,7 @@ export function KanbanWrapper({
     clients,
 }: Props) {
     const { openModal: openEsteiraModal } = useEsteiraModal()
+    const queryClient = useQueryClient()
 
     const [selectedPipelineId, setSelectedPipelineId] = useState(activePipelineId)
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false)
@@ -98,7 +102,9 @@ export function KanbanWrapper({
     const [selectedProcessId, setSelectedProcessId] = useState("")
     const [selectedClientId, setSelectedClientId] = useState("")
     const [selectedResponsibleId, setSelectedResponsibleId] = useState("")
+    const [selectedPracticeArea, setSelectedPracticeArea] = useState("ALL")
     const [sortMode, setSortMode] = useState<KanbanSortMode>("manual")
+    const [isSwitchingPipeline, startPipelineTransition] = useTransition()
 
     const shouldInjectInitialData = selectedPipelineId === activePipelineId
 
@@ -125,12 +131,28 @@ export function KanbanWrapper({
     )
 
     const handlePipelineSwitch = useCallback((pipelineId: string) => {
-        setSelectedPipelineId(pipelineId)
-        window.history.replaceState(null, "", `/kanban?pipeline=${pipelineId}`)
+        startPipelineTransition(() => {
+            setSelectedPipelineId(pipelineId)
+            window.history.replaceState(null, "", `/kanban?pipeline=${pipelineId}`)
+        })
     }, [])
 
-    const handleTaskCreated = useCallback(() => {
-        refetchTasks()
+    const prefetchPipeline = useCallback((pipelineId: string) => {
+        void queryClient.prefetchQuery({
+            queryKey: ["kanban-tasks", pipelineId],
+            queryFn: () => fetchBoardAction(pipelineId),
+            staleTime: 1000 * 30,
+        })
+
+        void queryClient.prefetchQuery({
+            queryKey: ["kanban-columns", pipelineId],
+            queryFn: () => getColumnsByPipeline(pipelineId),
+            staleTime: 1000 * 30,
+        })
+    }, [queryClient])
+
+    const handleTaskCreated = useCallback(async () => {
+        await refetchTasks()
     }, [refetchTasks])
 
     const handleOpenAddTask = useCallback((phase: string) => {
@@ -154,17 +176,31 @@ export function KanbanWrapper({
         renameColumn({ columnId, name, color })
     }, [renameColumn])
 
+    const handleQuickAssignResponsible = useCallback(async (taskId: string, responsibleLawyerId: string | null) => {
+        await updateTaskAction(taskId, {
+            responsibleLawyerId,
+        })
+        startTransition(() => {
+            void refetchTasks()
+        })
+    }, [refetchTasks])
+
+    const handleTaskChanged = useCallback(async () => {
+        await refetchTasks()
+    }, [refetchTasks])
+
     const filteredTasks = useMemo<ExtendedTask[]>(() => {
         const searched = tasks.filter((task) => {
             if (!matchesKanbanSearch(task, searchQuery)) return false
             if (selectedProcessId && task.process?.id !== selectedProcessId) return false
             if (selectedClientId && task.client?.id !== selectedClientId) return false
             if (selectedResponsibleId && task.responsibleLawyer?.id !== selectedResponsibleId) return false
+            if (selectedPracticeArea !== "ALL" && task.practiceArea !== selectedPracticeArea) return false
             return true
         })
 
         return sortKanbanTasks(searched, sortMode) as ExtendedTask[]
-    }, [tasks, searchQuery, selectedProcessId, selectedClientId, selectedResponsibleId, sortMode])
+    }, [tasks, searchQuery, selectedProcessId, selectedClientId, selectedResponsibleId, selectedPracticeArea, sortMode])
 
     const processOptions = useMemo(() => processes.map((process) => ({
         value: process.id,
@@ -215,6 +251,8 @@ export function KanbanWrapper({
                                     role="button"
                                     key={pipeline.id}
                                     onClick={() => handlePipelineSwitch(pipeline.id)}
+                                    onMouseEnter={() => prefetchPipeline(pipeline.id)}
+                                    onFocus={() => prefetchPipeline(pipeline.id)}
                                     className={cn(
                                         "flex min-w-fit cursor-pointer select-none items-center justify-center whitespace-nowrap rounded-lg px-6 py-2.5 text-sm font-semibold transition-all",
                                         selectedPipelineId === pipeline.id
@@ -254,7 +292,7 @@ export function KanbanWrapper({
                         </button>
                     </div>
 
-                    <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(220px,1.2fr)_minmax(220px,1fr)_minmax(220px,1fr)_minmax(220px,1fr)_220px]">
+                    <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(220px,1.1fr)_minmax(200px,1fr)_minmax(200px,1fr)_minmax(200px,1fr)_180px_220px]">
                         <div className="relative">
                             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                             <Input
@@ -302,6 +340,21 @@ export function KanbanWrapper({
                             </SelectContent>
                         </Select>
 
+                        <Select value={selectedPracticeArea} onValueChange={setSelectedPracticeArea}>
+                            <SelectTrigger>
+                                <span className="truncate text-left">
+                                    {KANBAN_PRACTICE_AREA_OPTIONS.find((option) => option.value === selectedPracticeArea)?.label || "Area"}
+                                </span>
+                            </SelectTrigger>
+                            <SelectContent>
+                                {KANBAN_PRACTICE_AREA_OPTIONS.map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                        {option.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+
                         <Select value={sortMode} onValueChange={(value) => setSortMode(value as KanbanSortMode)}>
                             <SelectTrigger>
                                 <span className="truncate text-left">
@@ -324,6 +377,11 @@ export function KanbanWrapper({
                             <span>
                                 Exibindo <strong className="text-slate-700">{filteredTasks.length}</strong> de <strong className="text-slate-700">{tasks.length}</strong> cards
                             </span>
+                            {isSwitchingPipeline ? (
+                                <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">
+                                    Trocando esteira...
+                                </span>
+                            ) : null}
                         </div>
 
                     </div>
@@ -343,7 +401,7 @@ export function KanbanWrapper({
                             </div>
                         </div>
                     ) : (
-                        <div className="relative flex-1 overflow-hidden" key={selectedPipelineId}>
+                        <div className="relative flex-1 overflow-hidden">
                             <KanbanBoard
                                 tasks={filteredTasks}
                                 allTasks={tasks as ExtendedTask[]}
@@ -357,6 +415,8 @@ export function KanbanWrapper({
                                 onMoveTask={moveTask}
                                 onDeleteTask={deleteTask}
                                 onToggleTaskCompleted={toggleTaskCompleted}
+                                onQuickAssignResponsible={handleQuickAssignResponsible}
+                                onTaskChanged={handleTaskChanged}
                                 onColumnsReordered={handleColumnsReordered}
                                 onAddColumn={handleAddColumn}
                                 onDeleteColumn={handleDeleteColumn}

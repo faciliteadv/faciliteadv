@@ -4,6 +4,7 @@ import { useCallback, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { fetchBoardAction, moveCardAction, deleteTaskAction, toggleTaskCompletedAction } from '@/lib/actions/kanban-actions'
 import { Tag } from '@prisma/client'
+import { getNextProtocolDate } from '@/lib/utils/kanban'
 
 type Task = {
     id: string
@@ -21,11 +22,14 @@ type Task = {
     endDate?: string | null
     publicationDate?: string | null
     protocolDate?: string | null
+    practiceArea?: string | null
     client?: { id: string; name: string } | null
     process?: { id: string; number: string | null; folderName: string | null; type?: string | null } | null
     responsibleLawyer?: { id: string; name: string | null } | null
     tags?: Tag[]
     checklist?: { id: string; title: string; isCompleted: boolean }[]
+    commentsCount?: number
+    hasUnreadComments?: boolean
     [key: string]: unknown
 }
 
@@ -172,7 +176,11 @@ export function useKanbanTasks(pipelineId: string | null, initialTasks: Task[] =
             queryClient.setQueryData<Task[]>(QUERY_KEY, (old = []) =>
                 old.map((task) =>
                     task.id === taskId
-                        ? { ...task, completedAt: completed ? new Date().toISOString() : null }
+                        ? {
+                            ...task,
+                            completedAt: completed ? new Date().toISOString() : null,
+                            protocolDate: getNextProtocolDate(task.protocolDate, completed),
+                        }
                         : task
                 )
             )

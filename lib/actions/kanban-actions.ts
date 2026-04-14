@@ -6,7 +6,7 @@ import { TaskType } from "@prisma/client"
 import { db } from "@/lib/db"
 import { UpdateTaskSchema } from "@/lib/validations/schemas"
 import { withAuth } from "@/lib/auth/with-auth"
-import { parseDateInputToDate } from "@/lib/utils/kanban"
+import { parseDateInputToDate, parseKanbanCommentPayload } from "@/lib/utils/kanban"
 
 /**
  * Fetch board tasks for a specific pipeline.
@@ -20,7 +20,7 @@ export async function fetchBoardAction(pipelineId: string) {
         throw new Error('Não autorizado')
     }
 
-    return await KanbanService.getTasksByPipeline(pipelineId)
+    return await KanbanService.getTasksByPipeline(pipelineId, user.id)
 }
 
 /**
@@ -222,7 +222,7 @@ export async function toggleChecklistItemAction(checklistItemId: string) {
             data: { isCompleted: !item.isCompleted }
         })
 
-        return { success: true, isCompleted: updated.isCompleted }
+        return { success: true, isCompleted: updated.isCompleted, taskId: updated.taskId }
     } catch (error) {
         console.error('Erro ao atualizar checklist:', error)
         throw new Error('Erro ao atualizar checklist.')
@@ -270,6 +270,7 @@ export async function toggleTaskCompletedAction(taskId: string, completed: boole
             data: {
                 completedAt: completed ? new Date() : null,
                 completedById: completed ? user.id : null,
+                protocolDate: completed ? new Date() : undefined,
             }
         })
 
@@ -278,4 +279,126 @@ export async function toggleTaskCompletedAction(taskId: string, completed: boole
         console.error("Erro ao marcar tarefa como concluida:", error)
         throw new Error("Erro ao atualizar status da tarefa.")
     }
+}
+
+export async function getTaskCommentsAction(taskId: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+        throw new Error("Nao autorizado")
+    }
+
+    const comments = await db.auditLog.findMany({
+        where: {
+            entityType: "TASK_CARD",
+            action: "COMMENT",
+            entityId: taskId,
+        },
+        orderBy: { createdAt: "asc" },
+        include: {
+            user: {
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                }
+            }
+        }
+    })
+
+    return comments.map((comment) => {
+        const payload = parseKanbanCommentPayload(comment.newData)
+
+        return {
+            id: comment.id,
+            taskId: comment.entityId,
+            createdAt: comment.createdAt.toISOString(),
+            message: payload.message,
+            toUserId: payload.toUserId,
+            toUserName: payload.toUserName,
+            readAt: payload.readAt,
+            author: {
+                id: comment.user.id,
+                name: comment.user.name,
+                email: comment.user.email,
+            },
+            isUnreadForCurrentUser: payload.toUserId === user.id && !payload.readAt,
+        }
+    })
+}
+
+export async function addTaskCommentAction(taskId: string, message: string, toUserId?: string | null, toUserName?: string | null) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+        throw new Error("Nao autorizado")
+    }
+
+    const trimmedMessage = message.trim()
+    if (!trimmedMessage) {
+        throw new Error("Comentario vazio")
+    }
+
+    await db.auditLog.create({
+        data: {
+            entityId: taskId,
+            entityType: "TASK_CARD",
+            action: "COMMENT",
+            userId: user.id,
+            newData: {
+                message: trimmedMessage,
+                toUserId: toUserId || null,
+                toUserName: toUserName || null,
+                readAt: null,
+            },
+        }
+    })
+
+    return { success: true }
+}
+
+export async function markTaskCommentsReadAction(taskId: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+        throw new Error("Nao autorizado")
+    }
+
+    const comments = await db.auditLog.findMany({
+        where: {
+            entityType: "TASK_CARD",
+            action: "COMMENT",
+            entityId: taskId,
+        },
+        select: {
+            id: true,
+            newData: true,
+        }
+    })
+
+    await Promise.all(
+        comments
+            .filter((comment) => {
+                const payload = parseKanbanCommentPayload(comment.newData)
+                return payload.toUserId === user.id && !payload.readAt
+            })
+            .map((comment) => {
+                const payload = parseKanbanCommentPayload(comment.newData)
+
+                return db.auditLog.update({
+                    where: { id: comment.id },
+                    data: {
+                        newData: {
+                            ...payload,
+                            readAt: new Date().toISOString(),
+                        }
+                    }
+                })
+            })
+    )
+
+    return { success: true }
 }
