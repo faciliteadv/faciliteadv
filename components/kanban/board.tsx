@@ -854,13 +854,13 @@ function TaskCardItem({
 
     const isCompleted = isKanbanTaskCompleted(task)
     const today = normalizeKanbanDate(new Date())
-    const fatalDate = normalizeKanbanDate(task.fatalDate)
-    const isLate = Boolean(fatalDate && today && fatalDate.getTime() < today.getTime() && !isCompleted)
+    const endDate = normalizeKanbanDate(task.endDate)
+    const isLate = Boolean(endDate && today && endDate.getTime() < today.getTime() && !isCompleted)
     const isDueSoon = Boolean(
-        fatalDate &&
+        endDate &&
         today &&
-        fatalDate.getTime() >= today.getTime() &&
-        fatalDate.getTime() - today.getTime() <= 1000 * 60 * 60 * 24 * 2 &&
+        endDate.getTime() >= today.getTime() &&
+        endDate.getTime() - today.getTime() <= 1000 * 60 * 60 * 24 * 2 &&
         !isCompleted
     )
 
@@ -917,11 +917,21 @@ function TaskCardItem({
                         </span>
                     </div>
                 ) : null}
+
+                {task.tags && task.tags.length > 0 ? (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                        {task.tags.map(tag => (
+                            <span key={tag.id} className="text-[10px] font-semibold px-2 py-0.5 rounded-md" style={{ backgroundColor: tag.color + '20', color: tag.color }}>
+                                {tag.name}
+                            </span>
+                        ))}
+                    </div>
+                ) : null}
             </div>
 
             <div className="flex items-center justify-between border-t border-slate-100 pt-3">
                 <div className="flex items-center gap-1.5">
-                    {task.fatalDate ? (
+                    {task.endDate ? (
                         <div
                             className={cn(
                                 "flex items-center gap-1.5 rounded-md px-2 py-1 text-xs",
@@ -936,11 +946,11 @@ function TaskCardItem({
                         >
                             <Calendar className="h-3 w-3" />
                             <span className="font-medium">
-                                {formatKanbanDate(task.fatalDate, { day: "2-digit", month: "2-digit" })}
+                                {formatKanbanDate(task.endDate, { day: "2-digit", month: "2-digit" })}
                             </span>
                         </div>
                     ) : (
-                        <span className="text-xs italic text-slate-400">Sem prazo fatal</span>
+                        <span className="text-xs italic text-slate-400">Sem prazo</span>
                     )}
                 </div>
 

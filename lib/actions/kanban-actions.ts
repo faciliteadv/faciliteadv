@@ -402,3 +402,34 @@ export async function markTaskCommentsReadAction(taskId: string) {
 
     return { success: true }
 }
+
+export async function getWorkspaceTagsAction() {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+        throw new Error("Não autorizado")
+    }
+
+    return await db.tag.findMany({
+        where: { userId: user.id },
+        orderBy: { name: 'asc' }
+    })
+}
+
+export async function createTagAction(name: string, color: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+        throw new Error("Não autorizado")
+    }
+
+    return await db.tag.create({
+        data: {
+            name,
+            color,
+            userId: user.id
+        }
+    })
+}

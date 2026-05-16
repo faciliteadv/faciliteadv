@@ -28,7 +28,8 @@ import {
     Hash,
     Save,
     Pencil,
-    Scale
+    Scale,
+    X
 } from "lucide-react"
 import { Combobox } from "@/components/ui/combobox"
 import { cn } from "@/lib/utils"
@@ -115,6 +116,8 @@ export function TaskDetailModal({ task, isOpen, onClose, initialMode = "view", u
     const [loadingComments, setLoadingComments] = useState(false)
     const [submittingComment, setSubmittingComment] = useState(false)
     const [isTogglingChecklist, setIsTogglingChecklist] = useState<string | null>(null)
+    const [workspaceTags, setWorkspaceTags] = useState<{ id: string; name: string; color: string }[]>([])
+    const [newTagName, setNewTagName] = useState("")
 
     const [isEditing, setIsEditing] = useState(initialMode === "edit")
     const [editForm, setEditForm] = useState({
@@ -156,10 +159,29 @@ export function TaskDetailModal({ task, isOpen, onClose, initialMode = "view", u
                 practiceArea: task.practiceArea || 'CIVIL',
                 tags: task.tags?.map(t => t.id) || []
             })
+        }
+    }, [task, initialMode])
+
+    useEffect(() => {
+        if (task) {
             setCommentRecipientId("")
             setCommentMessage("")
         }
-    }, [task, initialMode])
+    }, [task?.id])
+
+    useEffect(() => {
+        async function loadTags() {
+            try {
+                const tags = await import('@/lib/actions/kanban-actions').then(mod => mod.getWorkspaceTagsAction())
+                setWorkspaceTags(tags)
+            } catch (err) {
+                console.error("Failed to load tags", err)
+            }
+        }
+        if (isOpen) {
+            loadTags()
+        }
+    }, [isOpen])
 
     useEffect(() => {
         async function loadComments() {
@@ -177,7 +199,7 @@ export function TaskDetailModal({ task, isOpen, onClose, initialMode = "view", u
         }
 
         loadComments()
-    }, [isOpen, task, onTaskChanged])
+    }, [isOpen, task?.id])
 
     if (!task) return null
 
@@ -473,6 +495,55 @@ export function TaskDetailModal({ task, isOpen, onClose, initialMode = "view", u
                                         }}
                                     />
                                 </div>
+
+                                {/* Etiquetas */}
+                                <div className="col-span-2 space-y-1.5">
+                                    <label className="text-xs font-semibold text-slate-500">Etiquetas (Tags)</label>
+                                    {editForm.tags.length > 0 && (
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                            {editForm.tags.map(tagId => {
+                                                const tag = workspaceTags.find(t => t.id === tagId)
+                                                if (!tag) return null
+                                                return (
+                                                    <span key={tag.id} className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-md text-white shadow-sm" style={{ backgroundColor: tag.color }}>
+                                                        {tag.name}
+                                                        <button type="button" onClick={() => setEditForm(prev => ({ ...prev, tags: prev.tags.filter(id => id !== tagId) }))} className="hover:text-red-200 ml-1"><X className="w-3 h-3" /></button>
+                                                    </span>
+                                                )
+                                            })}
+                                        </div>
+                                    )}
+                                    <div className="flex gap-2">
+                                        <Combobox
+                                            value=""
+                                            onValueChange={(val) => {
+                                                if (val && !editForm.tags.includes(val)) {
+                                                    setEditForm(prev => ({ ...prev, tags: [...prev.tags, val] }))
+                                                }
+                                            }}
+                                            options={workspaceTags.filter(t => !editForm.tags.includes(t.id)).map(t => ({ value: t.id, label: t.name }))}
+                                            placeholder="Selecionar etiqueta..."
+                                            searchPlaceholder="Buscar etiqueta..."
+                                            className="h-9 text-sm flex-1"
+                                        />
+                                        <Input 
+                                            value={newTagName}
+                                            onChange={e => setNewTagName(e.target.value)}
+                                            placeholder="Nova etiqueta... (Enter)"
+                                            className="h-9 text-sm flex-1"
+                                            onKeyDown={async e => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault()
+                                                    if (!newTagName.trim()) return
+                                                    const created = await import('@/lib/actions/kanban-actions').then(mod => mod.createTagAction(newTagName.trim(), '#3b82f6'))
+                                                    setWorkspaceTags(prev => [...prev, created])
+                                                    setEditForm(prev => ({ ...prev, tags: [...prev.tags, created.id] }))
+                                                    setNewTagName("")
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Days Count & Type */}
@@ -685,6 +756,23 @@ export function TaskDetailModal({ task, isOpen, onClose, initialMode = "view", u
                                         </div>
                                         <ExternalLink className="w-4 h-4 text-slate-400 group-hover:text-blue-500 transition-colors" />
                                     </Button>
+                                </div>
+                            )}
+
+                            {/* Tags (View Mode) */}
+                            {task.tags && task.tags.length > 0 && (
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                                        <Tag className="w-4 h-4 text-slate-400" />
+                                        Etiquetas
+                                    </label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {task.tags.map(tag => (
+                                            <Badge key={tag.id} variant="outline" style={{ backgroundColor: tag.color + '1A', borderColor: tag.color + '40', color: tag.color }}>
+                                                {tag.name}
+                                            </Badge>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
                         </>
