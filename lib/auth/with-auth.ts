@@ -6,6 +6,7 @@ export type AuthContext = {
     userId: string
     user: any
     workspaceId: string | null
+    permissions: string[]
 }
 
 export async function withAuth<T>(
@@ -18,13 +19,14 @@ export async function withAuth<T>(
         throw new Error("Não autorizado")
     }
 
-    // Tenta obter workspace ativo. Se não tiver, workspaceId será null (modo legado/onboarding)
     const activeData = await WorkspaceService.getActiveWorkspace(user.id)
     const workspaceId = activeData?.workspace.id || null
+    const permissions = (activeData?.permissions as string[]) ?? []
 
     return action({
         userId: user.id,
         user,
-        workspaceId
+        workspaceId,
+        permissions,
     })
 }

@@ -1,4 +1,5 @@
 import { requirePermission } from "@/lib/auth/require-permission"
+import { hasPermission } from "@/lib/permissions"
 import { FinancialService } from "@/lib/services/financial-service"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -10,7 +11,8 @@ import { FinancialNewButton } from "@/components/financial/financial-new-button"
 export const dynamic = 'force-dynamic'
 
 export default async function FinancialPage() {
-    const { user } = await requirePermission('financial:read')
+    const { user, permissions } = await requirePermission('financial:read')
+    const canWrite = hasPermission(permissions, 'financial:write')
 
     const [records, summary, clients] = await Promise.all([
         FinancialService.listRecords(user.id),
@@ -35,7 +37,7 @@ export default async function FinancialPage() {
             <div className="space-y-6">
                 <div className="flex items-center justify-between">
                     <h2 className="text-3xl font-bold tracking-tight text-slate-900">Financeiro</h2>
-                    <FinancialNewButton clients={clients} />
+                    {canWrite && <FinancialNewButton clients={clients} />}
                 </div>
 
                 {/* Summary Cards */}

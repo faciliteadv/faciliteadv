@@ -6,6 +6,7 @@ import { TaskType } from "@prisma/client"
 import { db } from "@/lib/db"
 import { UpdateTaskSchema } from "@/lib/validations/schemas"
 import { withAuth } from "@/lib/auth/with-auth"
+import { hasPermission } from "@/lib/permissions"
 import { parseDateInputToDate, parseKanbanCommentPayload } from "@/lib/utils/kanban"
 
 /**
@@ -45,15 +46,13 @@ export async function createTaskAction(data: {
     points?: number
     checklist?: string[]
 }) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-        throw new Error('Não autorizado. Faça login novamente.')
+    return withAuth(async ({ userId, permissions }) => {
+    if (!hasPermission(permissions, 'kanban:write') && !hasPermission(permissions, 'kanban:own')) {
+        throw new Error('Sem permissão para criar cards no kanban')
     }
 
     try {
-        const task = await KanbanService.createTask(user.id, data)
+        const task = await KanbanService.createTask(userId, data)
 
         // Return with serialized dates and includes
         const fullTask = await db.taskCard.findUnique({
@@ -86,21 +85,28 @@ export async function createTaskAction(data: {
         console.error('Erro ao criar tarefa:', error)
         throw new Error('Erro ao criar tarefa. Verifique os dados e tente novamente.')
     }
+    })
 }
 
 /**
  * Quick create task — inline creation with just title and columnId.
  */
 export async function quickCreateTaskAction(title: string, columnId: string) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-        throw new Error('Não autorizado. Faça login novamente.')
+    return withAuth(async ({ userId, permissions }) => {
+    if (!hasPermission(permissions, 'kanban:write') && !hasPermission(permissions, 'kanban:own')) {
+        throw new Error('Sem permissão para criar cards no kanban')
     }
 
     try {
-        const task = await KanbanService.createTask(user.id, {
+        const task = await KanbanService.createTask(userId, {
+            title,
+            type: 'INTERNAL',
+            columnId,
+        })
+    }
+
+    try {
+        const task = await KanbanService.createTask(userId, {
             title,
             type: 'INTERNAL',
             columnId,
@@ -136,6 +142,7 @@ export async function quickCreateTaskAction(title: string, columnId: string) {
         console.error('Erro ao criar tarefa rápida:', error)
         throw new Error('Erro ao criar tarefa.')
     }
+    })
 }
 
 /**

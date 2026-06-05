@@ -10,6 +10,7 @@ import { sanitizeFormData, sanitizeRelations, sanitizeNumeric, prepareForPrisma 
 import { recordAuditLog } from "@/lib/utils/audit"
 import { CreateProcessSchema, UpdateProcessSchema, CreateFinancialRecordSchema } from "@/lib/validations/schemas"
 import { withAuth } from "@/lib/auth/with-auth"
+import { hasPermission } from "@/lib/permissions"
 import { z } from "zod"
 
 // Simple fetch for select
@@ -421,9 +422,12 @@ export async function getFinancialRecordsByProcessId(processId: string) {
 }
 
 export async function createFinancialRecordAction(rawData: unknown) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error("Não autorizado")
+    return withAuth(async ({ userId: user_id, permissions }) => {
+    if (!hasPermission(permissions, 'financial:write')) {
+        throw new Error('Sem permissão para criar lançamentos financeiros')
+    }
+
+    const user = { id: user_id }
 
     try {
         const parsed = CreateFinancialRecordSchema.parse(rawData)
@@ -457,6 +461,7 @@ export async function createFinancialRecordAction(rawData: unknown) {
         console.error("Error creating financial record:", error)
         throw new Error(error.message || "Falha ao criar registro financeiro")
     }
+    })
 }
 
 export async function promoteCaseToProcess(processId: string, rawData: unknown) {

@@ -5,6 +5,7 @@ import { ensureUserExists } from "@/lib/auth/ensure-user"
 import { WorkspaceService } from "@/lib/services/workspace-service"
 import { KanbanService } from "@/lib/services/kanban-service"
 import { requirePermission } from "@/lib/auth/require-permission"
+import { hasPermission } from "@/lib/permissions"
 
 export const dynamic = 'force-dynamic'
 
@@ -14,7 +15,8 @@ export default async function KanbanPage({
     searchParams: Promise<{ pipeline?: string }>
 }) {
     // Permission check: kanban:read, kanban:own OR kanban:write — any of these grants access
-    const { user } = await requirePermission('kanban:read', 'kanban:own', 'kanban:write')
+    const { user, permissions } = await requirePermission('kanban:read', 'kanban:own', 'kanban:write')
+    const canWrite = hasPermission(permissions, 'kanban:write') || hasPermission(permissions, 'kanban:own')
 
     await ensureUserExists()
 
@@ -81,6 +83,7 @@ export default async function KanbanPage({
             processes={processes}
             users={users}
             clients={clients}
+            canWrite={canWrite}
         />
     )
 }

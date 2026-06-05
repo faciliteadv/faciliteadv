@@ -68,6 +68,7 @@ type Props = {
     processes: ProcessOption[]
     users: { id: string; name: string | null; email: string | null }[]
     clients: { id: string; name: string }[]
+    canWrite?: boolean
 }
 
 const SORT_OPTIONS: { value: KanbanSortMode; label: string }[] = [
@@ -90,6 +91,7 @@ export function KanbanWrapper({
     processes,
     users,
     clients,
+    canWrite = true,
 }: Props) {
     const { openModal: openEsteiraModal } = useEsteiraModal()
     const queryClient = useQueryClient()
@@ -276,25 +278,29 @@ export function KanbanWrapper({
                                 </div>
                             ))}
 
-                            <button
-                                onClick={openEsteiraModal}
-                                className="flex min-w-fit items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border-2 border-dashed border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-400 transition-all hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600"
-                                title="Criar nova esteira"
-                            >
-                                <Plus className="h-4 w-4" />
-                                <span className="hidden sm:inline">Nova Esteira</span>
-                            </button>
+                            {canWrite && (
+                                <button
+                                    onClick={openEsteiraModal}
+                                    className="flex min-w-fit items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border-2 border-dashed border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-400 transition-all hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600"
+                                    title="Criar nova esteira"
+                                >
+                                    <Plus className="h-4 w-4" />
+                                    <span className="hidden sm:inline">Nova Esteira</span>
+                                </button>
+                            )}
                         </div>
 
-                        <button
-                            onClick={() => setIsTaskModalOpen(true)}
-                            className="shrink-0 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-200/50 transition-colors hover:bg-blue-700"
-                        >
-                            <span className="flex items-center gap-2">
-                                <Plus className="h-4 w-4" />
-                                Nova Tarefa
-                            </span>
-                        </button>
+                        {canWrite && (
+                            <button
+                                onClick={() => setIsTaskModalOpen(true)}
+                                className="shrink-0 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-200/50 transition-colors hover:bg-blue-700"
+                            >
+                                <span className="flex items-center gap-2">
+                                    <Plus className="h-4 w-4" />
+                                    Nova Tarefa
+                                </span>
+                            </button>
+                        )}
                     </div>
 
                     <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(220px,1.1fr)_minmax(200px,1fr)_minmax(200px,1fr)_minmax(200px,1fr)_180px_220px]">
@@ -413,7 +419,7 @@ export function KanbanWrapper({
                                 allColumns={columns}
                                 columns={columns}
                                 pipelineId={selectedPipelineId || ""}
-                                onOpenAddTask={handleOpenAddTask}
+                                onOpenAddTask={canWrite ? handleOpenAddTask : undefined}
                                 users={users}
                                 clients={clients}
                                 processes={processes}
