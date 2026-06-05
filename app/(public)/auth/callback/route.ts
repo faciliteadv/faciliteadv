@@ -75,6 +75,40 @@ export async function GET(request: NextRequest) {
                 }
             })
             console.log('✅ Usuário criado no banco:', dbUser.email)
+
+            // Criar workspace padrão para novo usuário
+            console.log('📦 Criando workspace padrão...')
+            try {
+                // Gerar slug único do workspace
+                const slug = `workspace-${user.id.substring(0, 8)}`
+
+                // Criar role padrão (Owner)
+                const ownerRole = await db.role.create({
+                    data: {
+                        name: 'Owner',
+                        permissions: ['admin'],
+                    }
+                })
+
+                // Criar workspace
+                const workspace = await db.workspace.create({
+                    data: {
+                        name: `${userName}'s Workspace`,
+                        slug: slug,
+                        isActive: true,
+                        members: {
+                            create: {
+                                userId: user.id,
+                                roleId: ownerRole.id,
+                            }
+                        }
+                    }
+                })
+                console.log('✅ Workspace criado:', workspace.name)
+            } catch (wsError) {
+                console.error('⚠️ Erro ao criar workspace (não bloqueante):', wsError)
+                // Não bloqueamos o login se workspace falhar
+            }
         } else {
             console.log('✅ Usuário já existe no banco:', dbUser.email)
         }
