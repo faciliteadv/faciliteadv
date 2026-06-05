@@ -74,7 +74,11 @@ function FinancialStandaloneForm({
 
         setLoading(true)
         try {
-            const result = await createFinancialRecordAction(formData)
+            const payload = {
+                ...formData,
+                processId: formData.processId || null,
+            }
+            const result = await createFinancialRecordAction(payload)
             if (result.success) {
                 setFormData({
                     clientId: '', type: '', amount: '',

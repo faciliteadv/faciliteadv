@@ -449,7 +449,8 @@ export async function createFinancialRecordAction(rawData: unknown) {
             }
         })
 
-        revalidatePath(`/processes/${sanitized.processId}`)
+        if (sanitized.processId) revalidatePath(`/processes/${sanitized.processId}`)
+        revalidatePath('/financial')
         return {
             success: true,
             record: {
