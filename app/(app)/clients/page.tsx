@@ -26,12 +26,11 @@ interface PageProps {
 }
 
 export default async function ClientsPage({ searchParams }: PageProps) {
-    const { user } = await requirePermission('clients:read')
+    const { wsData } = await requirePermission('clients:read')
 
     const params = await searchParams
     const search = params.search || undefined
-    const userId = user.id
-    const clients = await ClientService.getClients(userId, search)
+    const clients = await ClientService.getClients(wsData.workspace.id, search)
 
     return (
         <PageContainer>

@@ -39,10 +39,17 @@ export default async function KanbanPage({
         activePipelineId = defaultPipeline.id
     }
 
+    const memberIds = await db.workspaceMember.findMany({
+        where: { workspaceId },
+        select: { userId: true },
+    }).then(rows => rows.map(r => r.userId))
+
+    const wsOr = [{ workspaceId }, { userId: { in: memberIds } }]
+
     const [rawTasks, processes, columns, workspaceMembers, clients] = await Promise.all([
         activePipelineId ? KanbanService.getTasksByPipeline(activePipelineId, user.id) : Promise.resolve([]),
         db.process.findMany({
-            where: { userId: user.id, deletedAt: null },
+            where: { deletedAt: null, OR: wsOr },
             select: { id: true, number: true, folderName: true, type: true }
         }),
         activePipelineId
@@ -56,7 +63,7 @@ export default async function KanbanPage({
             include: { user: { select: { id: true, name: true, email: true } } },
             orderBy: { user: { name: 'asc' } }
         }),
-        db.client.findMany({ where: { userId: user.id }, select: { id: true, name: true } })
+        db.client.findMany({ where: { deletedAt: null, OR: wsOr }, select: { id: true, name: true } })
     ])
 
     const users = workspaceMembers.map(m => m.user)

@@ -7,8 +7,7 @@ import { sanitizeFormData, prepareForPrisma } from "@/lib/utils/data-sanitizer"
 
 // --- Encryption Helper ---
 const ALGORITHM = 'aes-256-cbc';
-// Ensure the key is exactly 32 bytes.
-const ENCRYPTION_KEY = crypto.createHash('sha256').update(process.env.ENCRYPTION_KEY || 'default_secret_key').digest(); // 32 bytes Buffer
+const ENCRYPTION_KEY = crypto.createHash('sha256').update(process.env.ENCRYPTION_KEY || 'default_secret_key').digest();
 const IV_LENGTH = 16;
 
 function encrypt(text: string): string {
@@ -31,22 +30,30 @@ function decrypt(text: string): string {
     return decrypted.toString();
 }
 
-// --- Validation Schemas moved to @/lib/validations/client.ts ---
-
+async function getMemberIds(workspaceId: string): Promise<string[]> {
+    const rows = await db.workspaceMember.findMany({
+        where: { workspaceId },
+        select: { userId: true },
+    })
+    return rows.map(r => r.userId)
+}
 
 export const ClientService = {
-    // LIST: Always filters by userId, optionally by search term
-    getClients: async (userId: string, search?: string) => {
+    getClients: async (workspaceId: string, search?: string) => {
+        const memberIds = await getMemberIds(workspaceId)
+
         return await db.client.findMany({
             where: {
-                userId,
                 deletedAt: null,
-                ...(search && {
-                    OR: [
-                        { name: { contains: search, mode: 'insensitive' } },
-                        { cpfCnpj: { contains: search, mode: 'insensitive' } }
-                    ]
-                })
+                AND: [
+                    { OR: [{ workspaceId }, { userId: { in: memberIds } }] },
+                    ...(search ? [{
+                        OR: [
+                            { name: { contains: search, mode: 'insensitive' as const } },
+                            { cpfCnpj: { contains: search, mode: 'insensitive' as const } },
+                        ]
+                    }] : []),
+                ],
             },
             orderBy: { createdAt: 'desc' },
             select: {
@@ -57,23 +64,26 @@ export const ClientService = {
                 email: true,
                 whatsapp: true,
                 status: true,
-                // NEVER return govAccessPassword in lists
             }
         })
     },
 
-    getById: async (userId: string, clientId: string) => {
+    getById: async (workspaceId: string, clientId: string) => {
+        const memberIds = await getMemberIds(workspaceId)
+
         const client = await db.client.findFirst({
-            where: { id: clientId, userId, deletedAt: null },
+            where: {
+                id: clientId,
+                deletedAt: null,
+                OR: [{ workspaceId }, { userId: { in: memberIds } }],
+            },
             include: {
                 processes: { where: { deletedAt: null } },
-                tasks: { where: { phase: { not: 'PROTOCOLLED' } } } // Example filter
+                tasks: { where: { phase: { not: 'PROTOCOLLED' } } }
             }
         })
 
         if (client && client.govAccessPassword) {
-            // Decrypt for authorized viewer (Admin/User who owns it)
-            // Since RLS logic ensures userId matches, we decrypt.
             client.govAccessPassword = decrypt(client.govAccessPassword)
         }
 
@@ -81,16 +91,13 @@ export const ClientService = {
     },
 
     createClient: async (userId: string, data: z.infer<typeof ClientCreateSchema>) => {
-        // Sanitize ALL input data to prevent serialization errors
         const sanitized = sanitizeFormData(data)
-        const validated = ClientCreateSchema.parse(sanitized) // Throws if invalid
+        const validated = ClientCreateSchema.parse(sanitized)
 
-        // Encrypt sensitive
         if (validated.govAccessPassword) {
             validated.govAccessPassword = encrypt(validated.govAccessPassword)
         }
 
-        // Prepare data for Prisma, ensuring all values are serializable
         const clientData = prepareForPrisma({
             userId,
             name: validated.name,
@@ -115,23 +122,29 @@ export const ClientService = {
             status: 'NEW_LEAD'
         })
 
-        return await db.client.create({
-            data: clientData
-        })
+        return await db.client.create({ data: clientData })
     },
 
-    updateClient: async (userId: string, clientId: string, data: Partial<z.infer<typeof ClientCreateSchema>>) => {
-        // Sanitize input data
-        const sanitized = sanitizeFormData(data)
+    updateClient: async (workspaceId: string, clientId: string, data: Partial<z.infer<typeof ClientCreateSchema>>) => {
+        const memberIds = await getMemberIds(workspaceId)
 
-        // Encrypt password if present
+        // Verify the client belongs to this workspace
+        const existing = await db.client.findFirst({
+            where: {
+                id: clientId,
+                OR: [{ workspaceId }, { userId: { in: memberIds } }],
+            },
+            select: { id: true }
+        })
+        if (!existing) throw new Error("Cliente não encontrado")
+
+        const sanitized = sanitizeFormData(data)
         if (sanitized.govAccessPassword) {
             sanitized.govAccessPassword = encrypt(sanitized.govAccessPassword)
         }
 
-        // Prepare update data
-        const updateData: any = { ...sanitized };
-        const { address, phone, ...restData } = updateData;
+        const updateData: any = { ...sanitized }
+        const { address, phone, ...restData } = updateData
 
         const finalData = prepareForPrisma({
             ...restData,
@@ -139,15 +152,23 @@ export const ClientService = {
             contacts: phone ? { phone } : undefined
         })
 
-        return await db.client.update({
-            where: { id: clientId, userId }, // Enforce ownership
-            data: finalData
-        })
+        return await db.client.update({ where: { id: clientId }, data: finalData })
     },
 
-    softDelete: async (userId: string, clientId: string) => {
+    softDelete: async (workspaceId: string, clientId: string) => {
+        const memberIds = await getMemberIds(workspaceId)
+
+        const existing = await db.client.findFirst({
+            where: {
+                id: clientId,
+                OR: [{ workspaceId }, { userId: { in: memberIds } }],
+            },
+            select: { id: true }
+        })
+        if (!existing) throw new Error("Cliente não encontrado")
+
         return await db.client.update({
-            where: { id: clientId, userId },
+            where: { id: clientId },
             data: { deletedAt: new Date() }
         })
     }

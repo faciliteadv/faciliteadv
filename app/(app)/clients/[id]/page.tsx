@@ -2,6 +2,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { redirect } from "next/navigation"
 import { ClientService } from "@/lib/services/client-service"
+import { WorkspaceService } from "@/lib/services/workspace-service"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -68,8 +69,11 @@ export default async function ClientByTypePage({ params }: PageProps) {
         redirect('/login')
     }
 
+    const wsData = await WorkspaceService.getActiveWorkspace(user.id)
+    if (!wsData) redirect('/login')
+
     const { id } = await params
-    const client = await ClientService.getById(user.id, id)
+    const client = await ClientService.getById(wsData.workspace.id, id)
 
     if (!client) {
         return (

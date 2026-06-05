@@ -111,8 +111,11 @@ export default async function ProcessDetailPage({ params }: PageProps) {
         redirect('/login')
     }
 
+    const wsData = await WorkspaceService.getActiveWorkspace(user.id)
+    if (!wsData) redirect('/login')
+
     const { id } = await params
-    const process = await ProcessService.getById(user.id, id) as any
+    const process = await ProcessService.getById(wsData.workspace.id, id) as any
 
     if (!process) {
         notFound()
@@ -127,9 +130,8 @@ export default async function ProcessDetailPage({ params }: PageProps) {
     })
 
     // Fetch kanban columns for task creation — use default pipeline
-    const wsData = await WorkspaceService.getActiveWorkspace(user.id)
     let kanbanColumns: { id: string; name: string; color: string; position: number }[] = []
-    if (wsData) {
+    {
         const pipelines = await WorkspaceService.listPipelines(wsData.workspace.id)
         const defaultPipeline = pipelines.find(p => p.isDefault) || pipelines[0]
         if (defaultPipeline) {

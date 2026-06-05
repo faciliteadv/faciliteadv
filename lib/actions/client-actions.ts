@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { createClient as createSupabaseClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
 import { ClientService } from "@/lib/services/client-service"
+import { WorkspaceService } from "@/lib/services/workspace-service"
 import { recordAuditLog } from "@/lib/utils/audit"
 import { ClientCreateSchema } from "@/lib/validations/client"
 
@@ -86,10 +87,13 @@ export async function updateClientAction(clientId: string, rawData: unknown) {
 
     if (!user) throw new Error("Unauthorized")
 
+    const wsData = await WorkspaceService.getActiveWorkspace(user.id)
+    if (!wsData) throw new Error("Unauthorized")
+
     try {
         const data = ClientCreateSchema.partial().parse(rawData)
         const oldClient = await db.client.findUnique({ where: { id: clientId } })
-        const updatedClient = await ClientService.updateClient(user.id, clientId, data)
+        const updatedClient = await ClientService.updateClient(wsData.workspace.id, clientId, data)
 
         // Record Audit Log
         await recordAuditLog({
@@ -115,9 +119,12 @@ export async function deleteClientAction(clientId: string) {
 
     if (!user) throw new Error("Unauthorized")
 
+    const wsData = await WorkspaceService.getActiveWorkspace(user.id)
+    if (!wsData) throw new Error("Unauthorized")
+
     try {
         const oldClient = await db.client.findUnique({ where: { id: clientId } })
-        await ClientService.softDelete(user.id, clientId)
+        await ClientService.softDelete(wsData.workspace.id, clientId)
 
         // Record Audit Log
         await recordAuditLog({

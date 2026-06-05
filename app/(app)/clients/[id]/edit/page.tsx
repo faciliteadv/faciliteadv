@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { redirect } from "next/navigation"
 import { ClientService } from "@/lib/services/client-service"
+import { WorkspaceService } from "@/lib/services/workspace-service"
 import { ClientForm } from "@/components/clients/client-form"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
@@ -13,8 +14,11 @@ export default async function EditClientPage({ params }: { params: Promise<{ id:
 
     if (!user) redirect('/login')
 
+    const wsData = await WorkspaceService.getActiveWorkspace(user.id)
+    if (!wsData) redirect('/login')
+
     const { id } = await params
-    const client = await ClientService.getById(user.id, id)
+    const client = await ClientService.getById(wsData.workspace.id, id)
 
     if (!client) {
         return <div>Cliente não encontrado.</div>

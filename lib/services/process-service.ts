@@ -1,6 +1,14 @@
 import { Prisma, ProcessStatus } from "@prisma/client"
 import { db } from "@/lib/db"
 
+async function getMemberIds(workspaceId: string): Promise<string[]> {
+    const rows = await db.workspaceMember.findMany({
+        where: { workspaceId },
+        select: { userId: true },
+    })
+    return rows.map(r => r.userId)
+}
+
 type ProcessListRecord = Prisma.ProcessGetPayload<{
     include: {
         client: {
@@ -25,24 +33,23 @@ type SerializedProcessListRecord = Omit<
 }
 
 export const ProcessService = {
-    // LIST with Hierarchy Logic
-    // In the DB we store flat records, but in UI we group them.
-    // This service returns the flat list optimized for grouping.
-    listProcesses: async (userId: string, search?: string, statuses?: ProcessStatus[]): Promise<SerializedProcessListRecord[]> => {
+    listProcesses: async (workspaceId: string, search?: string, statuses?: ProcessStatus[]): Promise<SerializedProcessListRecord[]> => {
+        const memberIds = await getMemberIds(workspaceId)
+
         const processes = await db.process.findMany({
             where: {
-                userId,
                 deletedAt: null,
-                ...(statuses?.length && {
-                    status: { in: statuses }
-                }),
-                ...(search && {
-                    OR: [
-                        { number: { contains: search, mode: 'insensitive' } },
-                        { folderName: { contains: search, mode: 'insensitive' } },
-                        { actionType: { contains: search, mode: 'insensitive' } }
-                    ]
-                })
+                AND: [
+                    { OR: [{ workspaceId }, { userId: { in: memberIds } }] },
+                    ...(statuses?.length ? [{ status: { in: statuses } }] : []),
+                    ...(search ? [{
+                        OR: [
+                            { number: { contains: search, mode: 'insensitive' as const } },
+                            { folderName: { contains: search, mode: 'insensitive' as const } },
+                            { actionType: { contains: search, mode: 'insensitive' as const } },
+                        ]
+                    }] : []),
+                ],
             },
             include: {
                 client: {
@@ -93,23 +100,25 @@ export const ProcessService = {
         }))
     },
 
-    listStatusCounts: async (userId: string, search?: string) => {
+    listStatusCounts: async (workspaceId: string, search?: string) => {
+        const memberIds = await getMemberIds(workspaceId)
+
         const counts = await db.process.groupBy({
             by: ['status'],
             where: {
-                userId,
                 deletedAt: null,
-                ...(search && {
-                    OR: [
-                        { number: { contains: search, mode: 'insensitive' } },
-                        { folderName: { contains: search, mode: 'insensitive' } },
-                        { actionType: { contains: search, mode: 'insensitive' } }
-                    ]
-                })
+                AND: [
+                    { OR: [{ workspaceId }, { userId: { in: memberIds } }] },
+                    ...(search ? [{
+                        OR: [
+                            { number: { contains: search, mode: 'insensitive' as const } },
+                            { folderName: { contains: search, mode: 'insensitive' as const } },
+                            { actionType: { contains: search, mode: 'insensitive' as const } },
+                        ]
+                    }] : []),
+                ],
             },
-            _count: {
-                _all: true
-            }
+            _count: { _all: true }
         })
 
         return counts.map(item => ({
@@ -131,9 +140,15 @@ export const ProcessService = {
         })
     },
 
-    getById: async (userId: string, processId: string) => {
+    getById: async (workspaceId: string, processId: string) => {
+        const memberIds = await getMemberIds(workspaceId)
+
         const process = await db.process.findFirst({
-            where: { id: processId, userId, deletedAt: null },
+            where: {
+                id: processId,
+                deletedAt: null,
+                OR: [{ workspaceId }, { userId: { in: memberIds } }],
+            },
             include: {
                 tasks: { orderBy: { fatalDate: 'asc' } },
                 client: true,

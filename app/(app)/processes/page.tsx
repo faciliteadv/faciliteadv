@@ -74,7 +74,7 @@ const filterableStatuses = [
 ] as const
 
 export default async function ProcessesPage({ searchParams }: PageProps) {
-    const { user } = await requirePermission('processes:read')
+    const { wsData } = await requirePermission('processes:read')
 
     const params = await searchParams
     const search = params.search || undefined
@@ -84,8 +84,8 @@ export default async function ProcessesPage({ searchParams }: PageProps) {
         .filter((status): status is typeof filterableStatuses[number] => filterableStatuses.includes(status as typeof filterableStatuses[number]))
 
     const [processes, statusCounts] = await Promise.all([
-        ProcessService.listProcesses(user.id, search, selectedStatuses),
-        ProcessService.listStatusCounts(user.id, search),
+        ProcessService.listProcesses(wsData.workspace.id, search, selectedStatuses),
+        ProcessService.listStatusCounts(wsData.workspace.id, search),
     ])
 
     const countsMap = new Map(statusCounts.map((item) => [item.status, item.count]))

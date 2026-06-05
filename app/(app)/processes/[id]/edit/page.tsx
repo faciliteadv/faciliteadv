@@ -3,6 +3,7 @@ import { createClient } from "@/utils/supabase/server"
 import { notFound, redirect } from "next/navigation"
 import EditProcessClient from "./edit-client"
 import { ProcessService } from "@/lib/services/process-service"
+import { WorkspaceService } from "@/lib/services/workspace-service"
 
 interface EditProcessPageProps {
     params: Promise<{ id: string }>
@@ -17,7 +18,10 @@ export default async function EditProcessPage({ params }: EditProcessPageProps) 
         return redirect("/login")
     }
 
-    const process = await ProcessService.getById(user.id, id)
+    const wsData = await WorkspaceService.getActiveWorkspace(user.id)
+    if (!wsData) return redirect("/login")
+
+    const process = await ProcessService.getById(wsData.workspace.id, id)
 
     if (!process) {
         return notFound()
