@@ -82,29 +82,37 @@ export async function GET(request: NextRequest) {
                 // Gerar slug único do workspace
                 const slug = `workspace-${user.id.substring(0, 8)}`
 
-                // Criar role padrão (Owner)
-                const ownerRole = await db.role.create({
-                    data: {
-                        name: 'Owner',
-                        permissions: ['admin'],
-                    }
-                })
-
-                // Criar workspace
+                // Criar workspace primeiro
                 const workspace = await db.workspace.create({
                     data: {
                         name: `${userName}'s Workspace`,
                         slug: slug,
                         isActive: true,
-                        members: {
-                            create: {
-                                userId: user.id,
-                                roleId: ownerRole.id,
-                            }
-                        }
                     }
                 })
                 console.log('✅ Workspace criado:', workspace.name)
+
+                // Criar role padrão (Owner) associada ao workspace
+                const ownerRole = await db.role.create({
+                    data: {
+                        name: 'Owner',
+                        permissions: ['admin'],
+                        workspace: {
+                            connect: { id: workspace.id }
+                        }
+                    }
+                })
+                console.log('✅ Role criada:', ownerRole.name)
+
+                // Criar membership
+                await db.workspaceMember.create({
+                    data: {
+                        workspaceId: workspace.id,
+                        userId: user.id,
+                        roleId: ownerRole.id,
+                    }
+                })
+                console.log('✅ Membership criado')
             } catch (wsError) {
                 console.error('⚠️ Erro ao criar workspace (não bloqueante):', wsError)
                 // Não bloqueamos o login se workspace falhar
