@@ -33,15 +33,18 @@ export async function getClientsForSelect() {
 }
 
 export async function getUsersForResponsibleSelect() {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return []
+    return withAuth(async ({ workspaceId }) => {
+        if (!workspaceId) return []
 
-    const users = await db.user.findMany({
-        select: { id: true, name: true, email: true },
-        orderBy: { name: 'asc' }
+        const members = await db.workspaceMember.findMany({
+            where: { workspaceId },
+            include: {
+                user: { select: { id: true, name: true, email: true } }
+            },
+            orderBy: { user: { name: 'asc' } }
+        })
+        return members.map(m => m.user)
     })
-    return users
 }
 
 export async function getActionTypes() {

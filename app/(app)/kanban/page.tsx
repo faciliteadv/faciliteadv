@@ -48,7 +48,7 @@ export default async function KanbanPage({
     }
 
     // 4. Load data in parallel
-    const [rawTasks, processes, columns, users, clients] = await Promise.all([
+    const [rawTasks, processes, columns, workspaceMembers, clients] = await Promise.all([
         activePipelineId ? KanbanService.getTasksByPipeline(activePipelineId, user.id) : Promise.resolve([]),
         db.process.findMany({
             where: { userId: user.id, deletedAt: null },
@@ -60,9 +60,15 @@ export default async function KanbanPage({
                 orderBy: { position: 'asc' }
             })
             : Promise.resolve([]),
-        db.user.findMany({ select: { id: true, name: true, email: true } }),
+        db.workspaceMember.findMany({
+            where: { workspaceId },
+            include: { user: { select: { id: true, name: true, email: true } } },
+            orderBy: { user: { name: 'asc' } }
+        }),
         db.client.findMany({ where: { userId: user.id }, select: { id: true, name: true } })
     ])
+
+    const users = workspaceMembers.map(m => m.user)
 
     // Serialize dates and ensure type safety
     const initialTasks = rawTasks.map((t: any) => ({

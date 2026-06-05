@@ -6,7 +6,6 @@ import { createClient } from '@/utils/supabase/server'
 import { db } from '@/lib/db'
 
 export async function login(formData: FormData) {
-    console.log("Tentando login com email/senha...")
     const supabase = await createClient()
 
     const data = {
@@ -14,14 +13,49 @@ export async function login(formData: FormData) {
         password: formData.get('password') as string,
     }
 
-    const { error } = await supabase.auth.signInWithPassword(data)
+    const { data: authData, error } = await supabase.auth.signInWithPassword(data)
 
     if (error) {
-        console.error("Erro no Login Supabase:", error.message)
         return redirect(`/login?error=${encodeURIComponent(error.message)}`)
     }
 
-    console.log("Login email/senha sucesso. Redirecionando...")
+    // Ensure the user has a workspace (covers users created before workspace feature)
+    if (authData.user) {
+        const { db } = await import('@/lib/db')
+        let dbUser = await db.user.findUnique({ where: { id: authData.user.id } })
+
+        if (!dbUser) {
+            const userName = authData.user.user_metadata?.name || authData.user.email?.split('@')[0] || 'Usuário'
+            dbUser = await db.user.create({
+                data: { id: authData.user.id, email: authData.user.email || '', name: userName }
+            })
+        }
+
+        const hasMembership = await db.workspaceMember.findFirst({ where: { userId: authData.user.id } })
+
+        if (!hasMembership) {
+            try {
+                const userName = dbUser.name || authData.user.email?.split('@')[0] || 'Usuário'
+                const slug = `workspace-${authData.user.id.substring(0, 8)}`
+                const workspace = await db.workspace.create({
+                    data: { name: `${userName}'s Workspace`, slug, isActive: true }
+                })
+                const ownerRole = await db.role.create({
+                    data: {
+                        name: 'Owner',
+                        permissions: ['admin'],
+                        workspace: { connect: { id: workspace.id } }
+                    }
+                })
+                await db.workspaceMember.create({
+                    data: { workspaceId: workspace.id, userId: authData.user.id, roleId: ownerRole.id }
+                })
+            } catch (wsError) {
+                console.error('Erro ao criar workspace no login:', wsError)
+            }
+        }
+    }
+
     revalidatePath('/', 'layout')
     redirect('/dashboard')
 }
