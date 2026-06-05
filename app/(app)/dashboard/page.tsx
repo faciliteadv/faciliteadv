@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { createClient } from "@/utils/supabase/server"
 import { redirect } from "next/navigation"
+import { WorkspaceService } from "@/lib/services/workspace-service"
 
 export const dynamic = 'force-dynamic'
 
@@ -35,12 +36,22 @@ export default async function DashboardPage() {
         redirect('/login')
     }
 
-    const userId = user.id
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const todayMs = today.getTime()
     const tomorrow = new Date(today)
     tomorrow.setDate(tomorrow.getDate() + 1)
+
+    const wsData = await WorkspaceService.getActiveWorkspace(user.id)
+    if (!wsData) redirect('/login')
+
+    const workspaceId = wsData.workspace.id
+    const memberIds = await db.workspaceMember.findMany({
+        where: { workspaceId },
+        select: { userId: true },
+    }).then(rows => rows.map(r => r.userId))
+
+    const wsOr = [{ workspaceId }, { userId: { in: memberIds } }]
 
     const [
         clientCount,
@@ -53,13 +64,13 @@ export default async function DashboardPage() {
         recentClients,
         recentTasks,
     ] = await Promise.all([
-        db.client.count({ where: { userId, deletedAt: null } }),
-        db.process.count({ where: { userId, deletedAt: null, status: 'ACTIVE' } }),
-        db.taskCard.count({ where: { userId, phase: { not: 'PROTOCOLLED' } } }),
-        db.appointment.count({ where: { userId, startAt: { gte: today, lt: tomorrow } } }),
-        db.taskCard.count({ where: { userId, fatalDate: { not: null }, phase: { not: 'PROTOCOLLED' } } }),
+        db.client.count({ where: { deletedAt: null, OR: wsOr } }),
+        db.process.count({ where: { deletedAt: null, status: 'ACTIVE', OR: wsOr } }),
+        db.taskCard.count({ where: { phase: { not: 'PROTOCOLLED' }, OR: wsOr } }),
+        db.appointment.count({ where: { userId: user.id, startAt: { gte: today, lt: tomorrow } } }),
+        db.taskCard.count({ where: { fatalDate: { not: null }, phase: { not: 'PROTOCOLLED' }, OR: wsOr } }),
         db.taskCard.findMany({
-            where: { userId, fatalDate: { gte: today }, phase: { not: 'PROTOCOLLED' }, isArchived: false },
+            where: { fatalDate: { gte: today }, phase: { not: 'PROTOCOLLED' }, isArchived: false, OR: wsOr },
             select: {
                 id: true,
                 title: true,
@@ -71,19 +82,19 @@ export default async function DashboardPage() {
             take: 5,
         }),
         db.process.findMany({
-            where: { userId, deletedAt: null },
+            where: { deletedAt: null, OR: wsOr },
             select: { id: true, number: true, folderName: true, createdAt: true },
             orderBy: { createdAt: 'desc' },
             take: 3,
         }),
         db.client.findMany({
-            where: { userId, deletedAt: null },
+            where: { deletedAt: null, OR: wsOr },
             select: { id: true, name: true, createdAt: true },
             orderBy: { createdAt: 'desc' },
             take: 3,
         }),
         db.taskCard.findMany({
-            where: { userId, isArchived: false },
+            where: { isArchived: false, OR: wsOr },
             select: { id: true, title: true, createdAt: true },
             orderBy: { createdAt: 'desc' },
             take: 3,
