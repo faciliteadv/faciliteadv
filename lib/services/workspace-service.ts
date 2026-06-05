@@ -19,14 +19,26 @@ export const WorkspaceService = {
         const rawPermissions = membership.role.permissions as string[] | null
         let permissions: string[] = Array.isArray(rawPermissions) ? rawPermissions : []
 
-        // Auto-fix: Owner role must always have ['admin']. Handles users created
-        // before the permission system existed (their role has null/empty permissions).
-        if (membership.role.name === 'Owner' && permissions.length === 0) {
-            await db.role.update({
-                where: { id: membership.role.id },
-                data: { permissions: ['admin'] }
+        // Auto-fix: if this user has no permissions, check if they are the first
+        // member of the workspace (i.e. the owner/creator). This handles users
+        // whose workspace was created before the permission system existed, regardless
+        // of what name their role was given.
+        if (permissions.length === 0) {
+            const hasEarlierMember = await db.workspaceMember.findFirst({
+                where: {
+                    workspaceId: membership.workspaceId,
+                    joinedAt: { lt: membership.joinedAt },
+                },
             })
-            permissions = ['admin']
+
+            if (!hasEarlierMember) {
+                // First member of the workspace → they are the owner
+                await db.role.update({
+                    where: { id: membership.role.id },
+                    data: { permissions: ['admin'] },
+                })
+                permissions = ['admin']
+            }
         }
 
         return {
