@@ -6,7 +6,7 @@ import { createClient } from '@/utils/supabase/server'
 import { db } from '@/lib/db'
 
 export async function login(formData: FormData) {
-    console.log("Tentando login...")
+    console.log("Tentando login com email/senha...")
     const supabase = await createClient()
 
     const data = {
@@ -18,81 +18,39 @@ export async function login(formData: FormData) {
 
     if (error) {
         console.error("Erro no Login Supabase:", error.message)
-        // Se a mensagem for 'Invalid login credentials', pode ser senha errada ou email não confirmado.
         return redirect(`/login?error=${encodeURIComponent(error.message)}`)
     }
 
-    console.log("Login Auth sucesso. Redirecionando...")
+    console.log("Login email/senha sucesso. Redirecionando...")
     revalidatePath('/', 'layout')
     redirect('/dashboard')
 }
 
-export async function signup(formData: FormData) {
-    console.log("Tentando cadastro...")
+/**
+ * Faz login/signup com Google OAuth
+ * Se o usuário não existe, é criado automaticamente
+ * Se o usuário já existe, apenas faz login
+ */
+export async function signInWithGoogle() {
+    console.log("Iniciando login com Google OAuth...")
     const supabase = await createClient()
 
-    const email = formData.get('email') as string
-    const password = formData.get('password') as string
-    const name = formData.get('name') as string || email.split('@')[0]
-
-    const data = {
-        email,
-        password,
+    const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
         options: {
-            data: {
-                name: name,
-            }
-        }
-    }
-
-    const { data: authData, error } = await supabase.auth.signUp(data)
+            redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/callback`,
+        },
+    })
 
     if (error) {
-        console.error("Erro no Cadastro Supabase:", error.message)
+        console.error("Erro ao iniciar Google OAuth:", error.message)
         return redirect(`/login?error=${encodeURIComponent(error.message)}`)
     }
 
-    console.log("Cadastro Auth sucesso:", authData.user?.id)
-
-    if (authData.user) {
-        // Verifica identities
-        if (authData.user.identities && authData.user.identities.length === 0) {
-            console.warn("Usuário já existe. Redirecionando.")
-            return redirect('/login?error=Usuário já cadastrado. Tente entrar.')
-        }
-
-        // Criar no Prisma
-        try {
-            console.log("Verificando se usuário existe no DB...")
-            const existingUser = await db.user.findUnique({
-                where: { email }
-            })
-
-            if (!existingUser) {
-                console.log("Criando usuário no Prisma...")
-                await db.user.create({
-                    data: {
-                        id: authData.user.id,
-                        email: email,
-                        name: name,
-                    }
-                })
-                console.log("Usuário criado no Prisma com sucesso.")
-            }
-        } catch (dbError) {
-            console.error("Erro CRÍTICO no banco:", dbError)
-        }
-
-        // DETECÇÃO DE EMAIL CONFIRMATION
-        // Se user existe, mas session é null, o usuário precisa confirmar email
-        if (authData.user && !authData.session) {
-            console.log("Sessão nula após cadastro. Email confirmation provável.")
-            return redirect('/login?error=Cadastro realizado! Verifique seu email para confirmar a conta antes de entrar.')
-        }
+    if (data.url) {
+        console.log("Redirecionando para Google OAuth...")
+        redirect(data.url)
     }
-
-    revalidatePath('/', 'layout')
-    redirect('/dashboard')
 }
 
 export async function logout() {
