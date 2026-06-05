@@ -21,6 +21,8 @@ export default async function AppLayout({
     const workspaces = await WorkspaceService.listUserWorkspaces(user.id)
     const activeWorkspace = await WorkspaceService.getActiveWorkspace(user.id)
 
+    const permissions = (activeWorkspace?.permissions as string[]) ?? []
+
     return (
         <QueryProvider>
             <EsteiraModalProvider>
@@ -28,6 +30,7 @@ export default async function AppLayout({
                     <Sidebar
                         workspaces={workspaces}
                         activeWorkspaceId={activeWorkspace?.workspace.id || ''}
+                        permissions={permissions}
                     />
                     <div className="flex-1 flex flex-col h-full overflow-hidden">
                         <Header />

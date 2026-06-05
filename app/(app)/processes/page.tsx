@@ -1,4 +1,4 @@
-import { createClient } from "@/utils/supabase/server"
+import { requirePermission } from "@/lib/auth/require-permission"
 import { redirect } from "next/navigation"
 import { ProcessService } from "@/lib/services/process-service"
 import { Button } from "@/components/ui/button"
@@ -74,12 +74,7 @@ const filterableStatuses = [
 ] as const
 
 export default async function ProcessesPage({ searchParams }: PageProps) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-        redirect("/login")
-    }
+    const { user } = await requirePermission('processes:read')
 
     const params = await searchParams
     const search = params.search || undefined

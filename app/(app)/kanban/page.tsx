@@ -1,10 +1,10 @@
-import { createClient } from "@/utils/supabase/server"
 import { redirect } from "next/navigation"
 import { KanbanWrapper } from "@/components/kanban/kanban-wrapper"
 import { db } from "@/lib/db"
 import { ensureUserExists } from "@/lib/auth/ensure-user"
 import { WorkspaceService } from "@/lib/services/workspace-service"
 import { KanbanService } from "@/lib/services/kanban-service"
+import { requirePermission } from "@/lib/auth/require-permission"
 
 export const dynamic = 'force-dynamic'
 
@@ -13,31 +13,21 @@ export default async function KanbanPage({
 }: {
     searchParams: Promise<{ pipeline?: string }>
 }) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-        redirect('/login')
-    }
+    // Permission check: kanban:read, kanban:own OR kanban:write — any of these grants access
+    const { user } = await requirePermission('kanban:read', 'kanban:own', 'kanban:write')
 
     await ensureUserExists()
 
-    // Await searchParams (Next.js 16 makes it a Promise)
     const params = await searchParams
 
-    // 1. Get workspace
     const wsData = await WorkspaceService.getActiveWorkspace(user.id)
     if (!wsData) redirect('/onboarding')
 
     const workspaceId = wsData.workspace.id
-
-    // 2. Get pipelines for this workspace
     const pipelines = await WorkspaceService.listPipelines(workspaceId)
 
-    // 3. Determine active pipeline (from URL or default)
     let activePipelineId = params.pipeline || null
 
-    // Validate if requested pipeline exists
     if (activePipelineId && !pipelines.some(p => p.id === activePipelineId)) {
         activePipelineId = null
     }
@@ -47,7 +37,6 @@ export default async function KanbanPage({
         activePipelineId = defaultPipeline.id
     }
 
-    // 4. Load data in parallel
     const [rawTasks, processes, columns, workspaceMembers, clients] = await Promise.all([
         activePipelineId ? KanbanService.getTasksByPipeline(activePipelineId, user.id) : Promise.resolve([]),
         db.process.findMany({
@@ -70,10 +59,9 @@ export default async function KanbanPage({
 
     const users = workspaceMembers.map(m => m.user)
 
-    // Serialize dates and ensure type safety
     const initialTasks = rawTasks.map((t: any) => ({
         ...t,
-        columnId: t.columnId || '', // Ensure non-null for client
+        columnId: t.columnId || '',
         position: t.position ?? 0,
         createdAt: t.createdAt?.toISOString?.() ?? t.createdAt,
         updatedAt: t.updatedAt?.toISOString?.() ?? t.updatedAt,

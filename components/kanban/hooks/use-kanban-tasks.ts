@@ -1,8 +1,9 @@
 'use client'
 
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { fetchBoardAction, moveCardAction, deleteTaskAction, toggleTaskCompletedAction } from '@/lib/actions/kanban-actions'
+import { createClient } from '@/utils/supabase/client'
 import { Tag } from '@prisma/client'
 import { getNextProtocolDate } from '@/lib/utils/kanban'
 
@@ -62,6 +63,28 @@ export function useKanbanTasks(pipelineId: string | null, initialTasks: Task[] =
         refetchOnWindowFocus: false,
         placeholderData: keepPreviousData, // Show previous pipeline data during transition
     })
+
+    // === SUPABASE REALTIME — sync changes from other users ===
+    useEffect(() => {
+        if (!pipelineId) return
+
+        const supabase = createClient()
+        const channel = supabase
+            .channel(`kanban-tasks-${pipelineId}`)
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'TaskCard' },
+                () => {
+                    // Invalidate so React Query refetches fresh data for this pipeline
+                    queryClient.invalidateQueries({ queryKey: QUERY_KEY })
+                }
+            )
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
+    }, [pipelineId, queryClient, QUERY_KEY])
 
     // === MOVE TASK (Optimistic + Transactional) ===
     const { mutate: moveTaskMutation } = useMutation({

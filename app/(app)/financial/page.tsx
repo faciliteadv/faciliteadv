@@ -1,33 +1,29 @@
-import { createClient } from "@/utils/supabase/server"
-import { redirect } from "next/navigation"
+import { requirePermission } from "@/lib/auth/require-permission"
 import { FinancialService } from "@/lib/services/financial-service"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { DollarSign, TrendingUp, AlertTriangle, Plus, Check } from "lucide-react"
+import { DollarSign, TrendingUp, AlertTriangle, Check } from "lucide-react"
 import { PageContainer } from "@/components/layout/page-container"
+import { db } from "@/lib/db"
+import { FinancialNewButton } from "@/components/financial/financial-new-button"
 
 export const dynamic = 'force-dynamic'
 
 export default async function FinancialPage() {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { user } = await requirePermission('financial:read')
 
-    if (!user) {
-        redirect('/login')
-    }
-
-    const userId = user.id
-    const [records, summary] = await Promise.all([
-        FinancialService.listRecords(userId),
-        FinancialService.getSummary(userId)
+    const [records, summary, clients] = await Promise.all([
+        FinancialService.listRecords(user.id),
+        FinancialService.getSummary(user.id),
+        db.client.findMany({
+            where: { userId: user.id, deletedAt: null },
+            select: { id: true, name: true },
+            orderBy: { name: 'asc' }
+        })
     ])
 
     const formatCurrency = (value: number) => {
-        return new Intl.NumberFormat('pt-BR', {
-            style: 'currency',
-            currency: 'BRL'
-        }).format(value)
+        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
     }
 
     const formatDate = (date: Date) => {
@@ -39,9 +35,7 @@ export default async function FinancialPage() {
             <div className="space-y-6">
                 <div className="flex items-center justify-between">
                     <h2 className="text-3xl font-bold tracking-tight text-slate-900">Financeiro</h2>
-                    <Button className="bg-blue-600 hover:bg-blue-700">
-                        <Plus className="mr-2 h-4 w-4" /> Novo Lançamento
-                    </Button>
+                    <FinancialNewButton clients={clients} />
                 </div>
 
                 {/* Summary Cards */}

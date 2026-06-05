@@ -39,7 +39,7 @@ type Props = {
     processes: ProcessOption[]
     columns: ColumnOption[]
     clients?: ClientOption[]
-    onTaskCreated?: () => void
+    onTaskCreated?: (task: any) => void
     defaultProcessId?: string
     defaultPhase?: string
 }
@@ -182,7 +182,7 @@ export function TaskModal({ isOpen, onClose, processes, columns, clients, onTask
         }
 
         try {
-            await createTaskAction(payload)
+            const result = await createTaskAction(payload)
             // Reset form
             setChecklist([])
 
@@ -192,7 +192,7 @@ export function TaskModal({ isOpen, onClose, processes, columns, clients, onTask
             setResponsibleLawyerId('')
             setPoints(0)
             setColumnId(columns.length > 0 ? columns[0].id : "")
-            onTaskCreated?.()
+            onTaskCreated?.(result.task)
             onClose()
         } catch (error) {
             console.error(error)

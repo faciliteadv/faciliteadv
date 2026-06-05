@@ -113,6 +113,7 @@ export function KanbanWrapper({
         moveTask,
         deleteTask,
         toggleTaskCompleted,
+        addTask,
         refetch: refetchTasks,
     } = useKanbanTasks(
         selectedPipelineId,
@@ -151,9 +152,13 @@ export function KanbanWrapper({
         })
     }, [queryClient])
 
-    const handleTaskCreated = useCallback(async () => {
-        await refetchTasks()
-    }, [refetchTasks])
+    const handleTaskCreated = useCallback((task: any) => {
+        if (task) {
+            addTask(task)
+        } else {
+            refetchTasks()
+        }
+    }, [addTask, refetchTasks])
 
     const handleOpenAddTask = useCallback((phase: string) => {
         setSelectedPhase(phase)

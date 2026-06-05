@@ -1,5 +1,5 @@
-import { createClient } from "@/utils/supabase/server"
 import { redirect } from "next/navigation"
+import { requirePermission } from "@/lib/auth/require-permission"
 import Link from "next/link"
 import { ClientService } from "@/lib/services/client-service"
 import { Button } from "@/components/ui/button"
@@ -26,12 +26,7 @@ interface PageProps {
 }
 
 export default async function ClientsPage({ searchParams }: PageProps) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-        redirect('/login')
-    }
+    const { user } = await requirePermission('clients:read')
 
     const params = await searchParams
     const search = params.search || undefined

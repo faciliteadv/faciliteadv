@@ -10,19 +10,28 @@ import { WorkspaceSelector } from "@/components/workspace/workspace-selector"
 interface SidebarProps {
     workspaces?: { id: string; name: string; slug: string; role?: string }[]
     activeWorkspaceId?: string
+    permissions?: string[]
 }
 
-export function Sidebar({ workspaces = [], activeWorkspaceId = "" }: SidebarProps) {
+const ALL_NAV_ITEMS = [
+    { href: "/dashboard", icon: Home, label: "Dashboard", requiredPerms: null as string[] | null },
+    { href: "/clients", icon: Users, label: "Clientes", requiredPerms: ['clients:read'] },
+    { href: "/processes", icon: FileText, label: "Processos", requiredPerms: ['processes:read'] },
+    { href: "/kanban", icon: LayoutDashboard, label: "Kanban", requiredPerms: ['kanban:read', 'kanban:own', 'kanban:write'] },
+    { href: "/financial", icon: DollarSign, label: "Financeiro", requiredPerms: ['financial:read'] },
+]
+
+export function Sidebar({ workspaces = [], activeWorkspaceId = "", permissions = [] }: SidebarProps) {
     const [collapsed, setCollapsed] = useState(false)
     const onToggle = () => setCollapsed(!collapsed)
 
-    const navItems = [
-        { href: "/dashboard", icon: Home, label: "Dashboard" },
-        { href: "/clients", icon: Users, label: "Clientes" },
-        { href: "/processes", icon: FileText, label: "Processos" },
-        { href: "/kanban", icon: LayoutDashboard, label: "Kanban" },
-        { href: "/financial", icon: DollarSign, label: "Financeiro" },
-    ]
+    const isAdmin = permissions.includes('admin') || permissions.length === 0
+
+    const navItems = ALL_NAV_ITEMS.filter(item => {
+        if (!item.requiredPerms) return true
+        if (isAdmin) return true
+        return item.requiredPerms.some(p => permissions.includes(p))
+    })
 
     return (
         <aside className={cn(
