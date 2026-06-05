@@ -16,10 +16,23 @@ export const WorkspaceService = {
 
         if (!membership) return null
 
+        const rawPermissions = membership.role.permissions as string[] | null
+        let permissions: string[] = Array.isArray(rawPermissions) ? rawPermissions : []
+
+        // Auto-fix: Owner role must always have ['admin']. Handles users created
+        // before the permission system existed (their role has null/empty permissions).
+        if (membership.role.name === 'Owner' && permissions.length === 0) {
+            await db.role.update({
+                where: { id: membership.role.id },
+                data: { permissions: ['admin'] }
+            })
+            permissions = ['admin']
+        }
+
         return {
             workspace: membership.workspace,
             role: membership.role,
-            permissions: membership.role.permissions as string[]
+            permissions,
         }
     },
 

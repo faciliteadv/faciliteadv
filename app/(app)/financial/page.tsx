@@ -16,8 +16,8 @@ export default async function FinancialPage() {
     const canWrite = hasPermission(permissions, 'financial:write')
 
     const [records, summary, clients] = await Promise.all([
-        FinancialService.listRecords(workspaceId, user.id),
-        FinancialService.getSummary(workspaceId, user.id),
+        FinancialService.listRecords(workspaceId),
+        FinancialService.getSummary(workspaceId),
         db.client.findMany({
             where: {
                 deletedAt: null,
