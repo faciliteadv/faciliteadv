@@ -18,8 +18,8 @@ export default async function AppLayout({
         redirect('/login')
     }
 
+    const activeWorkspace = await WorkspaceService.ensureWorkspace(user.id, user.name ?? undefined)
     const workspaces = await WorkspaceService.listUserWorkspaces(user.id)
-    const activeWorkspace = await WorkspaceService.getActiveWorkspace(user.id)
 
     const permissions = (activeWorkspace?.permissions as string[]) ?? []
 

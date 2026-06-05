@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import { db } from '@/lib/db'
+import { WorkspaceService } from '@/lib/services/workspace-service'
 
 export async function login(formData: FormData) {
     const supabase = await createClient()
@@ -19,11 +20,9 @@ export async function login(formData: FormData) {
         return redirect(`/login?error=${encodeURIComponent(error.message)}`)
     }
 
-    // Ensure the user has a workspace (covers users created before workspace feature)
     if (authData.user) {
-        const { db } = await import('@/lib/db')
+        // Ensure DB user record exists
         let dbUser = await db.user.findUnique({ where: { id: authData.user.id } })
-
         if (!dbUser) {
             const userName = authData.user.user_metadata?.name || authData.user.email?.split('@')[0] || 'Usuário'
             dbUser = await db.user.create({
@@ -31,29 +30,8 @@ export async function login(formData: FormData) {
             })
         }
 
-        const hasMembership = await db.workspaceMember.findFirst({ where: { userId: authData.user.id } })
-
-        if (!hasMembership) {
-            try {
-                const userName = dbUser.name || authData.user.email?.split('@')[0] || 'Usuário'
-                const slug = `workspace-${authData.user.id.substring(0, 8)}`
-                const workspace = await db.workspace.create({
-                    data: { name: `${userName}'s Workspace`, slug, isActive: true }
-                })
-                const ownerRole = await db.role.create({
-                    data: {
-                        name: 'Owner',
-                        permissions: ['admin'],
-                        workspace: { connect: { id: workspace.id } }
-                    }
-                })
-                await db.workspaceMember.create({
-                    data: { workspaceId: workspace.id, userId: authData.user.id, roleId: ownerRole.id }
-                })
-            } catch (wsError) {
-                console.error('Erro ao criar workspace no login:', wsError)
-            }
-        }
+        // Guarantee workspace exists with correct permissions
+        await WorkspaceService.ensureWorkspace(authData.user.id, dbUser.name ?? undefined)
     }
 
     revalidatePath('/', 'layout')

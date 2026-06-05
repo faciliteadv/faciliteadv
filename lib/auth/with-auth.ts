@@ -19,7 +19,7 @@ export async function withAuth<T>(
         throw new Error("Não autorizado")
     }
 
-    const activeData = await WorkspaceService.getActiveWorkspace(user.id)
+    const activeData = await WorkspaceService.ensureWorkspace(user.id)
     const workspaceId = activeData?.workspace.id || null
     const permissions = (activeData?.permissions as string[]) ?? []
 

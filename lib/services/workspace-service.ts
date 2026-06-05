@@ -2,6 +2,38 @@ import { db } from "@/lib/db"
 
 export const WorkspaceService = {
     /**
+     * Guarantees the user has a workspace.
+     * If none exists, creates one with Owner role + admin permissions.
+     * Uses a collision-safe slug. Never returns null for an authenticated user.
+     */
+    ensureWorkspace: async (userId: string, userName?: string) => {
+        const existing = await WorkspaceService.getActiveWorkspace(userId)
+        if (existing) return existing
+
+        // Use a slug that cannot collide: user prefix + millisecond timestamp
+        const slug = `ws-${userId.substring(0, 8)}-${Date.now().toString(36)}`
+        const name = userName ? `Escritório de ${userName}` : 'Meu Escritório'
+
+        const workspace = await db.workspace.create({
+            data: { name, slug, isActive: true },
+        })
+
+        const ownerRole = await db.role.create({
+            data: {
+                name: 'Owner',
+                permissions: ['admin'],
+                workspace: { connect: { id: workspace.id } },
+            },
+        })
+
+        await db.workspaceMember.create({
+            data: { workspaceId: workspace.id, userId, roleId: ownerRole.id },
+        })
+
+        return WorkspaceService.getActiveWorkspace(userId)
+    },
+
+    /**
      * Get user's active workspace (first one they belong to).
      */
     getActiveWorkspace: async (userId: string) => {
