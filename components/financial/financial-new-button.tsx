@@ -74,8 +74,16 @@ function FinancialStandaloneForm({
 
         setLoading(true)
         try {
+            const numericAmount = parseFloat(
+                formData.amount
+                    .replace(/[R$\s]/g, '')
+                    .replace(/\./g, '')
+                    .replace(',', '.')
+            ) || 0
+
             const payload = {
                 ...formData,
+                amount: numericAmount,
                 processId: formData.processId || null,
             }
             const result = await createFinancialRecordAction(payload)
