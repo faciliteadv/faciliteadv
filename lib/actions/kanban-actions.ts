@@ -103,14 +103,6 @@ export async function quickCreateTaskAction(title: string, columnId: string) {
             type: 'INTERNAL',
             columnId,
         })
-    }
-
-    try {
-        const task = await KanbanService.createTask(userId, {
-            title,
-            type: 'INTERNAL',
-            columnId,
-        })
 
         const fullTask = await db.taskCard.findUnique({
             where: { id: task.id },
