@@ -25,7 +25,7 @@ export function Sidebar({ workspaces = [], activeWorkspaceId = "", permissions =
     const [collapsed, setCollapsed] = useState(false)
     const onToggle = () => setCollapsed(!collapsed)
 
-    const isAdmin = permissions.includes('admin')
+    const isAdmin = permissions.includes('admin') || permissions.includes('*')
 
     const navItems = ALL_NAV_ITEMS.filter(item => {
         if (!item.requiredPerms) return true

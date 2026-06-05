@@ -54,5 +54,6 @@ export const OWNER_PERMISSIONS: Permission[] = ['admin']
 
 export function hasPermission(permissions: string[], permission: Permission): boolean {
     if (permissions.includes('admin')) return true
+    if (permissions.includes('*')) return true  // legacy wildcard
     return permissions.includes(permission)
 }

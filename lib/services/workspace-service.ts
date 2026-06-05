@@ -51,10 +51,18 @@ export const WorkspaceService = {
         const rawPermissions = membership.role.permissions as string[] | null
         let permissions: string[] = Array.isArray(rawPermissions) ? rawPermissions : []
 
-        // Auto-fix: if this user has no permissions, check if they are the first
-        // member of the workspace (i.e. the owner/creator). This handles users
-        // whose workspace was created before the permission system existed, regardless
-        // of what name their role was given.
+        // Normalize legacy wildcard '*' to 'admin'.
+        // Old system roles were created with permissions: ['*']. The current system
+        // uses 'admin'. Migrate on read and persist to DB so it only runs once.
+        if (permissions.includes('*')) {
+            permissions = ['admin']
+            await db.role.update({
+                where: { id: membership.role.id },
+                data: { permissions: ['admin'] },
+            })
+        }
+
+        // Auto-fix: if first member has no permissions, they are the owner.
         if (permissions.length === 0) {
             const hasEarlierMember = await db.workspaceMember.findFirst({
                 where: {
@@ -64,7 +72,6 @@ export const WorkspaceService = {
             })
 
             if (!hasEarlierMember) {
-                // First member of the workspace → they are the owner
                 await db.role.update({
                     where: { id: membership.role.id },
                     data: { permissions: ['admin'] },
