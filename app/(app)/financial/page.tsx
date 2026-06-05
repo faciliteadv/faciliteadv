@@ -11,14 +11,21 @@ import { FinancialNewButton } from "@/components/financial/financial-new-button"
 export const dynamic = 'force-dynamic'
 
 export default async function FinancialPage() {
-    const { user, permissions } = await requirePermission('financial:read')
+    const { user, wsData, permissions } = await requirePermission('financial:read')
+    const workspaceId = wsData.workspace.id
     const canWrite = hasPermission(permissions, 'financial:write')
 
     const [records, summary, clients] = await Promise.all([
-        FinancialService.listRecords(user.id),
-        FinancialService.getSummary(user.id),
+        FinancialService.listRecords(workspaceId, user.id),
+        FinancialService.getSummary(workspaceId, user.id),
         db.client.findMany({
-            where: { userId: user.id, deletedAt: null },
+            where: {
+                deletedAt: null,
+                OR: [
+                    { workspaceId },
+                    { userId: user.id, workspaceId: null },
+                ]
+            },
             select: { id: true, name: true },
             orderBy: { name: 'asc' }
         })

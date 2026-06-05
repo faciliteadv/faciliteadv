@@ -26,7 +26,7 @@ export function FinancialNewButton({ clients }: { clients: Client[] }) {
                 open={open}
                 onOpenChange={setOpen}
                 clients={clients}
-                onSuccess={() => {
+                onSuccess={async () => {
                     setOpen(false)
                     router.refresh()
                 }}
@@ -44,7 +44,7 @@ function FinancialStandaloneForm({
     open: boolean
     onOpenChange: (v: boolean) => void
     clients: Client[]
-    onSuccess: () => void
+    onSuccess: () => void | Promise<void>
 }) {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
@@ -93,7 +93,7 @@ function FinancialStandaloneForm({
                     dueDate: new Date().toISOString().split('T')[0],
                     paidAt: '', description: '', paymentMethod: 'Pix', installment: '1/1', processId: ''
                 })
-                onSuccess()
+                await onSuccess()
             }
         } catch (err: any) {
             setError(err.message || 'Erro ao salvar')

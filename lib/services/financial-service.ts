@@ -2,11 +2,14 @@ import { db } from "@/lib/db"
 import { FinancialType } from "@prisma/client"
 
 export const FinancialService = {
-    // List all financial records for a user with related data
-    listRecords: async (userId: string) => {
+    // List all financial records for a workspace with related data
+    listRecords: async (workspaceId: string, fallbackUserId?: string) => {
         const records = await db.financialRecord.findMany({
             where: {
-                client: { userId }
+                OR: [
+                    { client: { workspaceId } },
+                    ...(fallbackUserId ? [{ client: { userId: fallbackUserId } }] : []),
+                ]
             },
             include: {
                 client: { select: { name: true } },
@@ -23,10 +26,13 @@ export const FinancialService = {
     },
 
     // Get summary: total pending, total received, total overdue
-    getSummary: async (userId: string) => {
+    getSummary: async (workspaceId: string, fallbackUserId?: string) => {
         const records = await db.financialRecord.findMany({
             where: {
-                client: { userId }
+                OR: [
+                    { client: { workspaceId } },
+                    ...(fallbackUserId ? [{ client: { userId: fallbackUserId } }] : []),
+                ]
             },
             select: {
                 amount: true,
