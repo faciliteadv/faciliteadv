@@ -15,7 +15,7 @@ async function getAuthContext() {
     return { userId: user.id, workspace: wsData.workspace, permissions: wsData.permissions as string[] }
 }
 
-// PATCH /api/workspace/members/[userId] — update member permissions
+// PATCH /api/workspace/members/[userId] — update member permissions, area, or visibilityScope
 export async function PATCH(
     request: NextRequest,
     { params }: { params: Promise<{ userId: string }> }
@@ -29,7 +29,11 @@ export async function PATCH(
 
     const { userId } = await params
     const body = await request.json()
-    const { permissions } = body as { permissions: Permission[] }
+    const { permissions, areaId, visibilityScope } = body as {
+        permissions?: Permission[]
+        areaId?: string | null
+        visibilityScope?: 'SELF' | 'AREA' | 'ALL'
+    }
 
     const membership = await db.workspaceMember.findUnique({
         where: { workspaceId_userId: { workspaceId: ctx.workspace.id, userId } },
@@ -40,15 +44,38 @@ export async function PATCH(
         return NextResponse.json({ error: 'Membro não encontrado' }, { status: 404 })
     }
 
-    // Cannot change owner's permissions
-    if ((membership.role.permissions as string[]).includes('admin') && userId !== ctx.userId) {
+    // Cannot change owner's permissions (but can change their area/scope)
+    if (permissions && (membership.role.permissions as string[]).includes('admin') && userId !== ctx.userId) {
         return NextResponse.json({ error: 'Não é possível alterar permissões do gestor' }, { status: 400 })
     }
 
-    await db.role.update({
-        where: { id: membership.roleId },
-        data: { permissions },
-    })
+    // Validate areaId if provided
+    if (areaId) {
+        const area = await db.workspaceArea.findFirst({
+            where: { id: areaId, workspaceId: ctx.workspace.id },
+        })
+        if (!area) return NextResponse.json({ error: 'Área não encontrada' }, { status: 400 })
+    }
+
+    // Update role permissions if provided
+    if (permissions) {
+        await db.role.update({
+            where: { id: membership.roleId },
+            data: { permissions },
+        })
+    }
+
+    // Update member area/scope if provided
+    const memberUpdates: Record<string, unknown> = {}
+    if (areaId !== undefined) memberUpdates.areaId = areaId
+    if (visibilityScope) memberUpdates.visibilityScope = visibilityScope
+
+    if (Object.keys(memberUpdates).length > 0) {
+        await db.workspaceMember.update({
+            where: { id: membership.id },
+            data: memberUpdates,
+        })
+    }
 
     return NextResponse.json({ success: true })
 }

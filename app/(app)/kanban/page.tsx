@@ -6,6 +6,7 @@ import { WorkspaceService } from "@/lib/services/workspace-service"
 import { KanbanService } from "@/lib/services/kanban-service"
 import { requirePermission } from "@/lib/auth/require-permission"
 import { hasPermission } from "@/lib/permissions"
+import { getVisibleMemberIds } from "@/lib/services/visibility-service"
 
 export const dynamic = 'force-dynamic'
 
@@ -39,31 +40,45 @@ export default async function KanbanPage({
         activePipelineId = defaultPipeline.id
     }
 
-    const memberIds = await db.workspaceMember.findMany({
-        where: { workspaceId },
-        select: { userId: true },
-    }).then(rows => rows.map(r => r.userId))
-
-    const wsOr = [{ workspaceId }, { userId: { in: memberIds } }]
+    // Visibility-scoped: only members this user can see
+    const visibleMemberIds = await getVisibleMemberIds(user.id, workspaceId)
+    const visibilityWhere = {
+        userId: { in: visibleMemberIds },
+        OR: [{ workspaceId }, { workspaceId: null }] as [{ workspaceId: string }, { workspaceId: null }],
+    }
 
     const [rawTasks, processes, columns, workspaceMembers, clients] = await Promise.all([
         activePipelineId ? KanbanService.getTasksByPipeline(activePipelineId, user.id) : Promise.resolve([]),
+
+        // Load the 150 most recently updated processes (prevents loading hundreds on large offices)
         db.process.findMany({
-            where: { deletedAt: null, OR: wsOr },
-            select: { id: true, number: true, folderName: true, type: true }
+            where: { deletedAt: null, ...visibilityWhere },
+            select: { id: true, number: true, folderName: true, type: true },
+            orderBy: { updatedAt: 'desc' },
+            take: 150,
         }),
+
         activePipelineId
             ? db.kanbanColumn.findMany({
                 where: { pipelineId: activePipelineId },
                 orderBy: { position: 'asc' }
             })
             : Promise.resolve([]),
+
+        // Only load members visible to this user
         db.workspaceMember.findMany({
-            where: { workspaceId },
+            where: { workspaceId, userId: { in: visibleMemberIds } },
             include: { user: { select: { id: true, name: true, email: true } } },
             orderBy: { user: { name: 'asc' } }
         }),
-        db.client.findMany({ where: { deletedAt: null, OR: wsOr }, select: { id: true, name: true } })
+
+        // Load the 150 most recently updated clients
+        db.client.findMany({
+            where: { deletedAt: null, ...visibilityWhere },
+            select: { id: true, name: true },
+            orderBy: { updatedAt: 'desc' },
+            take: 150,
+        }),
     ])
 
     const users = workspaceMembers.map(m => m.user)

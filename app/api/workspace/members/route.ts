@@ -30,21 +30,42 @@ export async function GET() {
         include: {
             user: { select: { id: true, name: true, email: true } },
             role: { select: { id: true, name: true, permissions: true } },
+            area: { select: { id: true, name: true } },
         },
         orderBy: { joinedAt: 'asc' },
     })
 
-    return NextResponse.json(members.map(m => ({
-        id: m.id,
-        userId: m.userId,
-        name: m.user.name,
-        email: m.user.email,
-        roleId: m.role.id,
-        roleName: m.role.name,
-        permissions: m.role.permissions as string[],
-        joinedAt: m.joinedAt,
-        isOwner: m.userId === ctx.userId,
-    })))
+    const membersWithGrants = await Promise.all(
+        members.map(async (m) => {
+            const grants = await db.memberVisibilityGrant.findMany({
+                where: { viewerId: m.id },
+                select: { id: true, targetId: true, target: { select: { userId: true, user: { select: { name: true, email: true } } } } },
+            })
+            return {
+                id: m.id,
+                userId: m.userId,
+                name: m.user.name,
+                email: m.user.email,
+                roleId: m.role.id,
+                roleName: m.role.name,
+                permissions: m.role.permissions as string[],
+                areaId: m.areaId,
+                areaName: (m as any).area?.name ?? null,
+                visibilityScope: m.visibilityScope,
+                joinedAt: m.joinedAt,
+                isOwner: m.userId === ctx.userId,
+                visibilityGrants: grants.map(g => ({
+                    id: g.id,
+                    targetMemberId: g.targetId,
+                    targetUserId: g.target.userId,
+                    targetName: g.target.user.name,
+                    targetEmail: g.target.user.email,
+                })),
+            }
+        })
+    )
+
+    return NextResponse.json(membersWithGrants)
 }
 
 // POST /api/workspace/members — create a new member
@@ -57,15 +78,25 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, email, password, permissions } = body as {
+    const { name, email, password, permissions, areaId, visibilityScope } = body as {
         name: string
         email: string
         password: string
         permissions: Permission[]
+        areaId?: string
+        visibilityScope?: 'SELF' | 'AREA' | 'ALL'
     }
 
     if (!name || !email || !password || !permissions) {
         return NextResponse.json({ error: 'Campos obrigatórios faltando' }, { status: 400 })
+    }
+
+    // Validate areaId if provided
+    if (areaId) {
+        const area = await db.workspaceArea.findFirst({
+            where: { id: areaId, workspaceId: ctx.workspace.id },
+        })
+        if (!area) return NextResponse.json({ error: 'Área não encontrada' }, { status: 400 })
     }
 
     if (password.length < 6) {
@@ -139,10 +170,13 @@ export async function POST(request: NextRequest) {
             workspaceId: ctx.workspace.id,
             userId: supabaseUserId,
             roleId: role.id,
+            areaId: areaId || null,
+            visibilityScope: visibilityScope || 'AREA',
         },
         include: {
             user: { select: { id: true, name: true, email: true } },
             role: { select: { id: true, permissions: true } },
+            area: { select: { id: true, name: true } },
         },
     })
 
@@ -151,6 +185,9 @@ export async function POST(request: NextRequest) {
         userId: membership.userId,
         name: membership.user.name,
         email: membership.user.email,
+        areaId: membership.areaId,
+        areaName: (membership as any).area?.name ?? null,
+        visibilityScope: membership.visibilityScope,
         roleId: membership.role.id,
         permissions: membership.role.permissions as string[],
     }, { status: 201 })
