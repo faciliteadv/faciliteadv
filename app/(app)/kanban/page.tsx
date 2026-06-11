@@ -19,7 +19,8 @@ export default async function KanbanPage({
     const { user, permissions } = await requirePermission('kanban:read', 'kanban:own', 'kanban:write')
     const canWrite = hasPermission(permissions, 'kanban:write') || hasPermission(permissions, 'kanban:own')
 
-    // kanban:own (without kanban:read/write/admin) → user sees only their own cards
+    // kanban:own (without kanban:read/write/admin) → restricted view:
+    // user sees own cards + cards from members with explicit visibility grants
     const ownOnly =
         !hasPermission(permissions, 'admin') &&
         !hasPermission(permissions, 'kanban:read') &&
@@ -55,7 +56,14 @@ export default async function KanbanPage({
     }
 
     const [rawTasks, processes, columns, workspaceMembers, clients] = await Promise.all([
-        activePipelineId ? KanbanService.getTasksByPipeline(activePipelineId, user.id, ownOnly) : Promise.resolve([]),
+        activePipelineId
+            ? KanbanService.getTasksByPipeline(
+                activePipelineId,
+                user.id,
+                // When ownOnly: pass the full set of visible user IDs (own + grants)
+                ownOnly ? await getVisibleMemberIds(user.id, workspaceId) : undefined,
+              )
+            : Promise.resolve([]),
 
         // Load the 150 most recently updated processes (prevents loading hundreds on large offices)
         db.process.findMany({

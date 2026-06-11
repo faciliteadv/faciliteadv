@@ -29,6 +29,17 @@ export default async function SettingsPage() {
         include: {
             user: { select: { id: true, name: true, email: true } },
             role: { select: { id: true, name: true, permissions: true } },
+            visibilityGrantsGiven: {
+                include: {
+                    target: {
+                        select: {
+                            id: true,
+                            userId: true,
+                            user: { select: { name: true, email: true } },
+                        },
+                    },
+                },
+            },
         },
         orderBy: { joinedAt: 'asc' },
     }) : []
@@ -41,6 +52,14 @@ export default async function SettingsPage() {
         roleId: m.role.id,
         roleName: m.role.name,
         permissions: m.role.permissions as string[],
+        visibilityScope: m.visibilityScope as string,
+        visibilityGrants: m.visibilityGrantsGiven.map(g => ({
+            id: g.id,
+            targetMemberId: g.targetId,
+            targetUserId: g.target.userId,
+            targetName: g.target.user.name,
+            targetEmail: g.target.user.email,
+        })),
         joinedAt: m.joinedAt.toISOString(),
         isOwner: m.userId === authUser.id,
     }))

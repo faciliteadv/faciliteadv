@@ -1,8 +1,16 @@
 'use client'
 
 import { useState } from 'react'
-import { Users, Plus, Trash2, Settings2, X, Eye, EyeOff, Crown } from 'lucide-react'
+import { Users, Plus, Trash2, Settings2, X, Eye, EyeOff, Crown, UserCheck } from 'lucide-react'
 import { PERMISSION_GROUPS, PERMISSION_LABELS, type Permission } from '@/lib/permissions'
+
+type VisibilityGrant = {
+    id: string
+    targetMemberId: string
+    targetUserId: string
+    targetName: string | null
+    targetEmail: string
+}
 
 type Member = {
     id: string
@@ -11,6 +19,8 @@ type Member = {
     email: string
     roleId: string
     permissions: string[]
+    visibilityScope: string
+    visibilityGrants: VisibilityGrant[]
     joinedAt: string
     isOwner: boolean
 }
@@ -37,27 +47,20 @@ export function TeamSection({ initialMembers, currentUserId }: Props) {
         }
     }
 
-    async function handleUpdatePermissions(userId: string, permissions: Permission[]) {
-        const res = await fetch(`/api/workspace/members/${userId}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ permissions }),
-        })
-        if (res.ok) {
-            setMembers(prev => prev.map(m =>
-                m.userId === userId ? { ...m, permissions } : m
-            ))
-            setEditingMember(null)
-        } else {
-            const data = await res.json()
-            alert(data.error || 'Erro ao atualizar permissões')
-        }
-    }
-
     function handleMemberAdded(member: Member) {
         setMembers(prev => [...prev, member])
         setShowAddModal(false)
     }
+
+    function handleMemberSaved(updated: Member) {
+        setMembers(prev => prev.map(m => m.id === updated.id ? updated : m))
+        setEditingMember(null)
+    }
+
+    // Other members (for the visibility grant picker)
+    const otherMembers = editingMember
+        ? members.filter(m => m.id !== editingMember.id && !m.isOwner)
+        : []
 
     return (
         <div className="rounded-lg border bg-white p-6 shadow-sm col-span-2">
@@ -101,6 +104,20 @@ export function TeamSection({ initialMembers, currentUserId }: Props) {
                                             Gestor
                                         </span>
                                     )}
+                                    {/* Show grant count badge if member has kanban:own and has grants */}
+                                    {!member.isOwner &&
+                                        member.permissions.includes('kanban:own') &&
+                                        !member.permissions.includes('kanban:read') &&
+                                        !member.permissions.includes('kanban:write') &&
+                                        member.visibilityGrants.length > 0 && (
+                                            <span
+                                                className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600"
+                                                title={`Pode ver cards de: ${member.visibilityGrants.map(g => g.targetName || g.targetEmail).join(', ')}`}
+                                            >
+                                                <UserCheck className="h-3 w-3" />
+                                                +{member.visibilityGrants.length}
+                                            </span>
+                                        )}
                                 </div>
                                 <span className="text-xs text-slate-500 truncate block">{member.email}</span>
                             </div>
@@ -143,8 +160,9 @@ export function TeamSection({ initialMembers, currentUserId }: Props) {
             {editingMember && (
                 <EditPermissionsModal
                     member={editingMember}
+                    otherMembers={otherMembers}
                     onClose={() => setEditingMember(null)}
-                    onSave={(perms) => handleUpdatePermissions(editingMember.userId, perms)}
+                    onSaved={handleMemberSaved}
                 />
             )}
         </div>
@@ -193,7 +211,13 @@ function AddMemberModal({
                 return
             }
 
-            onAdded({ ...data, isOwner: false, joinedAt: new Date().toISOString() })
+            onAdded({
+                ...data,
+                visibilityGrants: [],
+                visibilityScope: 'AREA',
+                isOwner: false,
+                joinedAt: new Date().toISOString(),
+            })
         } catch {
             setError('Erro de conexão')
         } finally {
@@ -327,15 +351,29 @@ function AddMemberModal({
 
 function EditPermissionsModal({
     member,
+    otherMembers,
     onClose,
-    onSave,
+    onSaved,
 }: {
     member: Member
+    otherMembers: Member[]
     onClose: () => void
-    onSave: (permissions: Permission[]) => void
+    onSaved: (updated: Member) => void
 }) {
     const [permissions, setPermissions] = useState<Permission[]>(member.permissions as Permission[])
+    // Track which member IDs (WorkspaceMember.id) this member can see
+    const [grantedMemberIds, setGrantedMemberIds] = useState<Set<string>>(
+        new Set(member.visibilityGrants.map(g => g.targetMemberId))
+    )
     const [loading, setLoading] = useState(false)
+    const [error, setError] = useState('')
+
+    // Show the visibility picker only when kanban:own is selected and not overridden by read/write/admin
+    const showVisibilityPicker =
+        permissions.includes('kanban:own') &&
+        !permissions.includes('kanban:read') &&
+        !permissions.includes('kanban:write') &&
+        !permissions.includes('admin')
 
     function togglePermission(perm: Permission) {
         setPermissions(prev =>
@@ -343,10 +381,75 @@ function EditPermissionsModal({
         )
     }
 
+    function toggleGrant(memberId: string) {
+        setGrantedMemberIds(prev => {
+            const next = new Set(prev)
+            if (next.has(memberId)) next.delete(memberId)
+            else next.add(memberId)
+            return next
+        })
+    }
+
     async function handleSave() {
         setLoading(true)
-        await onSave(permissions)
-        setLoading(false)
+        setError('')
+
+        try {
+            // 1. Update permissions
+            const permRes = await fetch(`/api/workspace/members/${member.userId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ permissions }),
+            })
+            if (!permRes.ok) {
+                const d = await permRes.json()
+                setError(d.error || 'Erro ao salvar permissões')
+                return
+            }
+
+            // 2. Sync visibility grants (only relevant when kanban:own is active)
+            const originalIds = new Set(member.visibilityGrants.map(g => g.targetMemberId))
+            const effectiveGranted = showVisibilityPicker ? grantedMemberIds : new Set<string>()
+
+            const toAdd = [...effectiveGranted].filter(id => !originalIds.has(id))
+            const toRemove = [...originalIds].filter(id => !effectiveGranted.has(id))
+
+            await Promise.all([
+                ...toAdd.map(async (targetMemberId) => {
+                    const target = otherMembers.find(m => m.id === targetMemberId)
+                    if (!target) return
+                    await fetch(`/api/workspace/members/${member.userId}/visibility`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ targetUserId: target.userId }),
+                    })
+                }),
+                ...toRemove.map(async (targetMemberId) => {
+                    await fetch(`/api/workspace/members/${member.userId}/visibility/${targetMemberId}`, {
+                        method: 'DELETE',
+                    })
+                }),
+            ])
+
+            // Build updated grants list for optimistic UI update
+            const newGrants: VisibilityGrant[] = [...effectiveGranted].map(targetMemberId => {
+                const target = otherMembers.find(m => m.id === targetMemberId)
+                const existing = member.visibilityGrants.find(g => g.targetMemberId === targetMemberId)
+                return {
+                    id: existing?.id ?? targetMemberId,
+                    targetMemberId,
+                    targetUserId: target?.userId ?? '',
+                    targetName: target?.name ?? null,
+                    targetEmail: target?.email ?? '',
+                }
+            })
+
+            onSaved({ ...member, permissions, visibilityGrants: newGrants })
+        } catch {
+            setError('Erro de conexão. Tente novamente.')
+        } finally {
+            setLoading(false)
+        }
     }
 
     return (
@@ -362,7 +465,13 @@ function EditPermissionsModal({
                     </button>
                 </div>
 
-                <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+                <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                    {error && (
+                        <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2.5 text-sm text-red-700">
+                            {error}
+                        </div>
+                    )}
+
                     {PERMISSION_GROUPS.map(group => (
                         <div key={group.label}>
                             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2">
@@ -388,6 +497,53 @@ function EditPermissionsModal({
                             </div>
                         </div>
                     ))}
+
+                    {/* Visibility grant picker — only shown when kanban:own is the active kanban permission */}
+                    {showVisibilityPicker && (
+                        <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                                <UserCheck className="h-4 w-4 text-blue-600 shrink-0" />
+                                <p className="text-sm font-semibold text-blue-800">
+                                    Pode ver cards de outros membros
+                                </p>
+                            </div>
+                            <p className="text-xs text-blue-600 mb-3">
+                                Além dos próprios cards, este membro também verá os cards das pessoas selecionadas abaixo.
+                            </p>
+
+                            {otherMembers.length === 0 ? (
+                                <p className="text-xs text-slate-400 italic">
+                                    Nenhum outro membro disponível.
+                                </p>
+                            ) : (
+                                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                                    {otherMembers.map(m => (
+                                        <label
+                                            key={m.id}
+                                            className="flex items-center gap-3 cursor-pointer rounded-lg px-3 py-2 hover:bg-white transition-colors"
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={grantedMemberIds.has(m.id)}
+                                                onChange={() => toggleGrant(m.id)}
+                                                className="h-4 w-4 rounded border-blue-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <div className="min-w-0">
+                                                <span className="text-sm font-medium text-slate-800 truncate block">
+                                                    {m.name || m.email}
+                                                </span>
+                                                {m.name && (
+                                                    <span className="text-xs text-slate-400 truncate block">
+                                                        {m.email}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </label>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex justify-end gap-3 border-t px-6 py-4">
@@ -402,7 +558,7 @@ function EditPermissionsModal({
                         disabled={loading}
                         className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
                     >
-                        {loading ? 'Salvando...' : 'Salvar permissões'}
+                        {loading ? 'Salvando...' : 'Salvar'}
                     </button>
                 </div>
             </div>

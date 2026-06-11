@@ -11,18 +11,25 @@ import { parseDateInputToDate, parseKanbanCommentPayload } from "@/lib/utils/kan
 
 /**
  * Fetch board tasks for a specific pipeline.
- * Enforces kanban:own — users with only that permission see only their own cards.
+ * Enforces kanban:own — users with only that permission see only their own cards
+ * plus cards from members with explicit visibility grants.
  * NO revalidatePath — React Query manages client state.
  */
 export async function fetchBoardAction(pipelineId: string) {
-    return withAuth(async ({ userId, permissions }) => {
+    return withAuth(async ({ userId, workspaceId, permissions }) => {
         const ownOnly =
             !hasPermission(permissions, 'admin') &&
             !hasPermission(permissions, 'kanban:read') &&
             !hasPermission(permissions, 'kanban:write') &&
             hasPermission(permissions, 'kanban:own')
 
-        return await KanbanService.getTasksByPipeline(pipelineId, userId, ownOnly)
+        let filterToUserIds: string[] | undefined
+        if (ownOnly && workspaceId) {
+            const { getVisibleMemberIds } = await import('@/lib/services/visibility-service')
+            filterToUserIds = await getVisibleMemberIds(userId, workspaceId)
+        }
+
+        return await KanbanService.getTasksByPipeline(pipelineId, userId, filterToUserIds)
     })
 }
 
