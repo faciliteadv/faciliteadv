@@ -7,7 +7,7 @@ export const KanbanService = {
      * Get all tasks for a specific pipeline, ordered by position within each column.
      * This is the ONLY way to fetch board tasks — always scoped to a pipeline.
      */
-    getTasksByPipeline: async (pipelineId: string, currentUserId?: string) => {
+    getTasksByPipeline: async (pipelineId: string, currentUserId?: string, ownOnly?: boolean) => {
         // Get column IDs for this pipeline
         const columns = await db.kanbanColumn.findMany({
             where: { pipelineId },
@@ -17,10 +17,16 @@ export const KanbanService = {
 
         if (columnIds.length === 0) return []
 
+        // kanban:own → only tasks created by or assigned to this user
+        const ownershipFilter = ownOnly && currentUserId
+            ? { OR: [{ userId: currentUserId }, { responsibleLawyerId: currentUserId }] }
+            : {}
+
         const tasks = await db.taskCard.findMany({
             where: {
                 columnId: { in: columnIds },
                 isArchived: false,
+                ...ownershipFilter,
             },
             include: {
                 client: {

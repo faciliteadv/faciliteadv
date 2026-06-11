@@ -11,17 +11,19 @@ import { parseDateInputToDate, parseKanbanCommentPayload } from "@/lib/utils/kan
 
 /**
  * Fetch board tasks for a specific pipeline.
+ * Enforces kanban:own — users with only that permission see only their own cards.
  * NO revalidatePath — React Query manages client state.
  */
 export async function fetchBoardAction(pipelineId: string) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    return withAuth(async ({ userId, permissions }) => {
+        const ownOnly =
+            !hasPermission(permissions, 'admin') &&
+            !hasPermission(permissions, 'kanban:read') &&
+            !hasPermission(permissions, 'kanban:write') &&
+            hasPermission(permissions, 'kanban:own')
 
-    if (!user) {
-        throw new Error('Não autorizado')
-    }
-
-    return await KanbanService.getTasksByPipeline(pipelineId, user.id)
+        return await KanbanService.getTasksByPipeline(pipelineId, userId, ownOnly)
+    })
 }
 
 /**
