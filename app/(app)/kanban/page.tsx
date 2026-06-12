@@ -6,7 +6,7 @@ import { WorkspaceService } from "@/lib/services/workspace-service"
 import { KanbanService } from "@/lib/services/kanban-service"
 import { requirePermission } from "@/lib/auth/require-permission"
 import { hasPermission } from "@/lib/permissions"
-import { getVisibleMemberIds } from "@/lib/services/visibility-service"
+import { getVisibleMemberIds, getKanbanOwnFilterIds } from "@/lib/services/visibility-service"
 
 export const dynamic = 'force-dynamic'
 
@@ -60,8 +60,8 @@ export default async function KanbanPage({
             ? KanbanService.getTasksByPipeline(
                 activePipelineId,
                 user.id,
-                // When ownOnly: pass the full set of visible user IDs (own + grants)
-                ownOnly ? await getVisibleMemberIds(user.id, workspaceId) : undefined,
+                // ownOnly: own ID + explicit visibility grants only (no area scope)
+                ownOnly ? await getKanbanOwnFilterIds(user.id, workspaceId) : undefined,
               )
             : Promise.resolve([]),
 

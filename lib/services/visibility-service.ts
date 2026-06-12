@@ -65,6 +65,29 @@ export async function getVisibleMemberIds(
 }
 
 /**
+ * Returns the userId[] whose kanban cards a user with kanban:own is allowed to see.
+ * Rule: own userId + members with an explicit MemberVisibilityGrant.
+ *
+ * Deliberately does NOT use visibilityScope/area — those govern data-level access
+ * (clients, processes). Kanban:own uses only explicit grants configured per member.
+ */
+export async function getKanbanOwnFilterIds(
+    viewerUserId: string,
+    workspaceId: string,
+): Promise<string[]> {
+    const member = await db.workspaceMember.findUnique({
+        where: { workspaceId_userId: { workspaceId, userId: viewerUserId } },
+        select: {
+            visibilityGrantsGiven: {
+                select: { target: { select: { userId: true } } },
+            },
+        },
+    })
+    const grantedIds = member?.visibilityGrantsGiven.map(g => g.target.userId) ?? []
+    return [viewerUserId, ...grantedIds]
+}
+
+/**
  * Build a Prisma WHERE fragment that scopes a query to data visible to the viewer.
  * Works for Process and Client which have both workspaceId and userId fields.
  */

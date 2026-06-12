@@ -25,8 +25,8 @@ export async function fetchBoardAction(pipelineId: string) {
 
         let filterToUserIds: string[] | undefined
         if (ownOnly && workspaceId) {
-            const { getVisibleMemberIds } = await import('@/lib/services/visibility-service')
-            filterToUserIds = await getVisibleMemberIds(userId, workspaceId)
+            const { getKanbanOwnFilterIds } = await import('@/lib/services/visibility-service')
+            filterToUserIds = await getKanbanOwnFilterIds(userId, workspaceId)
         }
 
         return await KanbanService.getTasksByPipeline(pipelineId, userId, filterToUserIds)
