@@ -20,7 +20,6 @@ export async function fetchBoardAction(pipelineId: string) {
         const ownOnly =
             !hasPermission(permissions, 'admin') &&
             !hasPermission(permissions, 'kanban:read') &&
-            !hasPermission(permissions, 'kanban:write') &&
             hasPermission(permissions, 'kanban:own')
 
         let filterToUserIds: string[] | undefined

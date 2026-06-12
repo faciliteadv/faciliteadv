@@ -19,12 +19,12 @@ export default async function KanbanPage({
     const { user, permissions } = await requirePermission('kanban:read', 'kanban:own', 'kanban:write')
     const canWrite = hasPermission(permissions, 'kanban:write') || hasPermission(permissions, 'kanban:own')
 
-    // kanban:own (without kanban:read/write/admin) → restricted view:
-    // user sees own cards + cards from members with explicit visibility grants
+    // kanban:own restricts visibility to own cards + explicit grants.
+    // kanban:write is orthogonal — it controls create/move capability, not visibility.
+    // Only kanban:read or admin removes the restriction.
     const ownOnly =
         !hasPermission(permissions, 'admin') &&
         !hasPermission(permissions, 'kanban:read') &&
-        !hasPermission(permissions, 'kanban:write') &&
         hasPermission(permissions, 'kanban:own')
 
     await ensureUserExists()
