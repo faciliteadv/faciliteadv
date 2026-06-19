@@ -247,11 +247,12 @@ export async function updateTaskAction(taskId: string, rawData: unknown) {
     const data = UpdateTaskSchema.parse(rawData)
     const sanitizedData = {
         ...data,
-        fatalDate: data.fatalDate ? parseDateInputToDate(data.fatalDate) : null,
-        endDate: data.endDate ? parseDateInputToDate(data.endDate) : null,
-        publicationDate: data.publicationDate ? parseDateInputToDate(data.publicationDate) : null,
-        protocolDate: data.protocolDate ? parseDateInputToDate(data.protocolDate) : null,
-        completedAt: data.completedAt ? parseDateInputToDate(data.completedAt) : null,
+        // undefined = campo não enviado → Prisma ignora (não apaga); null = usuário limpou o campo → Prisma seta null
+        fatalDate: data.fatalDate !== undefined ? (data.fatalDate ? parseDateInputToDate(data.fatalDate) : null) : undefined,
+        endDate: data.endDate !== undefined ? (data.endDate ? parseDateInputToDate(data.endDate) : null) : undefined,
+        publicationDate: data.publicationDate !== undefined ? (data.publicationDate ? parseDateInputToDate(data.publicationDate) : null) : undefined,
+        protocolDate: data.protocolDate !== undefined ? (data.protocolDate ? parseDateInputToDate(data.protocolDate) : null) : undefined,
+        completedAt: data.completedAt !== undefined ? (data.completedAt ? parseDateInputToDate(data.completedAt) : null) : undefined,
     }
 
     try {
